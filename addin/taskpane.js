@@ -28,36 +28,67 @@ Office.onReady((info) => {
   $("tab-settings").onclick = toggleSettings;
   $("savekey").onclick = saveKey;
   $("saveroles").onclick = saveRoles;
+  $("toggle-trace").onclick = toggleTrace;
+  $("mandate-chip").onclick = () => {
+    $("mandate").open = true;
+    $("mandate-chip").classList.add("hidden");
+  };
+  document.querySelectorAll(".job").forEach((b) => {
+    b.onclick = () => fillModes(b.dataset.job);
+  });
 
   restoreMandate();
   ["party", "counterparty", "doctype", "stage", "context"].forEach((id) =>
-    $(id).addEventListener("change", saveMandate));
+    $(id).addEventListener("change", () => { saveMandate(); paintMandateChip(); }));
+  $("mandate").addEventListener("toggle", () => {
+    if (!$("mandate").open) paintMandateChip();
+  });
 
   bootstrap();
 });
 
 /* ------------------------------------------------------------------ setup */
 
+const JOBS = {
+  Review: ["A", "B", "F", "I", "J", "K", "L"],
+  Draft: ["C", "D", "E"],
+  Negotiate: ["G", "H", "M"],
+  QC: ["N"],
+};
+let MODE_NAMES = {};
+
+function fillModes(job) {
+  const keys = JOBS[job] || JOBS.Review;
+  const sel = $("mode");
+  const prev = sel.value;
+  sel.innerHTML = keys.map((k) =>
+    `<option value="${esc(k)}">${esc(k)} — ${esc(MODE_NAMES[k] || k)}</option>`
+  ).join("");
+  sel.value = keys.includes(prev) ? prev : keys[0];
+  document.querySelectorAll(".job").forEach((b) => {
+    b.classList.toggle("on", b.dataset.job === job);
+  });
+  try { localStorage.setItem("aa.job", job); } catch (e) {}
+}
+
 async function bootstrap() {
   try {
     const h = await (await fetch(`${API}/api/health`)).json();
-    const sel = $("mode");
-    sel.innerHTML = Object.entries(h.modes)
-      .map(([k, v]) => `<option value="${k}">${k} — ${esc(v)}</option>`)
-      .join("");
+    MODE_NAMES = h.modes || {};
+    let job = "Review";
+    try { job = localStorage.getItem("aa.job") || "Review"; } catch (e) {}
+    if (!JOBS[job]) job = "Review";
+    fillModes(job);
     if (!h.has_key) {
       banner("No OpenRouter API key yet. Open Settings to add one.", false);
       toggleSettings();
     }
     $("diag").innerHTML =
-      `Local agent: reachable.<br>Word comment API (WordApi 1.4): ` +
+      `Host: ${esc(API)}<br>Word comment API (WordApi 1.4): ` +
       (CAN_COMMENT ? "available." : "not available in this Word build — " +
         "tracked changes and copy still work.");
   } catch (e) {
-    banner(
-      "Can't reach the local agent at " + API + ". Start it with start.ps1, and if " +
-      "this is the first run, open " + API + "/taskpane.html in Edge once to accept " +
-      "the certificate.", true);
+    banner("Can't reach the review host at " + API + ".", true);
     $("diag").textContent = String(e);
   }
   loadModels();
@@ -86,6 +117,33 @@ function restoreMandate() {
     const d = JSON.parse(localStorage.getItem("aa.mandate") || "{}");
     MANDATE_KEYS.forEach((k) => { if (d[k]) $(k).value = d[k]; });
   } catch (e) {}
+  if (mandateFilled()) {
+    $("mandate").open = false;
+    paintMandateChip();
+  }
+}
+
+function mandateFilled() {
+  return MANDATE_KEYS.some((k) => ($(k).value || "").trim());
+}
+
+function paintMandateChip() {
+  const chip = $("mandate-chip");
+  const parts = ["party", "doctype", "stage"]
+    .map((k) => ($(k).value || "").trim())
+    .filter(Boolean);
+  if (!parts.length || $("mandate").open) {
+    chip.classList.add("hidden");
+    return;
+  }
+  chip.textContent = parts.join(" · ");
+  chip.classList.remove("hidden");
+}
+
+function collapseMandate() {
+  if (!mandateFilled()) return;
+  $("mandate").open = false;
+  paintMandateChip();
 }
 
 /* ------------------------------------------------------------------ models */
@@ -190,8 +248,15 @@ function resetOutput() {
   $("questions").innerHTML = "";
   $("summary").classList.add("hidden");
   $("trace").innerHTML = "";
-  $("trace").classList.remove("hidden");
+  $("trace").classList.add("hidden");
+  $("toggle-trace").classList.add("hidden");
+  $("toggle-trace").textContent = "Show working";
   $("status").classList.remove("hidden");
+}
+
+function toggleTrace() {
+  const hidden = $("trace").classList.toggle("hidden");
+  $("toggle-trace").textContent = hidden ? "Show working" : "Hide working";
 }
 
 function trace(line) {
@@ -212,15 +277,16 @@ async function runChecks() {
       body: JSON.stringify(payload(doc)),
     })).json();
     $("status").textContent =
-      `${d.paragraphs} paragraphs · ${d.clauses} provisions · ` +
-      `${d.definitions} defined terms · ${d.findings.length} mechanical findings`;
-    $("trace").classList.add("hidden");
+      `${d.findings.length} mechanical findings · ${d.clauses} provisions · ` +
+      `${d.definitions} defined terms`;
     d.findings.forEach((f, i) => addIssue({
       id: "m" + i, ref: f.ref, para: f.para, title: f.detail,
       classification: "drafting_defect", severity: f.severity,
       position: "clarify", consequence: f.excerpt || "",
+      evidence_tier: f.evidence_tier || 1,
       _mechanical: f.check,
     }));
+    collapseMandate();
     if (!d.findings.length) {
       $("issues").innerHTML = "<p class='done'>No mechanical defects found.</p>";
     }
@@ -237,6 +303,8 @@ async function runReview() {
 
   try {
     const doc = await readParagraphs();
+    collapseMandate();
+    $("toggle-trace").classList.remove("hidden");
     ABORT = new AbortController();
     const res = await fetch(`${API}/api/review`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -307,7 +375,7 @@ function handleEvent(ev) {
       $("issues").innerHTML = "";
       ISSUES.length = 0;
       (ev.issues || []).forEach(addIssue);
-      $("status").textContent += ` · ${ev.issues.length} issues recorded`;
+      $("status").textContent = statusLine(ev.issues || []);
       break;
   }
 }
@@ -330,33 +398,44 @@ const CLASS_LABEL = {
   factual_point: "factual point",
 };
 
+function statusLine(issues) {
+  const n = issues.length;
+  const proven = issues.filter((x) => x.evidence_tier === 1 || x._mechanical).length;
+  const advisory = issues.filter((x) => x.evidence_tier === 3).length;
+  const parts = [`${n} finding${n === 1 ? "" : "s"}`];
+  if (proven) parts.push(`${proven} proven`);
+  if (advisory) parts.push(`${advisory} advisory`);
+  return parts.join(" · ");
+}
+
 function addIssue(issue) {
   ISSUES.push(issue);
   const i = ISSUES.length - 1;
   const el = document.createElement("div");
-  el.className = "issue";
+  const tier = issue.evidence_tier || (issue._mechanical ? 1 : 2);
+  const engine = !!issue._mechanical;
+  el.className = `issue tier-${tier} sev-${esc(issue.severity || "low")}` +
+    (engine ? " engine" : "") + (tier === 3 ? " advisory" : "");
 
   const hasEdit = issue.old_text && issue.anchor_verified !== false
-    && issue.evidence_tier !== 3;
+    && tier !== 3;
   const anchorBad = issue.old_text && issue.anchor_verified === false;
-  const TIER_LABEL = { 1: "Proven", 2: "Anchored", 3: "Advisory" };
-  const tierLabel = TIER_LABEL[issue.evidence_tier] || "";
+  const stamp = issue.reviewer_verdict
+    ? `<span class="stamp ${esc(issue.reviewer_verdict)}">${esc(issue.reviewer_verdict)}</span>`
+    : (engine ? `<span class="stamp">engine</span>` : "");
+  const lede = issue.consequence || "";
 
   el.innerHTML = `
     <div class="head">
-      <span class="sev ${esc(issue.severity)}">${esc(issue.severity)}</span>
-      ${tierLabel ? `<span class="tag">${esc(tierLabel)}</span>` : ""}
-      ${issue.reviewer_verdict ? `<span class="tag">${esc(issue.reviewer_verdict)}</span>` : ""}
-      <span class="ref">${esc(issue.ref)}</span>
-      <span class="title">${esc(issue.title)}</span>
+      <div class="kicker">
+        <span class="ref">${esc(issue.ref)}</span>
+        <span class="sev ${esc(issue.severity)}">${esc(issue.severity)}</span>
+        ${stamp}
+      </div>
+      <div class="title">${esc(issue.title)}</div>
+      ${lede ? `<p class="lede">${esc(lede)}</p>` : ""}
     </div>
     <div class="body hidden">
-      <div class="tagline">
-        <span class="tag">${esc(CLASS_LABEL[issue.classification] || issue.classification)}</span>
-        <span class="tag">${esc((issue.position || "").replace(/_/g, " "))}</span>
-        <span class="tag">para ${esc(issue.para)}</span>
-      </div>
-      ${issue.consequence ? `<div class="field"><b>Consequence</b>${esc(issue.consequence)}</div>` : ""}
       ${issue.old_text ? `<div class="field"><b>Drafting</b>
         <div class="diffbox">
           <div class="del">${esc(issue.old_text)}</div>
@@ -369,12 +448,18 @@ function addIssue(issue) {
       ${issue.reviewer_note ? `<div class="field"><b>Reviewer</b>${esc(issue.reviewer_note)}</div>` : ""}
       ${anchorBad ? `<div class="warn">The quoted wording was not found verbatim, so this
         cannot be inserted automatically. ${esc(issue.anchor_note || "")}</div>` : ""}
+      <div class="tagline">
+        <span class="tag">${esc(CLASS_LABEL[issue.classification] || issue.classification || "")}</span>
+        <span class="tag">${esc((issue.position || "").replace(/_/g, " "))}</span>
+        <span class="tag">para ${esc(issue.para)}</span>
+        ${engine ? `<span class="tag">${esc(issue._mechanical)}</span>` : ""}
+      </div>
       <div class="row">
-        <button data-act="goto" data-i="${i}">Go to</button>
-        ${hasEdit ? `<button data-act="track" data-i="${i}" class="primary">Apply as tracked change</button>` : ""}
-        ${issue.comment && CAN_COMMENT ? `<button data-act="comment" data-i="${i}">Insert comment</button>` : ""}
-        ${issue.new_text ? `<button data-act="copy" data-i="${i}">Copy drafting</button>`
-                         : (issue.comment ? `<button data-act="copycomment" data-i="${i}">Copy comment</button>` : "")}
+        <button data-act="goto" data-i="${i}" type="button">Go to</button>
+        ${hasEdit ? `<button data-act="track" data-i="${i}" class="primary" type="button">Apply as tracked change</button>` : ""}
+        ${issue.comment && CAN_COMMENT ? `<button data-act="comment" data-i="${i}" type="button">Insert comment</button>` : ""}
+        ${issue.new_text ? `<button data-act="copy" data-i="${i}" type="button">Copy drafting</button>`
+                         : (issue.comment ? `<button data-act="copycomment" data-i="${i}" type="button">Copy comment</button>` : "")}
       </div>
       <div class="result"></div>
     </div>`;

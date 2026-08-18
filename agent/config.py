@@ -83,20 +83,24 @@ class Config:
         )
 
     def save_pins(self, pinned: dict[str, str]) -> None:
+        self.pinned = {k: v for k, v in pinned.items() if v}
+        if os.environ.get("HOSTED") == "1":
+            return
         raw = {}
         if CONFIG_PATH.exists():
             raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
-        raw["pinned"] = {k: v for k, v in pinned.items() if v}
+        raw["pinned"] = self.pinned
         CONFIG_PATH.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-        self.pinned = raw["pinned"]
 
     def save_key(self, key: str) -> None:
+        self.api_key = key
+        if os.environ.get("HOSTED") == "1":
+            return
         raw = {}
         if CONFIG_PATH.exists():
             raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
         raw["openrouter_api_key"] = key
         CONFIG_PATH.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
-        self.api_key = key
 
 
 def load_skill() -> str:

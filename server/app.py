@@ -124,15 +124,23 @@ app.mount("/", StaticFiles(directory=ROOT / "addin", html=True), name="addin")
 
 
 def main():
+    import os
     import uvicorn
 
-    from server.certs import ensure_cert
-
-    cert, key = ensure_cert()
-    print(f"\n  Agreement Agent running at https://localhost:{cfg.port}")
+    host = os.environ.get("BIND_HOST", "127.0.0.1")
+    use_tls = os.environ.get("TLS", "1") != "0"
+    kwargs = {"host": host, "port": cfg.port, "log_level": "warning"}
+    if use_tls:
+        from server.certs import ensure_cert
+        cert, key = ensure_cert()
+        kwargs["ssl_certfile"] = str(cert)
+        kwargs["ssl_keyfile"] = str(key)
+        scheme = "https"
+    else:
+        scheme = "http"
+    print(f"\n  Agreement Agent running at {scheme}://{host}:{cfg.port}")
     print(f"  API key configured: {'yes' if cfg.api_key else 'NO — set it in the task pane'}\n")
-    uvicorn.run(app, host="127.0.0.1", port=cfg.port,
-                ssl_certfile=str(cert), ssl_keyfile=str(key), log_level="warning")
+    uvicorn.run(app, **kwargs)
 
 
 if __name__ == "__main__":

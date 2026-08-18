@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+certs
+config.yaml
+eval
+tests
+v2 data
+*.md
+_eval_mode_*.jsonl
+.DS_Store
+Thumbs.db

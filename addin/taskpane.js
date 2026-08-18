@@ -5,7 +5,7 @@
  * it is visible and reversible.
  */
 
-const API = "https://localhost:8787";
+const API = window.location.origin;
 let ISSUES = [];
 let ABORT = null;
 let CAN_COMMENT = false;

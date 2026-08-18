@@ -1,0 +1,33 @@
+# Personal preview on the Hostinger VPS (Traefik + Let's Encrypt).
+# Image is built by GitHub Actions on push to main and pulled here.
+
+services:
+  app:
+    image: ghcr.io/daaktor0/agmtagent:latest
+    restart: unless-stopped
+    ports:
+      - "8787"
+    environment:
+      - BIND_HOST=0.0.0.0
+      - TLS=0
+      - HOSTED=1
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - TZ=${TZ:-Asia/Kolkata}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${COMPOSE_PROJECT_NAME}.${TRAEFIK_HOST}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=letsencrypt
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=8787
+      - com.centurylinklabs.watchtower.enable=true
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 120 --cleanup --label-enable
+    environment:
+      - TZ=${TZ:-Asia/Kolkata}
+    labels:
+      - com.centurylinklabs.watchtower.enable=false

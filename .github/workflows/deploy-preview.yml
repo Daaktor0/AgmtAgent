@@ -39,7 +39,7 @@ jobs:
         run: |
           gh api --method PUT \
             -H "Accept: application/vnd.github+json" \
-            "/user/packages/container/agmtagent/visibility" \
+            "/users/Daaktor0/packages/container/agmtagent/visibility" \
             -f visibility=public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,48 @@
+- id: SYNTH-orphan-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: orphan_schedule
+  description: Schedule 4 is present but never cited
+
+- id: SYNTH-empty-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: empty_schedule
+  description: Schedule 4 has almost no body
+
+- id: SYNTH-chapeau-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: missing_chapeau
+  description: clause 9 has sub-clauses but no operative chapeau
+
+- id: SYNTH-forward-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: forward_defined_term
+  description: Escrow is used before it is defined
+
+- id: SYNTH-circular-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: circular_definition
+  description: Alpha and Beta Amount refer to each other
+
+- id: SYNTH-drift-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: party_name_drift
+  description: Helios Ventures Ltd drifts from Helios Ventures Private Limited
+
+- id: SYNTH-pct-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: percentage_sum
+  description: shareholding lines 40/35/15 do not sum to 100

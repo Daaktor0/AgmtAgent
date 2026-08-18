@@ -12,7 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agent.config import Config  # noqa: E402
 from agent.document import Document, words_to_number  # noqa: E402
+from agent.eval.checks import run_checks  # noqa: E402
 from agent.supervisor import Supervisor  # noqa: E402
+from agent.tools import Toolbox  # noqa: E402
 
 SAMPLE = (Path(__file__).parent / "sample_sha.txt").read_text(encoding="utf-8").split("\n")
 
@@ -107,7 +109,11 @@ class StubRouter:
                 "title": "Standalone indemnity trigger for an EOD duplicates limb (a)",
                 "classification": "commercial_risk", "severity": "high",
                 "position": "delete",
-                "consequence": "Expands monetary liability without adding protection.",
+                "consequence": (
+                    "This limb expands monetary liability for an Event of Default "
+                    "that Clause 5.2 already caps, without adding any protection "
+                    "the Investor does not already have."
+                ),
                 "old_text": "; and (c) the occurrence of an Event of Default",
                 "new_text": "",
                 "comment": "Clause [X] separately addresses the consequences of an Event "
@@ -154,18 +160,117 @@ def test_supervisor():
 
     check("emits parsed event", "parsed" in kinds)
     check("emits tool events", kinds.count("tool") >= 6, f"({kinds.count('tool')})")
-    check("emits issue events", kinds.count("issue") == 2)
+    check("emits issue events", kinds.count("issue") == 1)
     check("emits question event", "question" in kinds)
     check("terminates on finish", kinds[-1] == "done")
 
     done = events[-1]
-    good, bad = done["issues"]
+    check("records only the anchored issue", len(done["issues"]) == 1)
+    good = done["issues"][0]
     check("verifies a real quotation", good["anchor_verified"] is True)
-    check("rejects an invented quotation", bad["anchor_verified"] is False)
+    check("stamps anchored evidence tier", good.get("evidence_tier") == 2)
+    check("drops invented quotation",
+          all("definitely not present" not in (i.get("old_text") or "")
+              for i in done["issues"]))
     check("re-anchors to the right paragraph",
           "Event of Default" in SAMPLE[good["para"]])
     check("carries the summary", done["summary"] == "Two points matter.")
     check("includes mechanical findings", len(done["mechanical"]) > 5)
+
+
+def test_new_mechanical_checks():
+    print("\nnew mechanical checks")
+    root = Path(__file__).resolve().parent.parent
+    ingested = json.loads(
+        (root / "eval" / "corpus" / "synth_v2" / "ingested.json")
+        .read_text(encoding="utf-8")
+    )
+    found = {i.check for i in Document(ingested["paragraphs"]).mechanical_checks()}
+    for check_id in (
+        "orphan_schedule", "empty_schedule", "missing_chapeau",
+        "forward_defined_term", "circular_definition", "party_name_drift",
+        "percentage_sum",
+    ):
+        check(f"synth fires {check_id}", check_id in found)
+
+    heading = Document([
+        "1. CONDITIONS PRECEDENT",
+        "1.1 The Investor's obligation is conditional on the closing certificate.",
+        "1.2 The Company shall use reasonable efforts to satisfy that condition.",
+        "2. BUSINESS",
+        "2.1 The Company shall carry on the business set out in Schedule 1.",
+        "SCHEDULE 1",
+        "The Company shall deliver share certificates, the statutory registers, "
+        "board resolutions authorising allotment, and the other completion items "
+        "the Investor reasonably requires.",
+    ])
+    heading_found = {i.check for i in heading.mechanical_checks()}
+    check("title-case heading is not a missing chapeau",
+          "missing_chapeau" not in heading_found)
+    check("cited schedule with body is not orphan or empty",
+          "orphan_schedule" not in heading_found
+          and "empty_schedule" not in heading_found)
+    check("clean fixture has no circular, forward, drift or percentage findings",
+          not heading_found & {
+              "circular_definition", "forward_defined_term",
+              "party_name_drift", "percentage_sum",
+          })
+
+
+def test_record_issue_enforcement():
+    print("\nrecord_issue enforcement")
+    doc = Document(SAMPLE)
+    box = Toolbox(doc, object(), {})
+    invented = box.record_issue(
+        ref="6.1", para=27, title="Invented", classification="drafting_defect",
+        severity="low", position="revise", consequence="n/a",
+        old_text="this exact string is definitely not present anywhere",
+        new_text="x",
+    )
+    check("rejects invented old_text", invented.get("rejected") is True
+          and invented.get("reason") == "anchor")
+    check("does not record invented old_text", box.issues == [])
+
+    missing = box.record_issue(
+        ref="6.1", para=27, title="No quote", classification="drafting_defect",
+        severity="low", position="revise", consequence="n/a",
+        old_text="", new_text="x",
+    )
+    check("rejects revise without old_text", missing.get("reason") == "missing_old_text")
+    check("does not record revise without old_text", box.issues == [])
+
+    thin = box.record_issue(
+        ref="5.1", para=_para_of("Event of Default"), title="Thin",
+        classification="commercial_risk", severity="high", position="delete",
+        consequence="Too short to state the harm.",
+        old_text="; and (c) the occurrence of an Event of Default",
+    )
+    check("rejects thin high-severity consequence",
+          thin.get("reason") == "thin_consequence")
+    check("does not record thin consequence", box.issues == [])
+
+    good = box.record_issue(
+        ref="5.1", para=_para_of("Event of Default"),
+        title="Standalone indemnity trigger",
+        classification="commercial_risk", severity="high", position="delete",
+        consequence=(
+            "This limb expands monetary liability for an Event of Default "
+            "that Clause 5.2 already caps, without adding any protection "
+            "the Investor does not already have."
+        ),
+        old_text="; and (c) the occurrence of an Event of Default",
+    )
+    check("records a verbatim anchored issue", good.get("recorded") == 1)
+    check("stamps evidence tier 2 on anchored issue",
+          box.issues and box.issues[0].get("evidence_tier") == 2
+          and box.issues[0].get("anchor_verified") is True)
+
+
+def test_eval_checks():
+    print("\neval checks")
+    root = Path(__file__).resolve().parent.parent
+    code = run_checks(root / "eval" / "corpus")
+    check("eval corpus passes", code == 0)
 
 
 def test_prompt():
@@ -181,7 +286,10 @@ def test_prompt():
 if __name__ == "__main__":
     test_document()
     test_word_list_prefixes()
+    test_new_mechanical_checks()
+    test_record_issue_enforcement()
     test_supervisor()
+    test_eval_checks()
     test_prompt()
     print(f"\n{'ALL PASSED' if not FAILS else str(len(FAILS)) + ' FAILED: ' + ', '.join(FAILS)}\n")
     sys.exit(1 if FAILS else 0)

@@ -1,0 +1,34 @@
+- id: SAMPLE-amount-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: amount_mismatch
+  description: figure/words clash on Subscription Amount
+
+- id: SAMPLE-xref-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: broken_cross_reference
+  description: reference to a clause that does not exist
+
+- id: SAMPLE-placeholder-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: unfilled_placeholder
+  description: unfilled placeholder in conditions precedent
+
+- id: SAMPLE-numbering-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: numbering_gap
+  description: clause 3.2 is missing
+
+- id: SAMPLE-unused-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: defined_but_unused
+  description: defined term never used operatively

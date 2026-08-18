@@ -1,0 +1,126 @@
+# Copy this file per deal. Keep the two lists. Duplicate an item to add more.
+# 5–15 must-finds. 3–5 traps. Quality beats volume.
+#
+# type:
+#   defect              — something that should be surfaced
+#   negotiation_point   — real, but a commercial call rather than a defect
+#   trap                — looks wrong, is intended; flagging it is a miss on precision
+#
+# check: optional. Only set this when the finding is a mechanical engine hit.
+#   amount_mismatch | broken_cross_reference | unfilled_placeholder | numbering_gap
+#   duplicate_numbering | duplicate_definition | defined_but_unused | defined_term_case_drift
+#   possibly_undefined_term | orphan_schedule | empty_schedule | missing_chapeau
+#   forward_defined_term | circular_definition | party_name_drift | percentage_sum
+# Leave check empty for judgement calls (cap, indemnity, reserved matters, etc.).
+#
+# ref: clause / schedule number if you have it ("5.2", "Schedule 3").
+# quote: 6–12 words copied from the document if the ref is unreliable.
+# accept_if: words that would make a model-issued title count as a hit.
+
+# ---------------------------------------------------------------------------
+# Must-finds
+# ---------------------------------------------------------------------------
+
+- id: DEAL-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: ""
+  ref: ""
+  quote: ""
+  expected_severity: high          # high | medium | low
+  expected_classification: ""      # legal_defect | drafting_defect | commercial_risk | negotiation_preference | factual_point
+  description: ""
+  why_it_matters: ""               # what actually goes wrong for the party you represent
+  accept_if:
+    - ""
+
+- id: DEAL-02
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: ""
+  ref: ""
+  quote: ""
+  expected_severity: high
+  expected_classification: ""
+  description: ""
+  why_it_matters: ""
+  accept_if:
+    - ""
+
+- id: DEAL-03
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: ""
+  ref: ""
+  quote: ""
+  expected_severity: medium
+  expected_classification: ""
+  description: ""
+  why_it_matters: ""
+  accept_if:
+    - ""
+
+- id: DEAL-04
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: ""
+  ref: ""
+  quote: ""
+  expected_severity: medium
+  expected_classification: ""
+  description: ""
+  why_it_matters: ""
+  accept_if:
+    - ""
+
+- id: DEAL-05
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: ""
+  ref: ""
+  quote: ""
+  expected_severity: high
+  expected_classification: ""
+  description: ""
+  why_it_matters: ""
+  accept_if:
+    - ""
+
+# ---------------------------------------------------------------------------
+# Traps — look wrong, are intended. Do not flag.
+# ---------------------------------------------------------------------------
+
+- id: DEAL-trap-01
+  type: trap
+  must_find: false
+  must_not_flag: true
+  check: ""
+  ref: ""
+  quote: ""
+  description: ""
+  why_it_is_intended: ""
+
+- id: DEAL-trap-02
+  type: trap
+  must_find: false
+  must_not_flag: true
+  check: ""
+  ref: ""
+  quote: ""
+  description: ""
+  why_it_is_intended: ""
+
+- id: DEAL-trap-03
+  type: trap
+  must_find: false
+  must_not_flag: true
+  check: ""
+  ref: ""
+  quote: ""
+  description: ""
+  why_it_is_intended: ""

@@ -271,7 +271,8 @@ class Toolbox:
     def run_mechanical_checks(self) -> Any:
         return {"findings": [
             {"check": i.check, "severity": i.severity, "para": i.para,
-             "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt}
+             "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt,
+             "certainty": i.certainty, "evidence_tier": i.evidence_tier}
             for i in self.doc.mechanical_checks()
         ]}
 
@@ -304,30 +305,44 @@ class Toolbox:
         kw.setdefault("new_text", "")
         kw.setdefault("comment", "")
         kw.setdefault("consequential", [])
-        kw["id"] = len(self.issues) + 1
-        # Verify the quoted old_text really exists — the model must not invent wording.
-        if kw["old_text"]:
+        old = kw.get("old_text") or ""
+        kw["old_text"] = old
+
+        found = False
+        if old:
             para = kw.get("para", -1)
-            found = 0 <= para < len(self.doc.paras) and kw["old_text"] in self.doc.paras[para]
+            found = 0 <= para < len(self.doc.paras) and old in self.doc.paras[para]
             if not found:
-                found = any(kw["old_text"] in p for p in self.doc.paras)
+                found = any(old in p for p in self.doc.paras)
                 if found:
                     kw["para"] = next(i for i, p in enumerate(self.doc.paras)
-                                      if kw["old_text"] in p)
-            kw["anchor_verified"] = found
-            if len(kw["old_text"]) > 200:
-                kw["anchor_verified"] = False
-                kw["anchor_note"] = "old_text over 200 characters; Word cannot search for it."
-            elif not found:
-                kw["anchor_note"] = "old_text does not appear verbatim in the document."
+                                      if old in p)
+
+        if old and (len(old) > 200 or not found):
+            if len(old) > 200:
+                error = "Too long for Word to locate. Narrow the change."
+            else:
+                error = ("old_text not found. Re-read the paragraph and "
+                         "copy the wording exactly.")
+            return {"rejected": True, "reason": "anchor", "error": error}
+
+        if kw.get("position") in {"revise", "delete"} and not old.strip():
+            return {"rejected": True, "reason": "missing_old_text",
+                    "error": "A revise/delete position requires the exact words being changed."}
+
+        consequence = kw.get("consequence") or ""
+        if kw.get("severity") == "high" and len(consequence.strip()) < 120:
+            return {"rejected": True, "reason": "thin_consequence",
+                    "error": "State what actually goes wrong, not a paraphrase of the clause."}
+
+        if old:
+            kw["anchor_verified"] = True
+            kw["evidence_tier"] = 2
         else:
             kw["anchor_verified"] = None
+            kw["evidence_tier"] = 3
+        kw["id"] = len(self.issues) + 1
         self.issues.append(kw)
-        if kw.get("anchor_verified") is False:
-            return {"recorded": kw["id"],
-                    "warning": kw.get("anchor_note", "") +
-                               " Re-read the paragraph and record it again with wording "
-                               "copied exactly, or drop old_text and give a comment instead."}
         return {"recorded": kw["id"]}
 
     def ask_user(self, question: str, why: str = "") -> Any:

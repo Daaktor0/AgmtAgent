@@ -328,12 +328,16 @@ function addIssue(issue) {
   const el = document.createElement("div");
   el.className = "issue";
 
-  const hasEdit = issue.old_text && issue.anchor_verified !== false;
+  const hasEdit = issue.old_text && issue.anchor_verified !== false
+    && issue.evidence_tier !== 3;
   const anchorBad = issue.old_text && issue.anchor_verified === false;
+  const TIER_LABEL = { 1: "Proven", 2: "Anchored", 3: "Advisory" };
+  const tierLabel = TIER_LABEL[issue.evidence_tier] || "";
 
   el.innerHTML = `
     <div class="head">
       <span class="sev ${esc(issue.severity)}">${esc(issue.severity)}</span>
+      ${tierLabel ? `<span class="tag">${esc(tierLabel)}</span>` : ""}
       <span class="ref">${esc(issue.ref)}</span>
       <span class="title">${esc(issue.title)}</span>
     </div>

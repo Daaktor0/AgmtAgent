@@ -206,8 +206,13 @@ class Supervisor:
                 result = box.call(name, args)
                 messages.append({"role": "tool", "tool_call_id": call["id"],
                                  "content": result})
-                if name == "record_issue" and box.issues:
-                    yield {"event": "issue", "issue": box.issues[-1]}
+                if name == "record_issue":
+                    try:
+                        recorded = json.loads(result).get("recorded")
+                    except json.JSONDecodeError:
+                        recorded = None
+                    if recorded and box.issues:
+                        yield {"event": "issue", "issue": box.issues[-1]}
                 if name == "ask_user" and box.questions:
                     yield {"event": "question", "question": box.questions[-1]}
 
@@ -221,7 +226,8 @@ class Supervisor:
             "questions": box.questions,
             "mechanical": [
                 {"check": i.check, "severity": i.severity, "para": i.para,
-                 "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt}
+                 "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt,
+                 "certainty": i.certainty, "evidence_tier": i.evidence_tier}
                 for i in doc.mechanical_checks()
             ],
         }

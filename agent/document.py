@@ -15,7 +15,7 @@ from typing import Iterable
 # Patterns
 # --------------------------------------------------------------------------
 
-RE_DECIMAL = re.compile(r"^\s*(\d+(?:\.\d+){0,5})\.?\s+(?=\S)")
+RE_DECIMAL = re.compile(r"^\s*(\d+(?:\.\d+){0,5})\.?(?:\s+(?=\S)|\s*$)")
 RE_HEADING = re.compile(
     r"^\s*(ARTICLE|CLAUSE|SECTION|SCHEDULE|ANNEXURE|ANNEX|EXHIBIT|APPENDIX|PART)\s+"
     r"([0-9]+(?:\.[0-9]+)*|[IVXLCDM]+|[A-Z])\b[\s:.\-]*(.*)$",
@@ -117,6 +117,8 @@ class Issue:
     ref: str
     detail: str
     excerpt: str = ""
+    certainty: str = "exact"
+    evidence_tier: int = 1
 
 
 class Document:
@@ -249,6 +251,13 @@ class Document:
         out += self._check_numbering()
         out += self._check_amounts()
         out += self._check_case_drift()
+        out += self._check_orphan_schedules()
+        out += self._check_empty_schedules()
+        out += self._check_missing_chapeau()
+        out += self._check_forward_defs()
+        out += self._check_circular_defs()
+        out += self._check_party_name_drift()
+        out += self._check_percentage_sum()
         order = {"high": 0, "medium": 1, "low": 2}
         out.sort(key=lambda x: (order[x.severity], x.para))
         return out
@@ -372,6 +381,7 @@ class Document:
                 detail=f'"{term}" is used {len(paras)} times in capitalised form '
                        f"but no definition was found. Confirm whether it is intended "
                        f"as a defined term.",
+                certainty="heuristic",
             ))
         out.sort(key=lambda i: i.para)
         return out[:25]
@@ -469,7 +479,201 @@ class Document:
                 ))
         return out
 
+    def _check_orphan_schedules(self) -> list[Issue]:
+        out = []
+        schedule_kinds = {"schedule", "annexure", "annex", "exhibit", "appendix"}
+        for c in self.clauses:
+            if c.kind != "schedule" or not c.number:
+                continue
+            token = c.number.lower().split()[-1]
+            aliases = {c.number.lower(), f"schedule {token}", token}
+            seen = set()
+            for para, kind, target in self.xrefs:
+                if para == c.start or kind not in schedule_kinds:
+                    continue
+                t = target.lower()
+                seen.update({t, f"{kind} {t}", f"schedule {t}"})
+            if not (aliases & seen):
+                out.append(Issue(
+                    check="orphan_schedule", severity="medium", para=c.start,
+                    ref=c.ref,
+                    detail=f"{c.ref} is present but is not cited as a schedule target.",
+                    excerpt=self._excerpt(c.start, c.number),
+                ))
+        return out
+
+    def _check_empty_schedules(self) -> list[Issue]:
+        out = []
+        for c in self.clauses:
+            if c.kind != "schedule":
+                continue
+            body = self.paras[c.start + 1:c.end + 1] if c.end > c.start else []
+            words = re.findall(r"\S+", " ".join(body))
+            if len(words) < 15:
+                out.append(Issue(
+                    check="empty_schedule", severity="medium", para=c.start,
+                    ref=c.ref,
+                    detail=f"{c.ref} has fewer than 15 body words under the heading.",
+                    excerpt=" ".join(body)[:140],
+                ))
+        return out
+
+    def _check_missing_chapeau(self) -> list[Issue]:
+        out = []
+        clauses = [
+            c for c in self.clauses
+            if c.kind == "clause" and re.fullmatch(r"\d+(?:\.\d+)*", c.number)
+        ]
+        for c in clauses:
+            children = [
+                k for k in clauses
+                if k.number.startswith(c.number + ".") and k.depth == c.depth + 1
+            ]
+            if len(children) < 2:
+                continue
+            text = self._structure_paras[c.start]
+            m = RE_DECIMAL.match(text)
+            lead = text[m.end():].strip() if m else c.heading.strip()
+            # A heading ("SUBSCRIPTION", "CONDITIONS PRECEDENT") is house style.
+            # Only a bare number with children and no lead-in is a missing chapeau.
+            if lead:
+                continue
+            out.append(Issue(
+                check="missing_chapeau", severity="low", para=c.start,
+                ref=c.ref,
+                detail=f"{c.ref} has sub-clauses but no operative chapeau.",
+                excerpt=self._excerpt(c.start, c.number),
+            ))
+        return out
+
+    def _check_forward_defs(self) -> list[Issue]:
+        out = []
+        for term, d in self.definitions.items():
+            earlier = [p for p in d.usages if p < d.para]
+            if earlier:
+                c = self.clause_at(earlier[0])
+                out.append(Issue(
+                    check="forward_defined_term", severity="medium", para=earlier[0],
+                    ref=c.ref if c else f"p{earlier[0]}",
+                    detail=f'"{term}" is used before it is defined at paragraph {d.para}.',
+                    excerpt=self._excerpt(earlier[0], term),
+                ))
+        return out
+
+    def _check_circular_defs(self) -> list[Issue]:
+        out = []
+        terms = sorted(self.definitions)
+        seen: set[tuple[str, str]] = set()
+        for a in terms:
+            for b in terms:
+                if a >= b:
+                    continue
+                da = self.definitions[a]
+                db = self.definitions[b]
+                a_meaning = self._definition_meaning(da.text)
+                b_meaning = self._definition_meaning(db.text)
+                if not a_meaning or not b_meaning:
+                    continue
+                if not re.search(r"\b" + re.escape(b) + r"\b", a_meaning):
+                    continue
+                if not re.search(r"\b" + re.escape(a) + r"\b", b_meaning):
+                    continue
+                key = (a, b)
+                if key in seen:
+                    continue
+                seen.add(key)
+                c = self.clause_at(da.para)
+                out.append(Issue(
+                    check="circular_definition", severity="high", para=da.para,
+                    ref=c.ref if c else f"p{da.para}",
+                    detail=f'"{a}" and "{b}" refer to each other in their definitions.',
+                    excerpt=da.text[:140],
+                ))
+        return out
+
+    def _check_party_name_drift(self) -> list[Issue]:
+        out = []
+        party_terms = {
+            "Company", "Investor", "Promoters", "Promoter", "Purchaser", "Vendor",
+            "Buyer", "Seller",
+        }
+        suffix_rx = r"Private Limited|Limited|LLP|Inc\.|LLC"
+        for term, d in self.definitions.items():
+            party_like = term in party_terms or re.search(suffix_rx, d.text)
+            if not party_like:
+                continue
+            canonical = self._legal_name_for_definition(term, d.text)
+            if not canonical:
+                continue
+            first = self._first_significant_token(canonical)
+            canonical_core = self._legal_name_core(canonical)
+            for i, text in enumerate(self.paras):
+                if i == d.para:
+                    continue
+                for candidate in self._legal_name_candidates(text):
+                    if canonical in candidate or candidate in canonical:
+                        continue
+                    if self._first_significant_token(candidate) != first:
+                        continue
+                    if (self._legal_name_core(candidate) == canonical_core
+                            and candidate != canonical):
+                        c = self.clause_at(i)
+                        out.append(Issue(
+                            check="party_name_drift", severity="medium", para=i,
+                            ref=c.ref if c else f"p{i}",
+                            detail=f'Possible party-name drift: "{candidate}" appears after '
+                                   f'"{canonical}" was defined as "{term}".',
+                            excerpt=self._excerpt(i, candidate),
+                        ))
+                        return out
+        return out
+
+    def _check_percentage_sum(self) -> list[Issue]:
+        out = []
+        cue = re.compile(
+            r"\b(shareholding|share capital|allocated|entitlement|held by|percent of the)\b",
+            re.IGNORECASE,
+        )
+        pct = re.compile(r"\b(\d+(?:\.\d+)?)\s*%")
+        used: set[int] = set()
+        for start in range(len(self.paras)):
+            if start in used:
+                continue
+            if not (cue.search(self.paras[start]) or pct.search(self.paras[start])):
+                continue
+            for end in range(start, min(len(self.paras), start + 8)):
+                if end in used:
+                    break
+                cluster = self.paras[start:end + 1]
+                if len(cluster) > 1 and any(len(p) >= 160 for p in cluster):
+                    break
+                text = " ".join(cluster)
+                values = {float(m.group(1)) for m in pct.finditer(text)}
+                if len(values) < 3 or not cue.search(text):
+                    continue
+                total = sum(values)
+                if total > 0 and abs(total - 100) > 0.05:
+                    c = self.clause_at(start)
+                    out.append(Issue(
+                        check="percentage_sum", severity="high", para=start,
+                        ref=c.ref if c else f"p{start}",
+                        detail=f"Percentages in this allocation cluster sum to {total:g}%, not 100%.",
+                        excerpt=text[:140],
+                    ))
+                    used.update(range(start, end + 1))
+                    break
+        return out
+
     # ---------------- helpers ----------------
+
+    def _definition_meaning(self, text: str) -> str:
+        """The operative meaning after 'means' / 'shall mean'. Empty if none."""
+        m = re.search(
+            r"\b(means|shall mean|shall have the meaning|has the meaning)\b",
+            text,
+            re.IGNORECASE,
+        )
+        return text[m.end():] if m else ""
 
     def _excerpt(self, para: int, needle: str, width: int = 140) -> str:
         text = self.paras[para]
@@ -478,6 +682,55 @@ class Document:
             return text[:width]
         a = max(0, pos - width // 2)
         return ("…" if a else "") + text[a:a + width] + ("…" if a + width < len(text) else "")
+
+    def _legal_name_for_definition(self, term: str, text: str) -> str:
+        q = r"[\"'“”‘’]"
+        before_term = re.search(
+            r"([A-Z][A-Za-z0-9&.,' \-]{1,140}?)\s*\(\s*(?:the\s+)?"
+            + q + re.escape(term) + q,
+            text,
+        )
+        if before_term:
+            name = self._trim_to_legal_name(before_term.group(1))
+            if name:
+                return name
+        names = self._legal_name_candidates(text)
+        return max(names, key=len) if names else ""
+
+    def _legal_name_candidates(self, text: str) -> list[str]:
+        suffix = r"(?:Private\s+Limited|Limited|Ltd\.?|LLP|Inc\.|LLC)"
+        rx = re.compile(
+            r"\b[A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,8}\s+"
+            + suffix + r"\b"
+        )
+        return [self._trim_to_legal_name(m.group(0)) for m in rx.finditer(text)]
+
+    def _trim_to_legal_name(self, text: str) -> str:
+        words = re.findall(r"[A-Z][A-Za-z0-9&.'-]*", text)
+        if len(words) < 2:
+            return ""
+        suffixes = {"Limited", "Ltd", "LLP", "Inc", "LLC"}
+        for i, word in enumerate(words):
+            clean = word.rstrip(".")
+            if clean in suffixes:
+                start = max(0, i - 5)
+                if i > 0 and words[i - 1] == "Private":
+                    start = max(0, i - 6)
+                return " ".join(words[start:i + 1])
+        return " ".join(words) if len(words) >= 2 else ""
+
+    def _first_significant_token(self, name: str) -> str:
+        for token in re.findall(r"[A-Za-z0-9]+", name):
+            if token.lower() not in {"the", "a", "an"}:
+                return token.lower()
+        return ""
+
+    def _legal_name_core(self, name: str) -> str:
+        tokens = [
+            t.lower() for t in re.findall(r"[A-Za-z0-9]+", name)
+            if t.lower() not in {"private", "limited", "ltd", "llp", "inc", "llc"}
+        ]
+        return " ".join(tokens)
 
     def outline(self, max_items: int = 400) -> list[dict]:
         out = []

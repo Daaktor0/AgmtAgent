@@ -64,7 +64,7 @@ Agreement Agent running at https://localhost:8787
 ## 5. Insert the add-in
 
 In Word: **Home → Add-ins → Advanced** (older builds: **More Add-ins**) →
-**SHARED FOLDER** tab → **Agreement Agent** → **Add**.
+**SHARED FOLDER** tab → **Agmt Agent** → **Add**.
 
 The pane opens on the right. Word remembers it, so next time it is just a button
 on the Home tab.

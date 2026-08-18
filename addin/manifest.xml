@@ -7,10 +7,10 @@
   xsi:type="TaskPaneApp">
 
   <Id>528a23ed-8e75-418e-9e0e-b6cb5e827f41</Id>
-  <Version>1.1.0.0</Version>
-  <ProviderName>Agreement Agent</ProviderName>
+  <Version>1.1.2.0</Version>
+  <ProviderName>Agmt Agent</ProviderName>
   <DefaultLocale>en-GB</DefaultLocale>
-  <DisplayName DefaultValue="Agreement Agent"/>
+  <DisplayName DefaultValue="Agmt Agent"/>
   <Description DefaultValue="Senior transactions drafting partner: review, surgical markup, bubble comments and pre-signing QC, running on your own models."/>
   <IconUrl DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-80.png"/>
@@ -82,9 +82,9 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="Group.Label" DefaultValue="Agreement Agent"/>
+        <bt:String id="Group.Label" DefaultValue="Agmt Agent"/>
         <bt:String id="Button.Label" DefaultValue="Review"/>
-        <bt:String id="GetStarted.Title" DefaultValue="Agreement Agent is ready."/>
+        <bt:String id="GetStarted.Title" DefaultValue="Agmt Agent is ready."/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="Button.Tooltip" DefaultValue="Open the review pane. Reviews run on your VPS."/>

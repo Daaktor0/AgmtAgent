@@ -12,7 +12,7 @@
 #   possibly_undefined_term | orphan_schedule | empty_schedule | missing_chapeau
 #   forward_defined_term | circular_definition | party_name_drift | percentage_sum
 #   date_logic_conflict | currency_inconsistency | threshold_conflict
-#   signature_block_mismatch
+#   signature_block_mismatch | capacity_inconsistency | scope_mismatch
 # Leave check empty for judgement calls (cap, indemnity, reserved matters, etc.).
 #
 # ref: clause / schedule number if you have it ("5.2", "Schedule 3").

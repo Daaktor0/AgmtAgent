@@ -98,6 +98,13 @@ class StubRouter:
         return f"stub/{role}"
 
     def chat(self, role, messages, tools=None, model=None, **kw):
+        if role == "reviewer":
+            return {"choices": [{"message": {
+                "role": "assistant",
+                "content": json.dumps({
+                    "verdicts": [{"id": 1, "verdict": "confirm", "note": "real defect"}],
+                }),
+            }}], "_model": "stub/reviewer"}
         self.step += 1
         script = [
             ("get_outline", {}),
@@ -161,7 +168,12 @@ def test_supervisor():
     check("emits parsed event", "parsed" in kinds)
     check("emits tool events", kinds.count("tool") >= 6, f"({kinds.count('tool')})")
     check("emits issue events", kinds.count("issue") == 1)
+    check("emits reviewer event", "reviewer" in kinds)
     check("emits question event", "question" in kinds)
+    done = next(e for e in events if e["event"] == "done")
+    check("done issues survive a confirm verdict",
+          len(done["issues"]) == 1
+          and done["issues"][0].get("reviewer_verdict") == "confirm")
     check("terminates on finish", kinds[-1] == "done")
 
     done = events[-1]
@@ -269,6 +281,27 @@ def test_date_currency_threshold_signature():
     check("no signature block is not a mismatch",
           "signature_block_mismatch" not in later_found)
 
+    caps = Document([
+        "1. The Company as warrantor shall give the Business Warranties.",
+        "2. The Company as guarantor shall pay any Loss on demand.",
+    ])
+    check("capacity_inconsistency fires when the same party has two roles",
+          "capacity_inconsistency" in {i.check for i in caps.mechanical_checks()})
+    one_cap = Document([
+        "1. The Company as warrantor shall give the Business Warranties.",
+        "2. The Investor shall subscribe for the Shares.",
+    ])
+    check("a single capacity is not inconsistent",
+          "capacity_inconsistency" not in {i.check for i in one_cap.mechanical_checks()})
+
+    scoped = Document([
+        "1. The Investor shall pay the Subscription Amount into Escrow.",
+        "SCHEDULE 2",
+        '"Escrow" means the account nominated for the Subscription Amount.',
+    ])
+    check("scope_mismatch fires when a schedule definition is used in the body",
+          "scope_mismatch" in {i.check for i in scoped.mechanical_checks()})
+
 
 def test_record_issue_enforcement():
     print("\nrecord_issue enforcement")
@@ -342,6 +375,20 @@ def test_record_issue_enforcement():
     check("records new wording once overlap_trace is present",
           with_trace.get("recorded") == 2)
 
+    oob = box.record_issue(
+        ref="5.1", para=9999, title="Bad index",
+        classification="drafting_defect", severity="low", position="flag",
+        consequence="n/a",
+    )
+    check("rejects paragraph outside the document", oob.get("reason") == "block_idx")
+    missing_ref = box.record_issue(
+        ref="99.9", para=1, title="Ghost clause",
+        classification="drafting_defect", severity="low", position="flag",
+        consequence="n/a",
+    )
+    check("rejects a clause ref that does not resolve",
+          missing_ref.get("reason") == "unresolved_ref")
+
     overlap = box.check_overlap("Subscription Amount",
                                 exclude_para=_para_of("Forty Four Crore"))
     check("check_overlap reports other hits",
@@ -382,6 +429,89 @@ def test_prompt():
     check("embeds operating rules", "old_text" in p)
 
 
+def test_reviewer():
+    print("\nreviewer pass")
+    from agent.reviewer import apply_verdicts, review_issues
+
+    paras = ["The cap is the Subscription Amount."]
+    dead = [{"id": 1, "title": "Ghost", "old_text": "this is not in the document",
+             "severity": "high"}]
+    kept, report = review_issues(dead, paras)
+    check("re-verify drops a missing quotation", kept == [] and report["dropped"] == [1])
+
+    live = [{"id": 1, "title": "Cap", "old_text": "Subscription Amount",
+             "severity": "high"}]
+    kept, _ = review_issues(live, paras)
+    check("re-verify keeps a real quotation",
+          len(kept) == 1 and kept[0].get("anchor_verified") is True)
+
+    issues = [
+        {"id": 1, "title": "Cap", "severity": "high"},
+        {"id": 2, "title": "Same cap again", "severity": "medium"},
+    ]
+    kept = apply_verdicts(issues, [
+        {"id": 1, "verdict": "downgrade", "note": "overstated"},
+        {"id": 2, "verdict": "merge", "merge_into": 1, "note": "duplicate"},
+    ])
+    check("downgrade lowers high to medium",
+          len(kept) == 1 and kept[0]["severity"] == "medium")
+    check("merge absorbs the duplicate",
+          "Merged" in (kept[0].get("reviewer_note") or ""))
+
+
+def test_router_fail_closed():
+    print("\nrouter fail-closed")
+    import time
+    from agent.router import Router, RouterError
+
+    cfg = Config()
+    cfg.prefer = {"supervisor": ["does-not-exist/zzz"]}
+    cfg.pinned = {}
+    router = Router(cfg)
+    router._catalog = [{
+        "id": "anthropic/claude-opus-4", "created": 1,
+        "supported_parameters": ["tools"],
+    }]
+    router._catalog_at = time.time()
+    try:
+        router.resolve("supervisor")
+        check("unmatched prefix raises", False)
+    except RouterError as exc:
+        check("unmatched prefix raises", "Refusing" in str(exc))
+
+    cfg.pinned = {"supervisor": "x-ai/grok-custom"}
+    check("pin still wins", router.resolve("supervisor") == "x-ai/grok-custom")
+
+
+def test_eval_diff():
+    print("\neval diff")
+    import tempfile
+    from agent.eval.diff import run_diff
+
+    def report(precision, path):
+        Path(path).write_text(json.dumps({
+            "docs": 1,
+            "overall": {
+                "recall@must_find_high": 1.0,
+                "recall@must_find_all": 1.0,
+                "precision": precision,
+                "trap_rate": 0.0,
+                "noise_rate": 10.0,
+                "anchor_pass_rate": 1.0,
+                "overlap_compliance": 1.0,
+            },
+        }), encoding="utf-8")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "a.json"
+        cand = Path(tmp) / "b.json"
+        report(0.50, base)
+        report(0.75, cand)
+        result = run_diff(base, cand)
+    check("diff reports a precision lift",
+          abs(result["metrics"]["precision"]["delta"] - 0.25) < 1e-9)
+
+
 if __name__ == "__main__":
     test_document()
     test_word_list_prefixes()
@@ -395,5 +525,8 @@ if __name__ == "__main__":
     test_eval_run()
     FAILS.extend(EVAL_FAILS)
     test_prompt()
+    test_reviewer()
+    test_router_fail_closed()
+    test_eval_diff()
     print(f"\n{'ALL PASSED' if not FAILS else str(len(FAILS)) + ' FAILED: ' + ', '.join(FAILS)}\n")
     sys.exit(1 if FAILS else 0)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Callable
 
 from .document import Document
@@ -427,6 +428,26 @@ class Toolbox:
         if kw.get("severity") == "high" and len(consequence.strip()) < 120:
             return {"rejected": True, "reason": "thin_consequence",
                     "error": "State what actually goes wrong, not a paraphrase of the clause."}
+
+        para = kw.get("para", -1)
+        try:
+            para = int(para)
+        except (TypeError, ValueError):
+            para = -1
+        kw["para"] = para
+        if para != -1 and not (0 <= para < len(self.doc.paras)):
+            return {"rejected": True, "reason": "block_idx",
+                    "error": "block_idx is outside the document."}
+
+        ref = str(kw.get("ref") or "").strip()
+        if ref and self.doc.find_clause(ref) is None:
+            looks_like_ref = bool(re.fullmatch(
+                r"(?:(?:clause|section|schedule|article)\s+)?\d+(?:\.\d+)*",
+                ref, re.IGNORECASE,
+            ))
+            if looks_like_ref:
+                return {"rejected": True, "reason": "unresolved_ref",
+                        "error": f"ref {ref!r} does not resolve to a clause or schedule."}
 
         new_text = (kw.get("new_text") or "").strip()
         trace = kw.get("overlap_trace") or []

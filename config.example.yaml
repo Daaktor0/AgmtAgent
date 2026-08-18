@@ -9,6 +9,7 @@ openrouter_api_key: ""
 # automatically to the newest model in the preferred family (see prefer, below).
 pinned: {}
 #   supervisor: anthropic/claude-opus-4.5
+#   reviewer: anthropic/claude-sonnet-4
 #   analyst: google/gemini-3-pro
 #   extractor: anthropic/claude-haiku-4.5
 

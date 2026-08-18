@@ -152,6 +152,7 @@ def run_eval(
     mode: str = "A",
     dump: Path | None = None,
     out_dir: Path | None = None,
+    reviewer: bool = False,
 ) -> dict:
     docs = load_corpus(Path(corpus_dir))
     dump_issues = load_issues(Path(dump)) if dump is not None else []
@@ -162,6 +163,9 @@ def run_eval(
         parsed = Document(doc.paragraphs, prefixes=doc.prefixes)
         issues = [normalize_issue(item) for item in parsed.mechanical_checks()]
         if dump is not None and doc.doc_id == "sample_sha":
+            if reviewer:
+                from ..reviewer import review_issues
+                dump_issues, _ = review_issues(dump_issues, doc.paragraphs)
             issues.extend(dump_issues)
         words = word_count(doc.paragraphs)
         result = score(issues, doc.labels, words)

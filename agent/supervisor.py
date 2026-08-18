@@ -12,6 +12,7 @@ from typing import Iterator
 
 from .config import Config, load_skill
 from .document import Document
+from .reviewer import review_issues
 from .router import Router, RouterError
 from .tools import TOOL_SCHEMAS, Toolbox
 
@@ -173,6 +174,7 @@ class Supervisor:
                 f"{len(doc.clauses)} numbered provisions. Start with get_outline."},
         ]
 
+        usages: list[dict] = []
         for step in range(self.cfg.max_supervisor_steps):
             try:
                 resp = self.router.chat("supervisor", messages,
@@ -181,6 +183,8 @@ class Supervisor:
                 yield {"event": "error", "message": str(exc)}
                 return
 
+            if resp.get("usage"):
+                usages.append({"role": "supervisor", "model": model, **resp["usage"]})
             msg = resp["choices"][0]["message"]
             messages.append(msg)
 
@@ -195,10 +199,18 @@ class Supervisor:
 
             for call in calls:
                 name = call["function"]["name"]
+                raw_args = call["function"].get("arguments") or "{}"
                 try:
-                    args = json.loads(call["function"].get("arguments") or "{}")
-                except json.JSONDecodeError:
-                    args = {}
+                    args = json.loads(raw_args)
+                except json.JSONDecodeError as exc:
+                    yield {"event": "tool", "name": name, "args": {}}
+                    messages.append({
+                        "role": "tool", "tool_call_id": call["id"],
+                        "content": json.dumps(
+                            {"error": f"malformed arguments: {exc}"}
+                        ),
+                    })
+                    continue
                 yield {"event": "tool", "name": name,
                        "args": {k: v for k, v in args.items()
                                 if k in ("ref", "term", "query", "start", "end",
@@ -219,11 +231,16 @@ class Supervisor:
             if box.finished is not None:
                 break
 
+        kept, review = review_issues(box.issues, doc.paras, router=self.router)
+        box.issues = kept
+        yield {"event": "reviewer", **review}
+
         yield {
             "event": "done",
             "summary": box.finished or "Review ended without a summary.",
             "issues": box.issues,
             "questions": box.questions,
+            "usage": usages,
             "mechanical": [
                 {"check": i.check, "severity": i.severity, "para": i.para,
                  "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt,

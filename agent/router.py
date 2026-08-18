@@ -74,15 +74,21 @@ class Router:
         # The supervisor drives a tool loop; it must support tool calling.
         pool = [m for m in models if self._supports_tools(m)] or models
 
-        for prefix in self.cfg.prefer.get(role, []):
+        prefixes = list(self.cfg.prefer.get(role) or [])
+        if not prefixes:
+            raise RouterError(
+                f"No preference list for role '{role}'. Refusing to pick an arbitrary model."
+            )
+        for prefix in prefixes:
             matches = [m for m in pool if m.get("id", "").startswith(prefix)]
             # Drop dated aliases in favour of the family's newest release.
             if matches:
                 matches.sort(key=lambda m: m.get("created", 0), reverse=True)
                 return matches[0]["id"]
-        if pool:
-            return pool[0]["id"]
-        raise RouterError(f"No model available for role '{role}'.")
+        raise RouterError(
+            f"No preferred model matched for role '{role}'. "
+            f"Tried prefixes {prefixes}. Refusing to fall through to an arbitrary model."
+        )
 
     def resolved_roles(self) -> dict[str, str]:
         out = {}

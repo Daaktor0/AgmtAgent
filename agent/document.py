@@ -323,6 +323,8 @@ class Document:
         out += self._check_currency()
         out += self._check_thresholds()
         out += self._check_signature_blocks()
+        out += self._check_capacity()
+        out += self._check_scope_mismatch()
         order = {"high": 0, "medium": 1, "low": 2}
         out.sort(key=lambda x: (order[x.severity], x.para))
         return out
@@ -901,6 +903,52 @@ class Document:
                    + " named in the parties clause.",
             excerpt=self.paras[start][:140],
         )]
+
+    def _check_capacity(self) -> list[Issue]:
+        rx = re.compile(
+            r"\bthe\s+(Company|Investor|Promoters?|Purchaser|Vendor|Buyer|Seller)"
+            r"\s+as\s+(?:a\s+|the\s+)?([A-Za-z][A-Za-z\-]{2,24})\b",
+            re.IGNORECASE,
+        )
+        by_party: dict[str, list[tuple[str, int, str]]] = defaultdict(list)
+        for i, text in enumerate(self.paras):
+            for m in rx.finditer(text):
+                by_party[m.group(1)].append((m.group(2).lower(), i, m.group(0)))
+        out = []
+        for party, rows in by_party.items():
+            caps = {cap for cap, _, _ in rows}
+            if len(caps) < 2:
+                continue
+            para = rows[0][1]
+            c = self.clause_at(para)
+            out.append(Issue(
+                check="capacity_inconsistency", severity="medium", para=para,
+                ref=c.ref if c else f"p{para}",
+                detail=f'"{party}" is described as {", ".join(sorted(caps))}.',
+                excerpt=rows[0][2],
+                certainty="heuristic",
+            ))
+        return out
+
+    def _check_scope_mismatch(self) -> list[Issue]:
+        out = []
+        for term, d in self.definitions.items():
+            defined_at = self.clause_at(d.para)
+            if not defined_at or defined_at.kind != "schedule":
+                continue
+            for usage in d.usages:
+                used_at = self.clause_at(usage)
+                if used_at and used_at.kind == "clause":
+                    c = used_at
+                    out.append(Issue(
+                        check="scope_mismatch", severity="medium", para=usage,
+                        ref=c.ref,
+                        detail=f'"{term}" is defined in {defined_at.ref} but used in the body.',
+                        excerpt=self._excerpt(usage, term),
+                        certainty="heuristic",
+                    ))
+                    break
+        return out
 
     def _named_parties(self) -> list[str]:
         found: list[str] = []

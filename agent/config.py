@@ -50,6 +50,15 @@ DEFAULT_ROLES = {
         "google/gemini-flash",
         "openai/gpt-4o-mini",
     ],
+    # Second reader. Sees recorded issues only, not the transcript.
+    "reviewer": [
+        "anthropic/claude-sonnet",
+        "openai/gpt-5",
+        "google/gemini-3",
+        "anthropic/claude",
+        "openai/gpt",
+        "x-ai/grok",
+    ],
 }
 
 

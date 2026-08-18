@@ -289,6 +289,11 @@ function handleEvent(ev) {
     case "issue":
       addIssue(ev.issue);
       break;
+    case "reviewer":
+      $("status").textContent +=
+        ` · reviewer kept ${ev.kept}` +
+        (ev.dropped && ev.dropped.length ? `, dropped ${ev.dropped.length}` : "");
+      break;
     case "question":
       addQuestion(ev.question);
       break;
@@ -299,6 +304,9 @@ function handleEvent(ev) {
     case "done":
       $("summary").textContent = ev.summary;
       $("summary").classList.remove("hidden");
+      $("issues").innerHTML = "";
+      ISSUES.length = 0;
+      (ev.issues || []).forEach(addIssue);
       $("status").textContent += ` · ${ev.issues.length} issues recorded`;
       break;
   }
@@ -338,6 +346,7 @@ function addIssue(issue) {
     <div class="head">
       <span class="sev ${esc(issue.severity)}">${esc(issue.severity)}</span>
       ${tierLabel ? `<span class="tag">${esc(tierLabel)}</span>` : ""}
+      ${issue.reviewer_verdict ? `<span class="tag">${esc(issue.reviewer_verdict)}</span>` : ""}
       <span class="ref">${esc(issue.ref)}</span>
       <span class="title">${esc(issue.title)}</span>
     </div>
@@ -357,6 +366,7 @@ function addIssue(issue) {
         <div class="commentbox">${esc(issue.comment)}</div></div>` : ""}
       ${(issue.consequential && issue.consequential.length)
         ? `<div class="field"><b>Consequential</b>${esc(issue.consequential.join(", "))}</div>` : ""}
+      ${issue.reviewer_note ? `<div class="field"><b>Reviewer</b>${esc(issue.reviewer_note)}</div>` : ""}
       ${anchorBad ? `<div class="warn">The quoted wording was not found verbatim, so this
         cannot be inserted automatically. ${esc(issue.anchor_note || "")}</div>` : ""}
       <div class="row">

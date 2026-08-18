@@ -5,6 +5,8 @@ from pathlib import Path
 
 from ..document import Document
 from .corpus import load_corpus
+from .harness import normalize_issue
+from .metrics import match_label
 
 
 def run_checks(corpus_dir: Path) -> int:
@@ -22,7 +24,7 @@ def run_checks(corpus_dir: Path) -> int:
 
     for doc in docs:
         parsed = Document(doc.paragraphs, prefixes=doc.prefixes)
-        found_checks = {i.check for i in parsed.mechanical_checks()}
+        issues = [normalize_issue(i) for i in parsed.mechanical_checks()]
 
         must = [lab for lab in doc.labels if lab.get("must_find")]
         traps = [lab for lab in doc.labels if lab.get("must_not_flag")]
@@ -31,7 +33,7 @@ def run_checks(corpus_dir: Path) -> int:
         for lab in must:
             total_must += 1
             check = lab.get("check")
-            if check in found_checks:
+            if any(match_label(issue, lab) for issue in issues):
                 hit.append(check)
                 total_found += 1
             else:
@@ -39,9 +41,8 @@ def run_checks(corpus_dir: Path) -> int:
                 total_missed += 1
                 ok = False
         for lab in traps:
-            check = lab.get("check")
-            if check in found_checks:
-                fired.append(lab.get("id", check))
+            if any(match_label(issue, lab) for issue in issues):
+                fired.append(lab.get("id", lab.get("check")))
                 total_traps += 1
                 ok = False
 

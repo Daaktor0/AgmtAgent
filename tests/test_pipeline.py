@@ -337,6 +337,9 @@ if __name__ == "__main__":
     test_truncation_reporting()
     test_supervisor()
     test_eval_checks()
+    from tests.test_eval_run import FAILS as EVAL_FAILS, test_eval_run
+    test_eval_run()
+    FAILS.extend(EVAL_FAILS)
     test_prompt()
     print(f"\n{'ALL PASSED' if not FAILS else str(len(FAILS)) + ' FAILED: ' + ', '.join(FAILS)}\n")
     sys.exit(1 if FAILS else 0)

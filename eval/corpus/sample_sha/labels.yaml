@@ -3,32 +3,52 @@
   must_find: true
   must_not_flag: false
   check: amount_mismatch
+  ref: "2.1"
   description: figure/words clash on Subscription Amount
+  accept_if:
+    - forty four
+    - subscription
 
 - id: SAMPLE-xref-01
   type: defect
   must_find: true
   must_not_flag: false
   check: broken_cross_reference
+  ref: "2.2"
   description: reference to a clause that does not exist
+  accept_if:
+    - broken
+    - cross-reference
 
 - id: SAMPLE-placeholder-01
   type: defect
   must_find: true
   must_not_flag: false
   check: unfilled_placeholder
+  ref: "3.3"
   description: unfilled placeholder in conditions precedent
+  accept_if:
+    - placeholder
+    - conditions precedent
 
 - id: SAMPLE-numbering-01
   type: defect
   must_find: true
   must_not_flag: false
   check: numbering_gap
+  ref: "3.1"
   description: clause 3.2 is missing
+  accept_if:
+    - numbering
+    - 3.2
 
 - id: SAMPLE-unused-01
   type: defect
   must_find: true
   must_not_flag: false
   check: defined_but_unused
+  ref: "1.1"
   description: defined term never used operatively
+  accept_if:
+    - defined
+    - never used

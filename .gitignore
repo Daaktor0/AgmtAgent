@@ -13,6 +13,7 @@ __pycache__/
 
 # Local evaluation output
 _eval_mode_*.jsonl
+reports/
 
 # Windows / editor noise
 .DS_Store

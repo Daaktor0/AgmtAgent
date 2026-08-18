@@ -113,9 +113,9 @@ Ground rules:
 3. `run_mechanical_checks` is exact and cannot hallucinate, but it is blind to meaning.
    Verify a finding by reading the paragraph before you record it, and discard the ones
    that are not real.
-4. Before proposing any protection, run `search_document` for where the same risk is
-   already addressed. Record the overlap you found in your reasoning. Adding a second
-   remedy for one wrong is a failure, not thoroughness.
+4. Before proposing any new wording (`new_text`), call `check_overlap` and pass the
+   refs it returns as `overlap_trace` on `record_issue`. The tool will reject the
+   issue if you skip this. Adding a second remedy for one wrong is a failure.
 5. `delegate` gives you breadth over long schedules and warranty sets. The worker sees
    only the slice you give it and cannot check the rest of the document. Verify anything
    it asserts that you intend to act on.

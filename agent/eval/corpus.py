@@ -22,11 +22,12 @@ def load_corpus(corpus_dir: Path) -> list[CorpusDoc]:
         raise FileNotFoundError(f"corpus directory not found: {root}")
     docs: list[CorpusDoc] = []
     for path in sorted(p for p in root.iterdir() if p.is_dir()):
+        if path.name.startswith("_"):
+            continue
         ingested_path = path / "ingested.json"
         labels_path = path / "labels.yaml"
         if not ingested_path.is_file() or not labels_path.is_file():
-            raise FileNotFoundError(
-                f"{path.name} needs ingested.json and labels.yaml")
+            continue
         ingested = json.loads(ingested_path.read_text(encoding="utf-8"))
         labels = yaml.safe_load(labels_path.read_text(encoding="utf-8")) or []
         docs.append(CorpusDoc(

@@ -265,6 +265,52 @@ def test_record_issue_enforcement():
           box.issues and box.issues[0].get("evidence_tier") == 2
           and box.issues[0].get("anchor_verified") is True)
 
+    bare_protect = box.record_issue(
+        ref="5.1", para=_para_of("Event of Default"),
+        title="Add a second cap", classification="commercial_risk",
+        severity="medium", position="revise",
+        consequence="Adds a second remedy for a risk already capped in 5.2.",
+        old_text="; and (c) the occurrence of an Event of Default",
+        new_text="; and (c) a material breach of this Agreement",
+    )
+    check("rejects new wording without overlap_trace",
+          bare_protect.get("reason") == "overlap")
+    check("does not record unprotected new wording", len(box.issues) == 1)
+
+    with_trace = box.record_issue(
+        ref="5.1", para=_para_of("Event of Default"),
+        title="Add a second cap", classification="commercial_risk",
+        severity="medium", position="revise",
+        consequence="Adds a second remedy for a risk already capped in 5.2.",
+        old_text="; and (c) the occurrence of an Event of Default",
+        new_text="; and (c) a material breach of this Agreement",
+        overlap_trace=["5.2"],
+    )
+    check("records new wording once overlap_trace is present",
+          with_trace.get("recorded") == 2)
+
+    overlap = box.check_overlap("Subscription Amount",
+                                exclude_para=_para_of("Forty Four Crore"))
+    check("check_overlap reports other hits",
+          overlap.get("already_addressed") is True and overlap.get("total", 0) >= 1)
+
+
+def test_truncation_reporting():
+    print("\ntruncation reporting")
+    paras = [f"{i}. Clause about indemnity and liability cap {i}" for i in range(1, 51)]
+    box = Toolbox(Document(paras), object(), {})
+    page = box.search_document("indemnity", limit=10)
+    check("search reports total beyond the page",
+          page.get("total") == 50 and page.get("shown") == 10
+          and page.get("truncated") is True and page.get("next_offset") == 10)
+    page2 = box.search_document("indemnity", offset=10, limit=10)
+    check("search offset advances the page",
+          page2.get("offset") == 10 and page2["hits"][0]["para"] == 10)
+    outline = box.get_outline(limit=5)
+    check("outline reports truncation",
+          outline.get("total") == 50 and outline.get("shown") == 5
+          and outline.get("truncated") is True)
+
 
 def test_eval_checks():
     print("\neval checks")
@@ -288,6 +334,7 @@ if __name__ == "__main__":
     test_word_list_prefixes()
     test_new_mechanical_checks()
     test_record_issue_enforcement()
+    test_truncation_reporting()
     test_supervisor()
     test_eval_checks()
     test_prompt()

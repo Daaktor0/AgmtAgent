@@ -13,8 +13,15 @@ TOOL_SCHEMAS: list[dict] = [
         "function": {
             "name": "get_outline",
             "description": "Document architecture: every clause, schedule and heading with "
-                           "its reference, paragraph range and length. Call this first.",
-            "parameters": {"type": "object", "properties": {}},
+                           "its reference, paragraph range and length. Call this first. "
+                           "Paginated — if truncated is true, call again with offset.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "offset": {"type": "integer", "description": "Skip this many clauses."},
+                    "limit": {"type": "integer", "description": "Page size. Default 400."},
+                },
+            },
         },
     },
     {
@@ -46,6 +53,8 @@ TOOL_SCHEMAS: list[dict] = [
                 "properties": {
                     "query": {"type": "string"},
                     "regex": {"type": "boolean", "default": False},
+                    "offset": {"type": "integer", "description": "Skip this many hits."},
+                    "limit": {"type": "integer", "description": "Page size. Default 40."},
                 },
                 "required": ["query"],
             },
@@ -107,6 +116,27 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "check_overlap",
+            "description": "Where else in this document the same risk or concept is already "
+                           "addressed. Call this before proposing new protection. Pass the "
+                           "refs it returns as overlap_trace on record_issue.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string",
+                              "description": "The risk, concept or phrase to look for."},
+                    "exclude_para": {
+                        "type": "integer",
+                        "description": "Paragraph you are about to change — omitted from hits.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "record_issue",
             "description": "Record one issue for the user. Call once per issue, as you settle "
                            "it. Only record what survives your own consequence test.",
@@ -154,6 +184,11 @@ TOOL_SCHEMAS: list[dict] = [
                         "type": "array", "items": {"type": "string"},
                         "description": "Other clause references that must move if this change "
                                        "is accepted.",
+                    },
+                    "overlap_trace": {
+                        "type": "array", "items": {"type": "string"},
+                        "description": "Clause refs from check_overlap. Required whenever "
+                                       "new_text proposes new wording.",
                     },
                 },
                 "required": ["ref", "para", "title", "classification", "severity",
@@ -214,6 +249,7 @@ class Toolbox:
             "list_definitions": self.list_definitions,
             "run_mechanical_checks": self.run_mechanical_checks,
             "delegate": self.delegate,
+            "check_overlap": self.check_overlap,
             "record_issue": self.record_issue,
             "ask_user": self.ask_user,
             "finish": self.finish,
@@ -224,7 +260,13 @@ class Toolbox:
         if not fn:
             return json.dumps({"error": f"no such tool: {name}"})
         try:
-            return json.dumps(fn(**args), ensure_ascii=False)[:60000]
+            raw = json.dumps(fn(**args), ensure_ascii=False)
+            if len(raw) <= 60000:
+                return raw
+            return json.dumps({
+                "truncated": True, "total_chars": len(raw), "shown": 55000,
+                "preview": raw[:55000],
+            }, ensure_ascii=False)
         except TypeError as exc:
             return json.dumps({"error": f"bad arguments for {name}: {exc}"})
         except Exception as exc:  # a tool failure must not kill the run
@@ -232,8 +274,22 @@ class Toolbox:
 
     # ---------------- handlers ----------------
 
-    def get_outline(self) -> Any:
-        return {"paragraph_count": len(self.doc.paras), "outline": self.doc.outline()}
+    def get_outline(self, offset: int = 0, limit: int = 400) -> Any:
+        total = len(self.doc.clauses)
+        offset = max(0, int(offset))
+        limit = max(1, int(limit))
+        items = self.doc.outline(max_items=limit, offset=offset)
+        shown = len(items)
+        truncated = offset + shown < total
+        return {
+            "paragraph_count": len(self.doc.paras),
+            "outline": items,
+            "total": total,
+            "shown": shown,
+            "offset": offset,
+            "truncated": truncated,
+            "next_offset": (offset + shown) if truncated else None,
+        }
 
     def read(self, ref: str | None = None, start: int | None = None,
              end: int | None = None) -> Any:
@@ -248,8 +304,25 @@ class Toolbox:
             return {"error": "give ref, or start and end"}
         return {"text": self.doc.read(start, end if end is not None else start + 20)}
 
-    def search_document(self, query: str, regex: bool = False) -> Any:
-        return {"query": query, "hits": self.doc.search(query, regex)}
+    def search_document(self, query: str, regex: bool = False,
+                        offset: int = 0, limit: int = 40) -> Any:
+        all_hits = self.doc.search_all(query, regex=regex)
+        if all_hits and all_hits[0].get("error"):
+            return {"query": query, "hits": all_hits, "total": 0,
+                    "shown": 0, "truncated": False}
+        offset = max(0, int(offset))
+        limit = max(1, int(limit))
+        page = all_hits[offset:offset + limit]
+        truncated = offset + len(page) < len(all_hits)
+        return {
+            "query": query,
+            "hits": page,
+            "total": len(all_hits),
+            "shown": len(page),
+            "offset": offset,
+            "truncated": truncated,
+            "next_offset": (offset + len(page)) if truncated else None,
+        }
 
     def get_definition(self, term: str) -> Any:
         d = self.doc.definitions.get(term)
@@ -257,9 +330,12 @@ class Toolbox:
             near = [t for t in self.doc.definitions if term.lower() in t.lower()][:10]
             return {"error": f"'{term}' not found as a defined term",
                     "did_you_mean": near}
+        usages = d.usages
         return {
             "term": d.term, "defined_at_para": d.para, "definition": d.text,
-            "operates_at_paras": d.usages[:60], "usage_count": len(d.usages),
+            "operates_at_paras": usages[:60], "usage_count": len(usages),
+            "total": len(usages),
+            "truncated": len(usages) > 60,
         }
 
     def list_definitions(self) -> Any:
@@ -300,11 +376,28 @@ class Toolbox:
         return {"model": resp.get("_model"),
                 "analysis": resp["choices"][0]["message"].get("content", "")}
 
+    def check_overlap(self, query: str, exclude_para: int | None = None) -> Any:
+        hits = self.doc.search_all(query)
+        if hits and hits[0].get("error"):
+            return {"query": query, "error": hits[0]["error"],
+                    "hits": [], "total": 0, "already_addressed": False}
+        others = [h for h in hits if exclude_para is None or h["para"] != exclude_para]
+        return {
+            "query": query,
+            "hits": others[:40],
+            "total": len(others),
+            "shown": min(40, len(others)),
+            "truncated": len(others) > 40,
+            "already_addressed": len(others) > 0,
+            "refs": [h["ref"] for h in others[:40]],
+        }
+
     def record_issue(self, **kw) -> Any:
         kw.setdefault("old_text", "")
         kw.setdefault("new_text", "")
         kw.setdefault("comment", "")
         kw.setdefault("consequential", [])
+        kw.setdefault("overlap_trace", [])
         old = kw.get("old_text") or ""
         kw["old_text"] = old
 
@@ -334,6 +427,13 @@ class Toolbox:
         if kw.get("severity") == "high" and len(consequence.strip()) < 120:
             return {"rejected": True, "reason": "thin_consequence",
                     "error": "State what actually goes wrong, not a paraphrase of the clause."}
+
+        new_text = (kw.get("new_text") or "").strip()
+        trace = kw.get("overlap_trace") or []
+        if new_text and not trace:
+            return {"rejected": True, "reason": "overlap",
+                    "error": "Call check_overlap first. Adding a second remedy "
+                             "for one wrong is a failure."}
 
         if old:
             kw["anchor_verified"] = True

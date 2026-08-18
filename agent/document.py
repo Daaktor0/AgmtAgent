@@ -732,9 +732,10 @@ class Document:
         ]
         return " ".join(tokens)
 
-    def outline(self, max_items: int = 400) -> list[dict]:
+    def outline(self, max_items: int = 400, offset: int = 0) -> list[dict]:
+        offset = max(0, int(offset))
         out = []
-        for c in self.clauses[:max_items]:
+        for c in self.clauses[offset:offset + max_items]:
             out.append({
                 "ref": c.ref, "kind": c.kind, "heading": c.heading[:120],
                 "paras": [c.start, c.end],
@@ -747,7 +748,8 @@ class Document:
         return "\n".join(f"[{i}] {self.paras[i]}" for i in range(max(0, start), end + 1)
                          if self.paras[i].strip())
 
-    def search(self, pattern: str, regex: bool = False, limit: int = 40) -> list[dict]:
+    def search(self, pattern: str, regex: bool = False, limit: int = 40,
+               offset: int = 0) -> list[dict]:
         try:
             rx = re.compile(pattern if regex else re.escape(pattern), re.IGNORECASE)
         except re.error as exc:
@@ -761,9 +763,11 @@ class Document:
                     "heading": c.heading if c else "",
                     "excerpt": self._excerpt(i, pattern if not regex else text[:1]),
                 })
-                if len(hits) >= limit:
-                    break
-        return hits
+        offset = max(0, int(offset))
+        return hits[offset:offset + limit] if limit is not None else hits
+
+    def search_all(self, pattern: str, regex: bool = False) -> list[dict]:
+        return self.search(pattern, regex=regex, limit=10**9, offset=0)
 
 
 def words_to_number(phrase: str) -> int | None:

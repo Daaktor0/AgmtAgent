@@ -43,12 +43,3 @@ jobs:
             -f visibility=public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Ask Hostinger to recreate the preview project
-        if: ${{ secrets.HOSTINGER_API_TOKEN != '' }}
-        continue-on-error: true
-        run: |
-          curl -sS -X POST \
-            "https://developers.hostinger.com/api/vps/v1/virtual-machines/1086106/docker/agmtagent/update" \
-            -H "Authorization: Bearer ${{ secrets.HOSTINGER_API_TOKEN }}" \
-            -H "Content-Type: application/json"

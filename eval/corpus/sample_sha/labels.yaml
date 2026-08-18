@@ -52,3 +52,14 @@
   accept_if:
     - defined
     - never used
+
+- id: SAMPLE-threshold-01
+  type: defect
+  must_find: true
+  must_not_flag: false
+  check: threshold_conflict
+  ref: "6.4"
+  description: 6.4 blanket borrowing ban swallows the 6.1 INR 5 crore threshold
+  accept_if:
+    - borrowing
+    - whatsoever

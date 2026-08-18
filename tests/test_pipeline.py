@@ -215,6 +215,59 @@ def test_new_mechanical_checks():
               "circular_definition", "forward_defined_term",
               "party_name_drift", "percentage_sum",
           })
+    check("clean fixture has no date, currency, threshold or signature findings",
+          not heading_found & {
+              "date_logic_conflict", "currency_inconsistency",
+              "threshold_conflict", "signature_block_mismatch",
+          })
+
+
+def test_date_currency_threshold_signature():
+    print("\ndate / currency / threshold / signature")
+    root = Path(__file__).resolve().parent.parent
+    ingested = json.loads(
+        (root / "eval" / "corpus" / "synth_dates" / "ingested.json")
+        .read_text(encoding="utf-8")
+    )
+    issues = Document(ingested["paragraphs"]).mechanical_checks()
+    found = {(i.check, i.ref) for i in issues}
+    for check_id, ref in (
+        ("date_logic_conflict", "1.1"),
+        ("date_logic_conflict", "1.2"),
+        ("date_logic_conflict", "3.2"),
+        ("date_logic_conflict", "7.1"),
+        ("currency_inconsistency", "6.1"),
+        ("threshold_conflict", "5.2"),
+        ("threshold_conflict", "4.1"),
+        ("signature_block_mismatch", "8"),
+    ):
+        check(f"synth_dates fires {check_id} at {ref}", (check_id, ref) in found)
+
+    sample = Document(SAMPLE)
+    sample_found = {i.check for i in sample.mechanical_checks()}
+    check("sample SHA fires threshold_conflict on 6.4 vs 6.1",
+          "threshold_conflict" in sample_found)
+    check("sample SHA has no date, currency or signature findings",
+          not sample_found & {
+              "date_logic_conflict", "currency_inconsistency",
+              "signature_block_mismatch",
+          })
+
+    later = Document([
+        "This Agreement is made on 1 January 2026 between Helios Ventures Private Limited (the \"Company\") and Kestrel Growth Fund (the \"Investor\").",
+        "1.1 \"Closing Date\" means 1 March 2026.",
+        "2.1 The Company shall pay the Investor INR 1,00,000. The amount is the USD equivalent at the prevailing rate.",
+        "3.1 The Company shall not, without Investor consent, incur any indebtedness exceeding INR 5,00,00,000.",
+    ])
+    later_found = {i.check for i in later.mechanical_checks()}
+    check("later closing is not a date conflict",
+          "date_logic_conflict" not in later_found)
+    check("conversion mechanic suppresses currency_inconsistency",
+          "currency_inconsistency" not in later_found)
+    check("threshold without a blanket is not a conflict",
+          "threshold_conflict" not in later_found)
+    check("no signature block is not a mismatch",
+          "signature_block_mismatch" not in later_found)
 
 
 def test_record_issue_enforcement():
@@ -333,6 +386,7 @@ if __name__ == "__main__":
     test_document()
     test_word_list_prefixes()
     test_new_mechanical_checks()
+    test_date_currency_threshold_signature()
     test_record_issue_enforcement()
     test_truncation_reporting()
     test_supervisor()

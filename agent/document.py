@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Iterable
 
 # --------------------------------------------------------------------------
@@ -70,6 +71,66 @@ NUM_SCALES = {
     "lakhs": 100_000, "lacs": 100_000, "million": 1_000_000,
     "crore": 10_000_000, "crores": 10_000_000, "billion": 1_000_000_000,
 }
+
+MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
+    "december": 12,
+}
+_MONTH_ALT = "|".join(MONTHS)
+RE_DATE_DMY = re.compile(
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH_ALT})\s+(\d{{4}})\b",
+    re.IGNORECASE,
+)
+RE_DATE_MDY = re.compile(
+    rf"\b({_MONTH_ALT})\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})\b",
+    re.IGNORECASE,
+)
+RE_DATE_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+RE_PERIOD = re.compile(
+    r"\b(\d+)\s+(?:calendar\s+)?(days?|months?|years?)\b",
+    re.IGNORECASE,
+)
+RE_MONEY = re.compile(
+    r"(?:INR|Rs\.?|USD|US\$|₹|EUR|€|GBP|£)\s*([0-9][0-9,]*)",
+    re.IGNORECASE,
+)
+RE_MONEY_SCALE = re.compile(
+    r"\b(\d+(?:\.\d+)?)\s*(crore|lakh|lac|million)\b",
+    re.IGNORECASE,
+)
+RE_CURRENCY = re.compile(
+    r"\bINR\b|₹|\bRs\.?|\bUSD\b|\bUS\$|\bEUR\b|€|\bGBP\b|£",
+    re.IGNORECASE,
+)
+RE_CONVERSION = re.compile(
+    r"\b(equivalent|exchange rate|converted|conversion|prevailing rate|spot rate)\b",
+    re.IGNORECASE,
+)
+RE_SIG_START = re.compile(
+    r"\b(IN WITNESS WHEREOF|IN WITNESS|SIGNED by|SIGNED for|"
+    r"For and on behalf|EXECUTED as a deed|Authorised Signatory)\b",
+    re.IGNORECASE,
+)
+PARTY_LABELS = {
+    "Company", "Investor", "Promoters", "Promoter", "Purchaser", "Vendor",
+    "Buyer", "Seller",
+}
+TOPIC_RX = {
+    "borrow": re.compile(r"\b(borrow|borrowing|indebtedness|indebted|debt)\b", re.I),
+    "spend": re.compile(r"\b(expenditure|expense|spend|payment)\b", re.I),
+    "encumbrance": re.compile(r"\b(encumbrance|charge|pledge|lien)\b", re.I),
+    "guarantee": re.compile(r"\bguarantee\b", re.I),
+    "transfer": re.compile(r"\btransfer\b", re.I),
+}
+RE_BLANKET = re.compile(
+    r"\bshall not\b.{0,100}\bany\b.{0,60}\b(whatsoever|at all)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+RE_THRESHOLD_CUE = re.compile(
+    r"\bshall not\b.{0,140}\b(exceeding|in excess of|more than|greater than)\b",
+    re.IGNORECASE | re.DOTALL,
+)
 
 # Words that look like defined terms because of sentence position but aren't.
 CAP_STOPWORDS = {
@@ -258,6 +319,10 @@ class Document:
         out += self._check_circular_defs()
         out += self._check_party_name_drift()
         out += self._check_percentage_sum()
+        out += self._check_date_logic()
+        out += self._check_currency()
+        out += self._check_thresholds()
+        out += self._check_signature_blocks()
         order = {"high": 0, "medium": 1, "low": 2}
         out.sort(key=lambda x: (order[x.severity], x.para))
         return out
@@ -664,6 +729,225 @@ class Document:
                     break
         return out
 
+    def _check_date_logic(self) -> list[Issue]:
+        roles: dict[str, tuple[date, int]] = {}
+        for i, text in enumerate(self.paras):
+            for start, end, when in iter_dates(text):
+                role = self._date_role(text[:start])
+                if role and role not in roles:
+                    roles[role] = (when, i)
+
+        periods: dict[str, tuple[int, int]] = {}
+        for i, text in enumerate(self.paras):
+            role = self._period_role(text)
+            if not role or role in periods:
+                continue
+            days = first_period_days(text)
+            if days is not None:
+                periods[role] = (days, i)
+
+        out = []
+        pairs = (
+            ("closing", "execution", "Closing Date is before the execution date.",
+             lambda a, b: a < b),
+            ("long_stop", "closing", "Long-stop Date is before the Closing Date.",
+             lambda a, b: a < b),
+        )
+        for left, right, detail, pred in pairs:
+            if left not in roles or right not in roles:
+                continue
+            a, para = roles[left]
+            b, _ = roles[right]
+            if pred(a, b):
+                c = self.clause_at(para)
+                out.append(Issue(
+                    check="date_logic_conflict", severity="high", para=para,
+                    ref=c.ref if c else f"p{para}",
+                    detail=detail,
+                    excerpt=self.paras[para][:140],
+                ))
+
+        if "cure" in periods and "term" in periods:
+            cure, para = periods["cure"]
+            term, _ = periods["term"]
+            if cure > term:
+                c = self.clause_at(para)
+                out.append(Issue(
+                    check="date_logic_conflict", severity="high", para=para,
+                    ref=c.ref if c else f"p{para}",
+                    detail="Cure period is longer than the term of the Agreement.",
+                    excerpt=self.paras[para][:140],
+                ))
+        if "survival" in periods and "limitation" in periods:
+            survival, para = periods["survival"]
+            limitation, _ = periods["limitation"]
+            if survival < limitation:
+                c = self.clause_at(para)
+                out.append(Issue(
+                    check="date_logic_conflict", severity="high", para=para,
+                    ref=c.ref if c else f"p{para}",
+                    detail="Warranty survival is shorter than the contractual limitation period.",
+                    excerpt=self.paras[para][:140],
+                ))
+        return out
+
+    def _check_currency(self) -> list[Issue]:
+        found: dict[str, int] = {}
+        for i, text in enumerate(self.paras):
+            for m in RE_CURRENCY.finditer(text):
+                code = currency_code(m.group(0))
+                if code and code not in found:
+                    found[code] = i
+        if len(found) < 2:
+            return []
+        blob = " ".join(self.paras)
+        if RE_CONVERSION.search(blob):
+            return []
+        para = max(found.values())
+        c = self.clause_at(para)
+        codes = ", ".join(sorted(found))
+        return [Issue(
+            check="currency_inconsistency", severity="medium", para=para,
+            ref=c.ref if c else f"p{para}",
+            detail=f"Document uses {codes} with no conversion mechanic.",
+            excerpt=self.paras[para][:140],
+            certainty="heuristic",
+        )]
+
+    def _check_thresholds(self) -> list[Issue]:
+        out = []
+        by_topic: dict[str, list[tuple[str, int, list[int]]]] = defaultdict(list)
+        for i, text in enumerate(self.paras):
+            topics = [name for name, rx in TOPIC_RX.items() if rx.search(text)]
+            if not topics:
+                continue
+            amounts = parse_money(text)
+            kind = ""
+            if RE_BLANKET.search(text):
+                kind = "blanket"
+            elif RE_THRESHOLD_CUE.search(text) and amounts:
+                kind = "threshold"
+            if not kind:
+                continue
+            for topic in topics:
+                by_topic[topic].append((kind, i, amounts))
+
+        seen_paras: set[int] = set()
+        for topic, rows in by_topic.items():
+            thresholds = [r for r in rows if r[0] == "threshold"]
+            blankets = [r for r in rows if r[0] == "blanket"]
+            if not thresholds or not blankets:
+                continue
+            for _, para, _ in blankets:
+                if para in seen_paras:
+                    continue
+                seen_paras.add(para)
+                c = self.clause_at(para)
+                out.append(Issue(
+                    check="threshold_conflict", severity="high", para=para,
+                    ref=c.ref if c else f"p{para}",
+                    detail=f"A blanket {topic} prohibition swallows a stated numeric threshold.",
+                    excerpt=self.paras[para][:140],
+                    certainty="heuristic",
+                ))
+
+        de_minimis = self._first_labelled_amount(r"\bde minimis\b")
+        basket = self._first_labelled_amount(r"\bbasket\b")
+        cap = self._first_labelled_amount(
+            r"\b(aggregate liability|capped at|cap of)\b"
+        )
+        if de_minimis and basket and de_minimis[0] > basket[0]:
+            para = de_minimis[1]
+            c = self.clause_at(para)
+            out.append(Issue(
+                check="threshold_conflict", severity="high", para=para,
+                ref=c.ref if c else f"p{para}",
+                detail="De minimis exceeds the basket.",
+                excerpt=self.paras[para][:140],
+                certainty="heuristic",
+            ))
+        if cap and basket and cap[0] < basket[0]:
+            para = cap[1]
+            c = self.clause_at(para)
+            out.append(Issue(
+                check="threshold_conflict", severity="high", para=para,
+                ref=c.ref if c else f"p{para}",
+                detail="Liability cap is below the basket.",
+                excerpt=self.paras[para][:140],
+                certainty="heuristic",
+            ))
+        return out
+
+    def _check_signature_blocks(self) -> list[Issue]:
+        start = None
+        for i, text in enumerate(self.paras):
+            if RE_SIG_START.search(text):
+                start = i
+                break
+        if start is None:
+            return []
+        region = " ".join(self.paras[start:])
+        parties = self._named_parties()
+        if len(parties) < 2:
+            return []
+        missing = [p for p in parties if not re.search(r"\b" + re.escape(p) + r"\b", region)]
+        if not missing or len(missing) == len(parties):
+            return []
+        c = self.clause_at(start)
+        return [Issue(
+            check="signature_block_mismatch", severity="medium", para=start,
+            ref=c.ref if c else f"p{start}",
+            detail="Signature blocks omit " + ", ".join(missing)
+                   + " named in the parties clause.",
+            excerpt=self.paras[start][:140],
+        )]
+
+    def _named_parties(self) -> list[str]:
+        found: list[str] = []
+        for term in self.definitions:
+            if term in PARTY_LABELS and term not in found:
+                found.append(term)
+        rx = re.compile(
+            r"\(\s*the\s+[\"'“”]\s*(" + "|".join(PARTY_LABELS) + r")\s*[\"'“”]\s*\)"
+        )
+        for text in self.paras[:8]:
+            for m in rx.finditer(text):
+                if m.group(1) not in found:
+                    found.append(m.group(1))
+        return found
+
+    def _first_labelled_amount(self, cue: str) -> tuple[int, int] | None:
+        rx = re.compile(cue, re.IGNORECASE)
+        for i, text in enumerate(self.paras):
+            if not rx.search(text):
+                continue
+            amounts = parse_money(text)
+            if amounts:
+                return amounts[0], i
+        return None
+
+    def _date_role(self, prefix: str) -> str | None:
+        p = prefix.lower()
+        if re.search(r"long[-\s]?stop", p):
+            return "long_stop"
+        if re.search(r"closing date|completion date|closing shall|completion shall", p):
+            return "closing"
+        if re.search(r"made on|dated|executed on|date of this agreement", p):
+            return "execution"
+        return None
+
+    def _period_role(self, text: str) -> str | None:
+        t = text.lower()
+        if re.search(r"\bcure period\b|\bdays to (?:cure|remedy)\b|\bto cure\b", t):
+            return "cure"
+        if re.search(r"\bterm of\b|\bcontinue for a term\b|\bshall continue for\b", t):
+            return "term"
+        if re.search(r"\bsurvive for\b|\bsurvival period\b|\bshall survive\b", t):
+            return "survival"
+        if re.search(r"\blimitation period\b|\bno claim may be brought\b|\btime[- ]bar\b", t):
+            return "limitation"
+        return None
+
     # ---------------- helpers ----------------
 
     def _definition_meaning(self, text: str) -> str:
@@ -768,6 +1052,66 @@ class Document:
 
     def search_all(self, pattern: str, regex: bool = False) -> list[dict]:
         return self.search(pattern, regex=regex, limit=10**9, offset=0)
+
+
+def _safe_date(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def iter_dates(text: str) -> list[tuple[int, int, date]]:
+    out: list[tuple[int, int, date]] = []
+    for m in RE_DATE_DMY.finditer(text):
+        when = _safe_date(int(m.group(3)), MONTHS[m.group(2).lower()], int(m.group(1)))
+        if when:
+            out.append((m.start(), m.end(), when))
+    for m in RE_DATE_MDY.finditer(text):
+        when = _safe_date(int(m.group(3)), MONTHS[m.group(1).lower()], int(m.group(2)))
+        if when:
+            out.append((m.start(), m.end(), when))
+    for m in RE_DATE_ISO.finditer(text):
+        when = _safe_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if when:
+            out.append((m.start(), m.end(), when))
+    return out
+
+
+def first_period_days(text: str) -> int | None:
+    m = RE_PERIOD.search(text)
+    if not m:
+        return None
+    n = int(m.group(1))
+    unit = m.group(2).lower()
+    if unit.startswith("day"):
+        return n
+    if unit.startswith("month"):
+        return n * 30
+    return n * 365
+
+
+def parse_money(text: str) -> list[int]:
+    out: list[int] = []
+    for m in RE_MONEY.finditer(text):
+        out.append(int(m.group(1).replace(",", "")))
+    scales = {"crore": 10_000_000, "lakh": 100_000, "lac": 100_000, "million": 1_000_000}
+    for m in RE_MONEY_SCALE.finditer(text):
+        out.append(int(float(m.group(1)) * scales[m.group(2).lower()]))
+    return out
+
+
+def currency_code(token: str) -> str | None:
+    t = token.strip().lower().replace(".", "")
+    if t in {"inr", "rs", "₹"}:
+        return "INR"
+    if t in {"usd", "us$"}:
+        return "USD"
+    if t in {"eur", "€"}:
+        return "EUR"
+    if t in {"gbp", "£"}:
+        return "GBP"
+    return None
 
 
 def words_to_number(phrase: str) -> int | None:

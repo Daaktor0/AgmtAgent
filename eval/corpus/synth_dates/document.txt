@@ -1,0 +1,25 @@
+SHAREHOLDERS AGREEMENT
+This Agreement is made on 1 June 2026 between Helios Ventures Private Limited (the "Company") and Kestrel Growth Fund (the "Investor").
+1. DEFINITIONS
+1.1 "Closing Date" means 1 May 2026.
+1.2 "Long-Stop Date" means 1 April 2026.
+2. CLOSING
+2.1 Closing shall take place on the Closing Date. If the Closing Date has not occurred by the Long-Stop Date this Agreement shall terminate.
+3. TERM AND CURE
+3.1 This Agreement shall continue for a term of 30 days from the Closing Date.
+3.2 A party in breach shall have a cure period of 90 days following written notice.
+4. LIABILITY
+4.1 The Investor shall have no claim for a Loss below the de minimis of INR 50,000.
+4.2 The basket is INR 25,000. The Company shall indemnify the Investor for Loss above that basket.
+5. EXPENDITURE
+5.1 The Company shall not, without Investor consent, incur any expenditure exceeding INR 10,00,000.
+5.2 The Company shall not, without Investor consent, incur any expenditure whatsoever.
+6. PRICE
+6.1 The Subscription Price is INR 1,00,00,000. The Investor may pay USD 120,000 instead.
+7. SURVIVAL
+7.1 The warranties shall survive for 6 months after the Closing Date.
+7.2 No claim may be brought after the limitation period of 18 months from the Closing Date.
+8. EXECUTION
+IN WITNESS WHEREOF the parties have executed this Agreement.
+For and on behalf of the Company
+Name: Authorised Director

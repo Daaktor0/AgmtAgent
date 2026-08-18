@@ -14,6 +14,7 @@ class CorpusDoc:
     paragraphs: list[str]
     prefixes: list[str]
     labels: list[dict]
+    ingested: dict
 
 
 def load_corpus(corpus_dir: Path) -> list[CorpusDoc]:
@@ -33,7 +34,8 @@ def load_corpus(corpus_dir: Path) -> list[CorpusDoc]:
         docs.append(CorpusDoc(
             doc_id=path.name,
             paragraphs=list(ingested["paragraphs"]),
-            prefixes=list(ingested.get("prefixes") or []),
+            prefixes=list(ingested.get("prefixes") or ingested.get("list_prefixes") or []),
             labels=list(labels),
+            ingested=ingested,
         ))
     return docs

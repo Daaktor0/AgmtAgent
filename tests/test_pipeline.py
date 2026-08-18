@@ -483,6 +483,98 @@ def test_router_fail_closed():
     check("pin still wins", router.resolve("supervisor") == "x-ai/grok-custom")
 
 
+def test_fidelity_and_xdoc():
+    print("\nfidelity / xdoc / registry")
+    from agent.document import build_document
+    from agent.check_registry import BY_LEGACY
+
+    root = Path(__file__).resolve().parent.parent
+    fid = build_document(json.loads(
+        (root / "eval" / "corpus" / "synth_fidelity" / "ingested.json")
+        .read_text(encoding="utf-8")
+    ))
+    found = {i.check for i in fid.mechanical_checks()}
+    for check_id in (
+        "xref_implausible", "depth_anomaly",
+        "unresolved_comment", "pending_tracked_change",
+    ):
+        check(f"synth_fidelity fires {check_id}", check_id in found)
+    implausible = [i for i in fid.mechanical_checks() if i.check == "xref_implausible"]
+    check("notice-to-schedule is not implausible",
+          all(i.ref != "8.1" for i in implausible))
+    check("comments capability reported", "comments" in fid.capabilities)
+    check("unresolved_comment is versioned",
+          BY_LEGACY["unresolved_comment"].id == "exec.unresolved_comment")
+
+    xdoc = build_document(json.loads(
+        (root / "eval" / "corpus" / "synth_xdoc" / "ingested.json")
+        .read_text(encoding="utf-8")
+    ))
+    xfound = {i.check for i in xdoc.mechanical_checks()}
+    for check_id in (
+        "xdoc_defterm_conflict", "xdoc_threshold_conflict",
+        "xdoc_orphan_reference", "xdoc_disclosure_mapping_gap",
+    ):
+        check(f"synth_xdoc fires {check_id}", check_id in xfound)
+    suppressed = {s["check"] for s in xdoc.suppressed_checks}
+    check("comments check suppressed without ingest",
+          "unresolved_comment" in suppressed)
+
+    clean = Document(["1. The Company shall pay the Subscription Amount."])
+    check("no comments means unresolved_comment is suppressed, not a finding",
+          "unresolved_comment" not in {i.check for i in clean.mechanical_checks()}
+          and any(s["check"] == "unresolved_comment" for s in clean.suppressed_checks))
+
+
+def test_plan_and_house_tools():
+    print("\nplan / comments / house tools")
+    doc = Document(SAMPLE)
+    box = Toolbox(doc, object(), {})
+    planned = box.set_plan(["outline", "mechanical", "indemnity"], focus="Mode A")
+    check("plan is stored", planned["accepted"] is True
+          and box.plan["steps"][0] == "outline")
+    revised = box.revise_plan(["finish"], reason="enough")
+    check("revise_plan replaces steps",
+          box.plan["revised"] is True and box.plan["steps"] == ["finish"])
+    comments = box.get_comments()
+    check("comments unavailable without ingest", comments.get("available") is False)
+    house = box.get_house_position("indemnity")
+    check("house position returns a list", isinstance(house.get("positions"), list))
+    listed = box.list_documents()
+    check("list_documents includes the primary",
+          listed["documents"][0]["id"] == "primary")
+
+
+def test_dispositions():
+    print("\ndispositions")
+    import tempfile
+    from agent.memory.store import Store
+    from agent.memory.dispositions import record_disposition
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = Store(Path(tmp) / "t.db")
+        run_id = store.save_run(
+            mode="A", mandate={}, instruction="", status="done",
+            summary="test",
+            issues=[{
+                "id": 1, "ref": "5.1", "para": 1,
+                "title": "Standalone indemnity trigger",
+                "check": "threshold_conflict",
+            }],
+        )
+        issue_id = store.get_run(run_id)["issues"][0]["id"]
+        first = record_disposition(store, issue_id, "rejected")
+        second = record_disposition(store, issue_id, "rejected")
+        third = record_disposition(store, issue_id, "rejected")
+        check("first rejection is recorded", first.get("action") == "rejected")
+        check("position is inactive before three",
+              first["position"]["active"] is False)
+        check("third consistent rejection promotes a house position",
+              third["position"]["active"] is True
+              and third["position"]["polarity"] == "avoid")
+        store.close()
+
+
 def test_eval_diff():
     print("\neval diff")
     import tempfile
@@ -528,5 +620,8 @@ if __name__ == "__main__":
     test_reviewer()
     test_router_fail_closed()
     test_eval_diff()
+    test_fidelity_and_xdoc()
+    test_plan_and_house_tools()
+    test_dispositions()
     print(f"\n{'ALL PASSED' if not FAILS else str(len(FAILS)) + ' FAILED: ' + ', '.join(FAILS)}\n")
     sys.exit(1 if FAILS else 0)

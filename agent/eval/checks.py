@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..document import Document
+from ..document import build_document
 from .corpus import load_corpus
 from .harness import normalize_issue
 from .metrics import match_label
@@ -23,7 +23,7 @@ def run_checks(corpus_dir: Path) -> int:
     ok = True
 
     for doc in docs:
-        parsed = Document(doc.paragraphs, prefixes=doc.prefixes)
+        parsed = build_document(doc.ingested, doc_id=doc.doc_id)
         issues = [normalize_issue(i) for i in parsed.mechanical_checks()]
 
         must = [lab for lab in doc.labels if lab.get("must_find")]

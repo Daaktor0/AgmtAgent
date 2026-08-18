@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..document import Document, Issue
+from ..document import Document, Issue, build_document
 from .corpus import load_corpus
 from .metrics import score
 from .report import format_report
@@ -160,7 +160,7 @@ def run_eval(
     per_doc: list[dict] = []
     totals = _zero_counts()
     for doc in docs:
-        parsed = Document(doc.paragraphs, prefixes=doc.prefixes)
+        parsed = build_document(doc.ingested, doc_id=doc.doc_id)
         issues = [normalize_issue(item) for item in parsed.mechanical_checks()]
         if dump is not None and doc.doc_id == "sample_sha":
             if reviewer:

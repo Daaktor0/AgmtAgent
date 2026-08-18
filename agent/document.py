@@ -180,10 +180,30 @@ class Issue:
     excerpt: str = ""
     certainty: str = "exact"
     evidence_tier: int = 1
+    check_id: str = ""
+    check_version: int = 1
+    family: str = ""
 
 
 class Document:
-    def __init__(self, paragraphs: Iterable[str], prefixes: Iterable[str] | None = None):
+    def __init__(
+        self,
+        paragraphs: Iterable[str],
+        prefixes: Iterable[str] | None = None,
+        *,
+        doc_id: str = "primary",
+        role: str = "primary",
+        filename: str = "",
+        comments: Iterable[dict] | None = None,
+        revisions: Iterable[dict] | None = None,
+        tables: Iterable[dict] | None = None,
+        unique_local_ids: Iterable[str] | None = None,
+        list_levels: Iterable[int | None] | None = None,
+        companions: list["Document"] | None = None,
+    ):
+        self.doc_id = doc_id
+        self.role = role
+        self.filename = filename
         self.paras: list[str] = [p.rstrip() for p in paragraphs]
         prefix_list = [p.strip() for p in prefixes] if prefixes is not None else []
         self._structure_paras: list[str] = []
@@ -193,6 +213,23 @@ class Document:
                 self._structure_paras.append(f"{prefix} {para}")
             else:
                 self._structure_paras.append(para)
+        self.comments: list[dict] | None = (
+            [dict(c) for c in comments] if comments is not None else None
+        )
+        self.revisions: list[dict] | None = (
+            [dict(r) for r in revisions] if revisions is not None else None
+        )
+        self.tables: list[dict] | None = (
+            [dict(t) for t in tables] if tables is not None else None
+        )
+        self.unique_local_ids: list[str] = (
+            [str(u) for u in unique_local_ids] if unique_local_ids is not None else []
+        )
+        self.list_levels: list[int | None] = (
+            list(list_levels) if list_levels is not None else []
+        )
+        self.companions: list[Document] = list(companions or [])
+        self.suppressed_checks: list[dict] = []
         self.clauses: list[Clause] = []
         self.definitions: dict[str, Definition] = {}
         self.xrefs: list[tuple[int, str, str]] = []  # (para, kind, target)
@@ -304,30 +341,32 @@ class Document:
 
     # ---------------- mechanical checks ----------------
 
-    def mechanical_checks(self) -> list[Issue]:
-        out: list[Issue] = []
-        out += self._check_xrefs()
-        out += self._check_definitions()
-        out += self._check_placeholders()
-        out += self._check_numbering()
-        out += self._check_amounts()
-        out += self._check_case_drift()
-        out += self._check_orphan_schedules()
-        out += self._check_empty_schedules()
-        out += self._check_missing_chapeau()
-        out += self._check_forward_defs()
-        out += self._check_circular_defs()
-        out += self._check_party_name_drift()
-        out += self._check_percentage_sum()
-        out += self._check_date_logic()
-        out += self._check_currency()
-        out += self._check_thresholds()
-        out += self._check_signature_blocks()
-        out += self._check_capacity()
-        out += self._check_scope_mismatch()
-        order = {"high": 0, "medium": 1, "low": 2}
-        out.sort(key=lambda x: (order[x.severity], x.para))
-        return out
+    @property
+    def label(self) -> str:
+        return self.filename or self.doc_id or self.role or "document"
+
+    @property
+    def capabilities(self) -> set[str]:
+        caps = {"paragraphs", "structure"}
+        if self.comments is not None:
+            caps.add("comments")
+        if self.revisions is not None:
+            caps.add("revisions")
+        if self.tables is not None:
+            caps.add("tables")
+        if self.list_levels:
+            caps.add("list_levels")
+        if self.unique_local_ids:
+            caps.add("unique_local_ids")
+        if self.companions:
+            caps.add("companions")
+        return caps
+
+    def mechanical_checks(self, family: str | None = None) -> list[Issue]:
+        from .check_registry import run_registered
+        findings, suppressed = run_registered(self, family=family)
+        self.suppressed_checks = suppressed
+        return findings
 
     def _check_xrefs(self) -> list[Issue]:
         nums = self.clause_numbers()
@@ -950,6 +989,188 @@ class Document:
                     break
         return out
 
+    _XREF_TOPIC = {
+        "notice": "notice", "notices": "notice",
+        "confidential": "confidentiality", "confidentiality": "confidentiality",
+        "indemnity": "indemnity", "indemnification": "indemnity",
+        "termination": "termination",
+        "governing": "governing_law",
+        "dispute": "dispute", "arbitration": "dispute",
+        "warranty": "warranty", "warranties": "warranty",
+        "completion": "completion", "closing": "completion",
+        "subscription": "payment", "payment": "payment",
+        "transfer": "transfer",
+        "reserved": "reserved",
+        "interpretation": "interpretation",
+        "definition": "interpretation", "definitions": "interpretation",
+    }
+
+    def _topics_in(self, text: str) -> set[str]:
+        found: set[str] = set()
+        blob = text.lower()
+        for word, topic in self._XREF_TOPIC.items():
+            if re.search(r"\b" + re.escape(word) + r"\b", blob):
+                found.add(topic)
+        for name, rx in TOPIC_RX.items():
+            if rx.search(text):
+                found.add(name)
+        if re.search(r"\b(pay|payment|subscribe|subscription)\b", blob):
+            found.add("payment")
+        return found
+
+    def _resolve_xref(self, kind: str, target: str) -> Clause | None:
+        t = target.lower()
+        kind_l = kind.lower()
+        if kind_l in {"schedule", "annexure", "annex", "exhibit", "appendix"}:
+            candidates = {f"{kind_l} {t}", f"schedule {t}", t}
+        elif kind_l == "part":
+            candidates = {f"part {t}", t}
+        else:
+            candidates = {t, f"clause {t}", f"section {t}", f"article {t}"}
+        for c in self.clauses:
+            if c.number.lower() in candidates:
+                return c
+            if c.number.lower().split()[-1] == t and (
+                kind_l not in {"schedule", "annexure", "annex", "exhibit", "appendix"}
+                or c.kind == "schedule"
+            ):
+                return c
+        return None
+
+    def _check_xref_implausible(self) -> list[Issue]:
+        out = []
+        seen: set[tuple[int, str]] = set()
+        for para, kind, target in self.xrefs:
+            dest = self._resolve_xref(kind, target)
+            if dest is None:
+                continue
+            heading = dest.heading or (
+                self.paras[dest.start] if 0 <= dest.start < len(self.paras) else ""
+            )
+            dest_topics = self._topics_in(heading)
+            if not dest_topics:
+                dest_topics = self._topics_in(
+                    " ".join(self.paras[dest.start:dest.start + 1])
+                )
+            cite = self.paras[para]
+            cite_topics = self._topics_in(cite)
+            if not dest_topics or not cite_topics:
+                continue
+            if dest_topics & cite_topics:
+                continue
+            key = (para, dest.ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            c = self.clause_at(para)
+            out.append(Issue(
+                check="xref_implausible", severity="medium", para=para,
+                ref=c.ref if c else f"p{para}",
+                detail=f"Reference to {kind.title()} {target} ({dest.ref}"
+                       f"{': ' + dest.heading if dest.heading else ''}) "
+                       f"does not match the citing context.",
+                excerpt=self._excerpt(para, kind),
+                certainty="heuristic",
+            ))
+        return out
+
+    def _check_depth_anomaly(self) -> list[Issue]:
+        out = []
+        nums = {
+            c.number for c in self.clauses
+            if c.number and re.fullmatch(r"\d+(?:\.\d+)*", c.number)
+        }
+        seen_parent: set[str] = set()
+        for c in self.clauses:
+            if not re.fullmatch(r"\d+(?:\.\d+)+", c.number):
+                continue
+            parent = c.number.rsplit(".", 1)[0]
+            if parent in nums or parent in seen_parent:
+                continue
+            seen_parent.add(parent)
+            out.append(Issue(
+                check="depth_anomaly", severity="low", para=c.start,
+                ref=c.ref,
+                detail=f"{c.ref} is nested under {parent}, which is not a clause.",
+                excerpt=self._excerpt(c.start, c.number),
+                certainty="heuristic",
+            ))
+        if self.list_levels:
+            siblings: dict[str, list[Clause]] = defaultdict(list)
+            for c in self.clauses:
+                if not re.fullmatch(r"\d+(?:\.\d+)*", c.number):
+                    continue
+                parent = c.number.rsplit(".", 1)[0] if "." in c.number else ""
+                siblings[parent].append(c)
+            for sibs in siblings.values():
+                levels = []
+                for c in sibs:
+                    if 0 <= c.start < len(self.list_levels):
+                        lvl = self.list_levels[c.start]
+                        if lvl is not None:
+                            levels.append((c, int(lvl)))
+                if len(levels) < 3:
+                    continue
+                counts: dict[int, int] = defaultdict(int)
+                for _, lvl in levels:
+                    counts[lvl] += 1
+                majority, n = max(counts.items(), key=lambda kv: kv[1])
+                if n < 2:
+                    continue
+                for c, lvl in levels:
+                    if lvl == majority:
+                        continue
+                    out.append(Issue(
+                        check="depth_anomaly", severity="low", para=c.start,
+                        ref=c.ref,
+                        detail=f"{c.ref} is list-level {lvl} among siblings at level {majority}.",
+                        excerpt=self._excerpt(c.start, c.number),
+                        certainty="heuristic",
+                    ))
+                    break
+        return out
+
+    def _check_unresolved_comments(self) -> list[Issue]:
+        out = []
+        for cmt in self.comments or []:
+            if cmt.get("resolved"):
+                continue
+            para = int(cmt.get("block_idx", -1))
+            if not (0 <= para < len(self.paras)):
+                para = 0
+            c = self.clause_at(para)
+            author = cmt.get("author") or "unknown"
+            text = (cmt.get("text") or "").strip()
+            out.append(Issue(
+                check="unresolved_comment", severity="medium", para=para,
+                ref=c.ref if c else f"p{para}",
+                detail=f"Unresolved Word comment by {author}"
+                       + (f": {text[:120]}" if text else "."),
+                excerpt=text[:140],
+            ))
+        return out
+
+    def _check_pending_revisions(self) -> list[Issue]:
+        out = []
+        for rev in self.revisions or []:
+            para = int(rev.get("block_idx", -1))
+            if not (0 <= para < len(self.paras)):
+                para = 0
+            c = self.clause_at(para)
+            kind = (rev.get("type") or "change").lower()
+            author = rev.get("author") or "unknown"
+            out.append(Issue(
+                check="pending_tracked_change", severity="high", para=para,
+                ref=c.ref if c else f"p{para}",
+                detail=f"Unaccepted {kind} by {author} remains in the document.",
+                excerpt=(rev.get("text_after") or rev.get("text_before") or "")[:140],
+            ))
+        return out
+
+    def _check_cross_document(self) -> list[Issue]:
+        from .matter import cross_document_checks
+        return cross_document_checks(self, self.companions)
+
     def _named_parties(self) -> list[str]:
         found: list[str] = []
         for term in self.definitions:
@@ -1100,6 +1321,30 @@ class Document:
 
     def search_all(self, pattern: str, regex: bool = False) -> list[dict]:
         return self.search(pattern, regex=regex, limit=10**9, offset=0)
+
+
+def build_document(ingested: dict, *, doc_id: str = "primary") -> Document:
+    """Construct a Document from an ingested.json-shaped dict, including extras."""
+    companions = [
+        build_document(
+            raw,
+            doc_id=str(raw.get("doc_id") or raw.get("id") or f"doc{i}"),
+        )
+        for i, raw in enumerate(ingested.get("companions") or [])
+    ]
+    return Document(
+        ingested["paragraphs"],
+        prefixes=ingested.get("prefixes") or ingested.get("list_prefixes"),
+        doc_id=str(ingested.get("doc_id") or ingested.get("id") or doc_id),
+        role=str(ingested.get("role") or "primary"),
+        filename=str(ingested.get("filename") or ""),
+        comments=ingested.get("comments"),
+        revisions=ingested.get("revisions"),
+        tables=ingested.get("tables"),
+        unique_local_ids=ingested.get("unique_local_ids"),
+        list_levels=ingested.get("list_levels"),
+        companions=companions,
+    )
 
 
 def _safe_date(year: int, month: int, day: int) -> date | None:

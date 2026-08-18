@@ -9,6 +9,7 @@ const API = window.location.origin;
 let ISSUES = [];
 let ABORT = null;
 let CAN_COMMENT = false;
+let RUN_ID = null;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) =>
@@ -197,16 +198,39 @@ async function saveRoles() {
 
 /* ------------------------------------------------------------------ document */
 
-async function readParagraphs() {
+function apiSet(ver) {
+  return Office.context.requirements.isSetSupported("WordApi", ver);
+}
+
+function indexOfPara(para, paragraphs, uids) {
+  const uid = para.uniqueLocalId;
+  if (uid && uids && uids.length) {
+    const at = uids.indexOf(uid);
+    if (at >= 0) return at;
+  }
+  const text = para.text || "";
+  const hits = [];
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (paragraphs[i] === text) hits.push(i);
+  }
+  return hits.length === 1 ? hits[0] : (hits[0] ?? -1);
+}
+
+async function readDocument() {
   return Word.run(async (context) => {
-    const ps = context.document.body.paragraphs;
-    const canList = Office.context.requirements.isSetSupported("WordApi", "1.3");
-    ps.load(canList ? "items/text,items/listItemOrNullObject" : "items/text");
+    const body = context.document.body;
+    const ps = body.paragraphs;
+    const canList = apiSet("1.3");
+    const canUid = apiSet("1.6");
+    const fields = ["items/text"];
+    if (canUid) fields.push("items/uniqueLocalId");
+    if (canList) fields.push("items/listItemOrNullObject");
+    ps.load(fields.join(","));
     await context.sync();
     if (canList) {
       for (const p of ps.items) {
         if (!p.listItemOrNullObject.isNullObject) {
-          p.listItemOrNullObject.load("listString");
+          p.listItemOrNullObject.load("listString,level");
         }
       }
       await context.sync();
@@ -214,22 +238,126 @@ async function readParagraphs() {
 
     const paragraphs = [];
     const list_prefixes = [];
+    const unique_local_ids = [];
+    const list_levels = [];
     for (const p of ps.items) {
       paragraphs.push(p.text);
+      unique_local_ids.push(canUid ? (p.uniqueLocalId || "") : "");
       let prefix = "";
+      let level = null;
       if (canList && !p.listItemOrNullObject.isNullObject) {
         prefix = (p.listItemOrNullObject.listString || "").trim();
+        const raw = p.listItemOrNullObject.level;
+        level = typeof raw === "number" ? raw : null;
       }
       list_prefixes.push(prefix);
+      list_levels.push(level);
     }
-    return { paragraphs, list_prefixes };
+
+    const comments = [];
+    let commentsIngested = false;
+    if (apiSet("1.4")) {
+      try {
+        const cs = body.getComments();
+        cs.load("items/id,items/authorName,items/createdDate,items/content,items/resolved");
+        await context.sync();
+        commentsIngested = true;
+        for (const c of cs.items) {
+          const range = c.getRange();
+          const first = range.paragraphs.getFirst();
+          first.load(canUid ? "text,uniqueLocalId" : "text");
+          await context.sync();
+          comments.push({
+            id: c.id || "",
+            block_idx: indexOfPara(first, paragraphs, unique_local_ids),
+            thread_id: c.id || "",
+            author: c.authorName || "",
+            created_at: c.createdDate ? String(c.createdDate) : "",
+            text: c.content || "",
+            resolved: !!c.resolved,
+          });
+        }
+      } catch (e) {
+        commentsIngested = false;
+      }
+    }
+
+    const revisions = [];
+    let revisionsIngested = false;
+    if (apiSet("1.6") && typeof body.getTrackedChanges === "function") {
+      try {
+        const ch = body.getTrackedChanges();
+        ch.load("items/type,items/author,items/date,items/text");
+        await context.sync();
+        revisionsIngested = true;
+        for (const t of ch.items) {
+          const range = t.getRange();
+          const first = range.paragraphs.getFirst();
+          first.load(canUid ? "text,uniqueLocalId" : "text");
+          await context.sync();
+          const kind = String(t.type || "").toLowerCase();
+          const mapped = kind.includes("delete") ? "deletion"
+            : kind.includes("format") ? "format"
+            : kind.includes("move") ? "move"
+            : "insertion";
+          revisions.push({
+            id: "",
+            block_idx: indexOfPara(first, paragraphs, unique_local_ids),
+            type: mapped,
+            author: t.author || "",
+            date: t.date ? String(t.date) : "",
+            text_before: mapped === "deletion" ? (t.text || "") : "",
+            text_after: mapped === "deletion" ? "" : (t.text || ""),
+          });
+        }
+      } catch (e) {
+        revisionsIngested = false;
+      }
+    }
+
+    const tables = [];
+    let tablesIngested = false;
+    try {
+      const ts = body.tables;
+      ts.load("items");
+      await context.sync();
+      tablesIngested = true;
+      let n = 0;
+      for (const table of ts.items) {
+        table.load("values,rowCount");
+        const first = table.getRange().paragraphs.getFirst();
+        first.load(canUid ? "text,uniqueLocalId" : "text");
+        await context.sync();
+        const values = table.values || [];
+        tables.push({
+          id: "t" + n++,
+          start_idx: indexOfPara(first, paragraphs, unique_local_ids),
+          headers: values[0] || [],
+          rows: values.slice(1),
+        });
+      }
+    } catch (e) {
+      tablesIngested = false;
+    }
+
+    return {
+      paragraphs,
+      list_prefixes,
+      unique_local_ids,
+      list_levels,
+      comments: commentsIngested ? comments : undefined,
+      revisions: revisionsIngested ? revisions : undefined,
+      tables: tablesIngested ? tables : undefined,
+    };
   });
 }
 
 function payload(doc) {
-  return {
+  const body = {
     paragraphs: doc.paragraphs,
     list_prefixes: doc.list_prefixes,
+    unique_local_ids: doc.unique_local_ids || [],
+    list_levels: doc.list_levels || [],
     mode: $("mode").value || "A",
     instruction: $("instruction").value,
     party: $("party").value,
@@ -238,15 +366,22 @@ function payload(doc) {
     stage: $("stage").value,
     context: $("context").value,
   };
+  if (doc.comments) body.comments = doc.comments;
+  if (doc.revisions) body.revisions = doc.revisions;
+  if (doc.tables) body.tables = doc.tables;
+  return body;
 }
 
 /* ------------------------------------------------------------------ running */
 
 function resetOutput() {
   ISSUES = [];
+  RUN_ID = null;
   $("issues").innerHTML = "";
   $("questions").innerHTML = "";
   $("summary").classList.add("hidden");
+  $("plan").classList.add("hidden");
+  $("plan").innerHTML = "";
   $("trace").innerHTML = "";
   $("trace").classList.add("hidden");
   $("toggle-trace").classList.add("hidden");
@@ -271,19 +406,23 @@ async function runChecks() {
   resetOutput();
   $("status").textContent = "Running mechanical checks…";
   try {
-    const doc = await readParagraphs();
+    const doc = await readDocument();
     const d = await (await fetch(`${API}/api/checks`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload(doc)),
     })).json();
+    RUN_ID = d.run_id || null;
     $("status").textContent =
       `${d.findings.length} mechanical findings · ${d.clauses} provisions · ` +
-      `${d.definitions} defined terms`;
+      `${d.definitions} defined terms` +
+      (d.suppressed && d.suppressed.length
+        ? ` · ${d.suppressed.length} checks suppressed` : "");
     d.findings.forEach((f, i) => addIssue({
-      id: "m" + i, ref: f.ref, para: f.para, title: f.detail,
+      id: "m" + i, issue_id: f.issue_id, ref: f.ref, para: f.para, title: f.detail,
       classification: "drafting_defect", severity: f.severity,
       position: "clarify", consequence: f.excerpt || "",
       evidence_tier: f.evidence_tier || 1,
+      certainty: f.certainty,
       _mechanical: f.check,
     }));
     collapseMandate();
@@ -302,7 +441,7 @@ async function runReview() {
   $("status").textContent = "Reading the document…";
 
   try {
-    const doc = await readParagraphs();
+    const doc = await readDocument();
     collapseMandate();
     $("toggle-trace").classList.remove("hidden");
     ABORT = new AbortController();
@@ -357,6 +496,9 @@ function handleEvent(ev) {
     case "issue":
       addIssue(ev.issue);
       break;
+    case "plan":
+      paintPlan(ev.plan);
+      break;
     case "reviewer":
       $("status").textContent +=
         ` · reviewer kept ${ev.kept}` +
@@ -370,6 +512,8 @@ function handleEvent(ev) {
       $("status").textContent = "Error.";
       break;
     case "done":
+      RUN_ID = ev.run_id || RUN_ID;
+      if (ev.plan) paintPlan(ev.plan);
       $("summary").textContent = ev.summary;
       $("summary").classList.remove("hidden");
       $("issues").innerHTML = "";
@@ -406,6 +550,15 @@ function statusLine(issues) {
   if (proven) parts.push(`${proven} proven`);
   if (advisory) parts.push(`${advisory} advisory`);
   return parts.join(" · ");
+}
+
+function paintPlan(plan) {
+  if (!plan || !plan.steps || !plan.steps.length) return;
+  const el = $("plan");
+  el.innerHTML = `<div class="label">${plan.revised ? "Revised plan" : "Plan"}</div>`
+    + (plan.focus ? `<div class="focus">${esc(plan.focus)}</div>` : "")
+    + `<ol>${plan.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`;
+  el.classList.remove("hidden");
 }
 
 function addIssue(issue) {
@@ -453,6 +606,7 @@ function addIssue(issue) {
         <span class="tag">${esc((issue.position || "").replace(/_/g, " "))}</span>
         <span class="tag">para ${esc(issue.para)}</span>
         ${engine ? `<span class="tag">${esc(issue._mechanical)}</span>` : ""}
+        ${issue.certainty === "heuristic" ? `<span class="certainty">heuristic</span>` : ""}
       </div>
       <div class="row">
         <button data-act="goto" data-i="${i}" type="button">Go to</button>
@@ -461,6 +615,12 @@ function addIssue(issue) {
         ${issue.new_text ? `<button data-act="copy" data-i="${i}" type="button">Copy drafting</button>`
                          : (issue.comment ? `<button data-act="copycomment" data-i="${i}" type="button">Copy comment</button>` : "")}
       </div>
+      ${issue.issue_id ? `<div class="disp">
+        <button data-disp="accepted" data-i="${i}" class="accept" type="button">Accept</button>
+        <button data-disp="accepted_modified" data-i="${i}" type="button">Accept edited</button>
+        <button data-disp="rejected" data-i="${i}" class="reject" type="button">Reject</button>
+        <button data-disp="deferred" data-i="${i}" type="button">Defer</button>
+      </div>` : ""}
       <div class="result"></div>
     </div>`;
 
@@ -472,7 +632,32 @@ function addIssue(issue) {
       act(b.dataset.act, ISSUES[+b.dataset.i], el.querySelector(".result"));
     };
   });
+  el.querySelectorAll("button[data-disp]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      dispose(ISSUES[+b.dataset.i], b.dataset.disp, el);
+    };
+  });
   $("issues").appendChild(el);
+}
+
+async function dispose(issue, action, card) {
+  if (!issue.issue_id) return;
+  const out = card.querySelector(".result");
+  try {
+    const r = await fetch(`${API}/api/issues/${encodeURIComponent(issue.issue_id)}/disposition`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const d = await r.json();
+    if (d.error) { say(out, d.error, false); return; }
+    issue.disposition = action;
+    card.classList.add("disposed");
+    say(out, action.replace(/_/g, " ") + ".", true);
+  } catch (e) {
+    say(out, String(e.message || e), false);
+  }
 }
 
 /* ------------------------------------------------------------------ actions */
@@ -487,7 +672,8 @@ const forWordSearch = (s) => s.replace(/\^/g, "^^");
 
 async function findRange(context, issue) {
   const ps = context.document.body.paragraphs;
-  ps.load("items/text");
+  const canUid = apiSet("1.6");
+  ps.load(canUid ? "items/text,items/uniqueLocalId" : "items/text");
   await context.sync();
 
   const needle = forWordSearch(issue.old_text);
@@ -499,6 +685,14 @@ async function findRange(context, issue) {
     await context.sync();
     return r.items.length ? r.items[0] : null;
   };
+
+  if (issue.unique_local_id && canUid) {
+    const byId = ps.items.find((p) => p.uniqueLocalId === issue.unique_local_id);
+    if (byId) {
+      const hit = await tryIn(byId);
+      if (hit) return hit;
+    }
+  }
 
   if (issue.para >= 0 && issue.para < ps.items.length) {
     const hit = await tryIn(ps.items[issue.para]);

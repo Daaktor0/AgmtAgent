@@ -11,7 +11,8 @@ import json
 from typing import Iterator
 
 from .config import Config, load_skill
-from .document import Document
+from .document import build_document
+from .memory import get_store
 from .reviewer import review_issues
 from .router import Router, RouterError
 from .tools import TOOL_SCHEMAS, Toolbox
@@ -104,35 +105,42 @@ see the document except through them.
 
 Ground rules:
 
-1. Paragraph indices in square brackets are the document's coordinate system. Every
+1. Call `plan` first with the steps you will take, then `get_outline`. Revise the
+   plan if the work changes direction.
+2. Paragraph indices in square brackets are the document's coordinate system. Every
    issue you record must carry the paragraph index you actually read it at. Never
    guess an index.
-2. Quote existing wording verbatim. `old_text` is searched for character-for-character
+3. Quote existing wording verbatim. `old_text` is searched for character-for-character
    in Word — if it does not match exactly, the user cannot accept your edit. Keep it
    under 200 characters. If the change cannot be expressed that surgically, that is
    usually a signal the change is too large.
-3. `run_mechanical_checks` is exact and cannot hallucinate, but it is blind to meaning.
+4. `run_mechanical_checks` is exact and cannot hallucinate, but it is blind to meaning.
    Verify a finding by reading the paragraph before you record it, and discard the ones
    that are not real.
-4. Before proposing any new wording (`new_text`), call `check_overlap` and pass the
+5. Before proposing any new wording (`new_text`), call `check_overlap` and pass the
    refs it returns as `overlap_trace` on `record_issue`. The tool will reject the
    issue if you skip this. Adding a second remedy for one wrong is a failure.
-5. `delegate` gives you breadth over long schedules and warranty sets. The worker sees
+6. `delegate` gives you breadth over long schedules and warranty sets. The worker sees
    only the slice you give it and cannot check the rest of the document. Verify anything
    it asserts that you intend to act on.
-6. Record issues as you settle them, not in a batch at the end. If a review is cut
+7. Record issues as you settle them, not in a batch at the end. If a review is cut
    short, what you have recorded is what the user gets.
-7. Call `finish` when further reading would not change your advice — not when you have
+8. Call `finish` when further reading would not change your advice — not when you have
    run out of clauses. Lead with the two or three things that actually matter.
-8. If the mandate is unclear on something that changes the analysis — which party you
+9. If the mandate is unclear on something that changes the analysis — which party you
    act for above all — call `ask_user`, then proceed on the most defensible assumption
    and say which one you took.
+10. `get_comments`, `get_tracked_changes` and `read_table` exist when Word ingested
+    them. `list_documents` / `search_matter` / `compare_versions` exist when the
+    matter has more than one file. A suppressed check is not a clean bill of health.
 
 You have a budget of roughly {steps} tool calls. Spend them where the risk is.
+At 80% consumed you will be told to record what you have and finish.
 """
 
 
-def build_system_prompt(mode: str, mandate: dict, steps: int) -> str:
+def build_system_prompt(mode: str, mandate: dict, steps: int,
+                        positions: list[dict] | None = None) -> str:
     m = MODES.get(mode.upper(), MODES["A"])
     parts = [
         load_skill(),
@@ -141,6 +149,8 @@ def build_system_prompt(mode: str, mandate: dict, steps: int) -> str:
         "--- MANDATE ---\n" + json.dumps(
             {k: v for k, v in mandate.items() if v}, indent=2),
     ]
+    if positions:
+        parts.append("--- HOUSE POSITIONS ---\n" + json.dumps(positions, indent=2))
     return "\n\n".join(parts)
 
 
@@ -150,12 +160,20 @@ class Supervisor:
         self.router = router
 
     def run(self, paragraphs: list[str], mode: str, mandate: dict,
-            instruction: str = "", prefixes: list[str] | None = None) -> Iterator[dict]:
-        doc = Document(paragraphs, prefixes=prefixes)
-        box = Toolbox(doc, self.router, mandate)
+            instruction: str = "", prefixes: list[str] | None = None,
+            extras: dict | None = None) -> Iterator[dict]:
+        extras = dict(extras or {})
+        extras.setdefault("paragraphs", paragraphs)
+        if prefixes is not None:
+            extras.setdefault("list_prefixes", prefixes)
+        doc = build_document(extras, doc_id=str(extras.get("doc_id") or "primary"))
+        matter = [doc] + list(doc.companions)
+        box = Toolbox(doc, self.router, mandate, matter=matter)
 
         yield {"event": "parsed", "clauses": len(doc.clauses),
-               "definitions": len(doc.definitions), "paragraphs": len(doc.paras)}
+               "definitions": len(doc.definitions), "paragraphs": len(doc.paras),
+               "documents": len(matter),
+               "capabilities": sorted(doc.capabilities)}
 
         try:
             model = self.router.resolve("supervisor")
@@ -164,18 +182,38 @@ class Supervisor:
             return
         yield {"event": "model", "role": "supervisor", "model": model}
 
+        house = []
+        try:
+            house = get_store().active_positions()
+        except OSError:
+            house = []
+        house_slim = [
+            {"topic": p["topic"], "polarity": p["polarity"],
+             "statement": p["statement"]}
+            for p in house[:20]
+        ]
+
         opening = instruction.strip() or (
             f"Run mode {mode.upper()} on this document.")
         messages = [
             {"role": "system", "content": build_system_prompt(
-                mode, mandate, self.cfg.max_supervisor_steps)},
+                mode, mandate, self.cfg.max_supervisor_steps, house_slim)},
             {"role": "user", "content":
                 f"{opening}\n\nThe document has {len(doc.paras)} paragraphs and "
-                f"{len(doc.clauses)} numbered provisions. Start with get_outline."},
+                f"{len(doc.clauses)} numbered provisions"
+                + (f", plus {len(matter) - 1} companion document(s)"
+                   if len(matter) > 1 else "")
+                + ". Call plan first, then get_outline."},
         ]
 
         usages: list[dict] = []
+        warn_at = max(1, int(self.cfg.max_supervisor_steps * 0.8))
         for step in range(self.cfg.max_supervisor_steps):
+            if step == warn_at:
+                messages.append({
+                    "role": "user",
+                    "content": "Budget is at 80%. Record what you have and finish.",
+                })
             try:
                 resp = self.router.chat("supervisor", messages,
                                         tools=TOOL_SCHEMAS, model=model)
@@ -214,7 +252,8 @@ class Supervisor:
                 yield {"event": "tool", "name": name,
                        "args": {k: v for k, v in args.items()
                                 if k in ("ref", "term", "query", "start", "end",
-                                         "title", "role", "question")}}
+                                         "title", "role", "question", "family",
+                                         "topic", "other_id")}}
                 result = box.call(name, args)
                 messages.append({"role": "tool", "tool_call_id": call["id"],
                                  "content": result})
@@ -227,6 +266,8 @@ class Supervisor:
                         yield {"event": "issue", "issue": box.issues[-1]}
                 if name == "ask_user" and box.questions:
                     yield {"event": "question", "question": box.questions[-1]}
+                if name in {"plan", "revise_plan"} and box.plan:
+                    yield {"event": "plan", "plan": box.plan}
 
             if box.finished is not None:
                 break
@@ -235,16 +276,32 @@ class Supervisor:
         box.issues = kept
         yield {"event": "reviewer", **review}
 
+        mechanical = [
+            {"check": i.check, "check_id": i.check_id, "family": i.family,
+             "severity": i.severity, "para": i.para,
+             "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt,
+             "certainty": i.certainty, "evidence_tier": i.evidence_tier}
+            for i in doc.mechanical_checks()
+        ]
+        summary = box.finished or "Review ended without a summary."
+        run_id = None
+        try:
+            run_id = get_store().save_run(
+                mode=mode, mandate=mandate, instruction=instruction,
+                status="done", summary=summary, issues=box.issues,
+                usage=usages, plan=box.plan, steps_used=len(usages),
+            )
+        except OSError:
+            run_id = None
+
         yield {
             "event": "done",
-            "summary": box.finished or "Review ended without a summary.",
+            "summary": summary,
             "issues": box.issues,
             "questions": box.questions,
             "usage": usages,
-            "mechanical": [
-                {"check": i.check, "severity": i.severity, "para": i.para,
-                 "ref": i.ref, "detail": i.detail, "excerpt": i.excerpt,
-                 "certainty": i.certainty, "evidence_tier": i.evidence_tier}
-                for i in doc.mechanical_checks()
-            ],
+            "plan": box.plan,
+            "run_id": run_id,
+            "mechanical": mechanical,
+            "suppressed": list(doc.suppressed_checks),
         }

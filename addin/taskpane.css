@@ -234,6 +234,27 @@ summary { font-weight: 650; cursor: pointer; font-size: 12px; }
   padding: 8px 10px; margin-top: 10px; font-size: 12px;
 }
 
+.plan {
+  margin-top: 10px; padding: 8px 10px;
+  border: 1px solid var(--line); background: #f7f8f4;
+}
+.plan .label {
+  font: 600 10px/1 var(--sans); letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.plan ol { margin: 6px 0 0 18px; padding: 0; }
+.plan li { margin: 2px 0; font: 12.5px/1.4 var(--serif); }
+.plan .focus { margin: 4px 0 0; color: var(--muted); font-size: 11.5px; }
+
+.disp { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+.disp button.accept { color: var(--ok); }
+.disp button.reject { color: var(--pen); }
+.issue.disposed { opacity: .62; }
+.issue .certainty {
+  font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted);
+}
+
 .rolerow { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
 .rolerow span { width: 78px; font-size: 12px; font-weight: 600; }
 .rolerow select { flex: 1; }

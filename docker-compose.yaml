@@ -13,9 +13,15 @@ services:
       - HOSTED=1
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - TZ=${TZ:-Asia/Kolkata}
+      - AGMT_DB=/data/agmt.db
+    volumes:
+      - agmt-data:/data
     labels:
       - traefik.enable=true
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${COMPOSE_PROJECT_NAME}.${TRAEFIK_HOST}`)
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=letsencrypt
       - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=8787
+
+volumes:
+  agmt-data:

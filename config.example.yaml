@@ -1,0 +1,33 @@
+# Copy to config.yaml. The task pane writes to this file when you save settings,
+# so you normally never need to edit it by hand.
+
+# Get one at https://openrouter.ai/keys — this is an API key, not a ChatGPT /
+# Claude / SuperGrok subscription. Subscriptions do not grant API access.
+openrouter_api_key: ""
+
+# Pin a role to an exact model slug. Leave a role out to let it resolve
+# automatically to the newest model in the preferred family (see prefer, below).
+pinned: {}
+#   supervisor: anthropic/claude-opus-4.5
+#   analyst: google/gemini-3-pro
+#   extractor: anthropic/claude-haiku-4.5
+
+# Ordered slug prefixes per role. The first prefix with a live match wins, and
+# within it the most recently released model is chosen. Because these are
+# prefixes, not versions, the tool follows new releases without an update.
+# Override only if you want a different house preference.
+prefer: {}
+#   supervisor:
+#     - anthropic/claude-opus
+#     - openai/gpt-5
+#     - google/gemini-3
+
+# Roughly how many tool calls the supervisor may spend on one run.
+max_supervisor_steps: 40
+
+temperature: 0.2
+port: 8787
+
+# Restrict the model catalogue to zero-cost models. Useful for trialling the
+# workflow; the quality will not be adequate for real drafting.
+require_only_free: false

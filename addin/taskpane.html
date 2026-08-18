@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Agreement Agent</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<link rel="stylesheet" href="taskpane.css"/>
+</head>
+<body>
+
+<header>
+  <div class="brand">Agreement Agent</div>
+  <button id="tab-settings" class="linkbtn" title="Models and API key">Settings</button>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main>
+
+  <!-- ============ REVIEW ============ -->
+  <section id="view-review">
+
+    <details id="mandate" open>
+      <summary>Mandate</summary>
+      <p class="hint">The skill's analysis turns on these. Fill them before the first run;
+        they persist for the session.</p>
+      <label>Acting for
+        <input id="party" placeholder="e.g. the Company and Founders"/>
+      </label>
+      <label>Counterparty
+        <input id="counterparty" placeholder="e.g. the incoming Investor"/>
+      </label>
+      <label>Document
+        <input id="doctype" placeholder="e.g. SSHA, second markup"/>
+      </label>
+      <label>Stage
+        <select id="stage">
+          <option value="">—</option>
+          <option>First review</option>
+          <option>Internal draft</option>
+          <option>Counterparty markup</option>
+          <option>Negotiated redline</option>
+          <option>Near-final clean</option>
+          <option>Execution version</option>
+        </select>
+      </label>
+      <label>Commercial context
+        <textarea id="context" rows="2"
+          placeholder="What is being exchanged, key economics, anything agreed on a call."></textarea>
+      </label>
+    </details>
+
+    <label>Mode
+      <select id="mode"></select>
+    </label>
+
+    <label>Instruction <span class="hint">optional — overrides the mode default</span>
+      <textarea id="instruction" rows="3"
+        placeholder="e.g. Review Clause 9 only. Investor wants a standalone indemnity for any EOD — push back if it duplicates."></textarea>
+    </label>
+
+    <div class="row">
+      <button id="run" class="primary">Run review</button>
+      <button id="checks" title="Deterministic checks. No model call, no cost.">Mechanical checks</button>
+      <button id="stop" class="hidden">Stop</button>
+    </div>
+    <p class="hint" id="scope-note"></p>
+
+    <div id="status" class="status hidden"></div>
+    <div id="trace" class="trace hidden"></div>
+    <div id="summary" class="summary hidden"></div>
+    <div id="questions"></div>
+    <div id="issues"></div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="view-settings" class="hidden">
+    <h2>OpenRouter</h2>
+    <p class="hint">One key, every provider. A ChatGPT, Claude or SuperGrok
+      <em>subscription</em> will not work here — those are not programmatic access.
+      Get a key at openrouter.ai/keys. It is stored in config.yaml on this machine
+      and never leaves it except in calls to OpenRouter.</p>
+    <label>API key
+      <input id="apikey" type="password" placeholder="sk-or-v1-…"/>
+    </label>
+    <button id="savekey" class="primary">Save key</button>
+
+    <h2>Models by role</h2>
+    <p class="hint">Leave a role on <em>auto</em> and it resolves to the newest model in
+      the preferred family at run time, so it keeps up with new releases. Pin one to
+      freeze it.</p>
+    <div id="roles"></div>
+    <button id="saveroles" class="primary">Save models</button>
+    <p class="hint" id="rolestatus"></p>
+
+    <h2>Diagnostics</h2>
+    <div id="diag" class="hint"></div>
+  </section>
+
+</main>
+
+<script src="taskpane.js"></script>
+</body>
+</html>

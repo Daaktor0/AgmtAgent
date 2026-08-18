@@ -1,0 +1,39 @@
+SHARE SUBSCRIPTION AND SHAREHOLDERS AGREEMENT
+This Agreement is made on 12 March 2026 between Aurora Systems Private Limited (the "Company"), the persons listed in Part A of Schedule 1 (the "Promoters") and Kestrel Growth Fund II (the "Investor").
+1. DEFINITIONS AND INTERPRETATION
+1.1 In this Agreement, unless the context otherwise requires:
+"Affiliate" means, in relation to any Person, any other Person that directly or indirectly Controls, is Controlled by, or is under common Control with, that Person.
+"Business Plan" means the business plan of the Company for the period commencing on the Closing Date, as approved by the Board and the Investor Director.
+"Investor Majority" means the affirmative vote or written consent of Investors holding not less than 51% of the Investor Shares.
+"Loss" means any and all losses, liabilities, damages, costs, claims, penalties, fines, and expenses, including reasonable legal fees, whether or not arising from a Third Party Claim.
+"Material Adverse Effect" means any event, occurrence, fact, condition or change that is materially adverse to the business, results of operations, financial condition or assets of the Company, taken as a whole.
+"Subscription Amount" means INR 45,00,00,000 (Rupees Forty Five Crore only).
+"Transfer" means to sell, assign, transfer, pledge, hypothecate, create an Encumbrance over or otherwise dispose of, whether directly or indirectly.
+1.2 References to Clauses and Schedules are to clauses of and schedules to this Agreement.
+2. SUBSCRIPTION
+2.1 Subject to the terms of this Agreement, the Investor shall subscribe to, and the Company shall issue, the Subscription Shares for the Subscription Amount of INR 45,00,00,000 (Rupees Forty Four Crore only) at Closing.
+2.2 The Subscription Amount shall be paid in immediately available funds to the account notified under Clause 2.4.
+3. CONDITIONS PRECEDENT
+3.1 The obligations of the Investor under Clause 2 are conditional upon satisfaction of the conditions set out in Schedule 3.
+3.3 The Company shall use best efforts to satisfy the Conditions Precedent on or before [●].
+4. WARRANTIES
+4.1 The Company and the Promoters jointly and severally warrant to the Investor that each of the Business Warranties is true and accurate as at the date of this Agreement.
+4.2 The Business Warranties are qualified by the matters fairly disclosed in the Disclosure Letter.
+5. INDEMNITY
+5.1 The Company shall indemnify the Investor against any Loss suffered by the Investor arising out of or in connection with (a) any breach of the Warranties; (b) any Specific Indemnity Matter; and (c) the occurrence of an Event of Default.
+5.2 The aggregate liability of the Company under Clause 5.1 shall not exceed the Subscription Amount.
+5.3 Where the Company makes a payment to the Investor under Clause 5.1, the amount payable shall be grossed up by reference to the Investor's shareholding percentage in the Company, and in addition the Investor shall be deemed to have suffered a direct loss equal to its proportionate share of the loss suffered by the Company.
+6. RESERVED MATTERS
+6.1 The Company shall not, without Investor Majority consent, incur any indebtedness exceeding INR 5,00,00,000.
+6.2 The Company shall not, without Investor Majority consent, create any Encumbrance over its assets.
+6.3 The Company shall not, without Investor Majority consent, provide any guarantee or indemnity in respect of the obligations of any third party.
+6.4 The Company shall not, without Investor Majority consent, incur any borrowing whatsoever other than trade credit in the ordinary course.
+7. TRANSFER RESTRICTIONS
+7.1 No Promoter shall Transfer any Shares without the prior written consent of the Investor, and any transfer in breach of this Clause 7.1 shall be void.
+7.2 The tag along rights of the Investor are set out in Clause 7.5.
+8. TERMINATION
+8.1 This Agreement may be terminated by mutual written consent of the parties, or as set out in Clause 11.2.
+SCHEDULE 1
+Part A - Promoters
+SCHEDULE 3
+Conditions Precedent

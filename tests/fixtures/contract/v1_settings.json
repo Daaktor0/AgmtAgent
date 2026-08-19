@@ -1,0 +1,166 @@
+{
+  "config_defaults": {
+    "api_key": "<redacted>",
+    "max_supervisor_steps": 40,
+    "pinned": {},
+    "port": 8787,
+    "prefer": {
+      "analyst": [
+        "anthropic/claude-sonnet",
+        "openai/gpt-5",
+        "google/gemini-3",
+        "x-ai/grok",
+        "anthropic/claude",
+        "openai/gpt"
+      ],
+      "drafter": [
+        "anthropic/claude-opus",
+        "anthropic/claude-sonnet",
+        "openai/gpt-5",
+        "google/gemini-3",
+        "openai/gpt"
+      ],
+      "extractor": [
+        "anthropic/claude-haiku",
+        "google/gemini-3-flash",
+        "openai/gpt-5-mini",
+        "google/gemini-flash",
+        "openai/gpt-4o-mini"
+      ],
+      "reviewer": [
+        "anthropic/claude-sonnet",
+        "openai/gpt-5",
+        "google/gemini-3",
+        "anthropic/claude",
+        "openai/gpt",
+        "x-ai/grok"
+      ],
+      "supervisor": [
+        "anthropic/claude-opus",
+        "openai/gpt-5",
+        "google/gemini-3",
+        "anthropic/claude-sonnet",
+        "openai/gpt",
+        "google/gemini",
+        "x-ai/grok"
+      ]
+    },
+    "require_only_free": false,
+    "temperature": 0.2
+  },
+  "config_field_names": [
+    "api_key",
+    "pinned",
+    "prefer",
+    "max_supervisor_steps",
+    "temperature",
+    "port",
+    "require_only_free"
+  ],
+  "get_api_health": {
+    "has_key": false,
+    "modes": {
+      "A": "Full agreement review",
+      "B": "Clause review",
+      "C": "Drafting / redrafting",
+      "D": "Surgical inline amendment",
+      "E": "Bubble comments",
+      "F": "Counterparty markup review",
+      "G": "Negotiation strategy",
+      "H": "Negotiation call prep",
+      "I": "Interpretation / explanation",
+      "J": "Consistency / cross-reference check",
+      "K": "Proofreading",
+      "L": "Comparison of versions",
+      "M": "Email summarising changes",
+      "N": "Near-final / pre-signing QC"
+    },
+    "ok": true
+  },
+  "get_api_models": {
+    "models": [
+      {
+        "context": 200000,
+        "id": "anthropic/claude-haiku-4",
+        "name": "Claude Haiku 4",
+        "tools": true
+      },
+      {
+        "context": 200000,
+        "id": "anthropic/claude-opus-4",
+        "name": "Claude Opus 4",
+        "tools": true
+      },
+      {
+        "context": 200000,
+        "id": "anthropic/claude-sonnet-4",
+        "name": "Claude Sonnet 4",
+        "tools": true
+      },
+      {
+        "context": 1000000,
+        "id": "google/gemini-3",
+        "name": "Gemini 3",
+        "tools": true
+      },
+      {
+        "context": 128000,
+        "id": "openai/gpt-5",
+        "name": "GPT-5",
+        "tools": true
+      },
+      {
+        "context": 131072,
+        "id": "x-ai/grok-4",
+        "name": "Grok 4",
+        "tools": true
+      }
+    ],
+    "pinned": {},
+    "roles": {
+      "analyst": "anthropic/claude-sonnet-4",
+      "drafter": "anthropic/claude-opus-4",
+      "extractor": "anthropic/claude-haiku-4",
+      "reviewer": "anthropic/claude-sonnet-4",
+      "supervisor": "anthropic/claude-opus-4"
+    }
+  },
+  "post_api_settings_empty": {
+    "has_key": false,
+    "ok": true,
+    "pinned": {}
+  },
+  "settings_model_schema": {
+    "properties": {
+      "api_key": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Api Key"
+      },
+      "pinned": {
+        "anyOf": [
+          {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Pinned"
+      }
+    },
+    "title": "Settings",
+    "type": "object"
+  }
+}

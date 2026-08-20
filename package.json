@@ -1,0 +1,17 @@
+{
+	"name": "agmt",
+	"private": true,
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"types": "wrangler types"
+	},
+	"devDependencies": {
+		"@types/node": "^26.2.0",
+		"typescript": "^5.9.2",
+		"wrangler": "^4.124.0"
+	},
+	"dependencies": {
+		"@cloudflare/containers": "^0.3.7"
+	}
+}

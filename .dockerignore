@@ -3,12 +3,15 @@
 .venv
 __pycache__
 *.pyc
+node_modules
+.wrangler
+reports
+data
 certs
-config.yaml
-eval
 tests
+eval
 v2 data
 *.md
-_eval_mode_*.jsonl
-.DS_Store
-Thumbs.db
+config.yaml
+.dev.vars
+For developer, with love.txt

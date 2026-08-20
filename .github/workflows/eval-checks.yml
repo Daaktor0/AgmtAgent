@@ -18,3 +18,7 @@ jobs:
         run: python -m agent.eval checks --corpus eval/corpus
       - name: Offline tests
         run: python tests/test_pipeline.py
+      - name: Golden vertical slice
+        run: python tests/test_golden_slice.py
+      - name: Contract freeze and contextual fixtures
+        run: python tests/test_contract_freeze.py

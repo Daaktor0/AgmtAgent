@@ -32,3 +32,12 @@ port: 8787
 # Restrict the model catalogue to zero-cost models. Useful for trialling the
 # workflow; the quality will not be adequate for real drafting.
 require_only_free: false
+
+# Golden-slice feature flags. Environment variables AGMT_WORD_V2,
+# AGMT_CONTEXTUAL_COMMAND, AGMT_SAFE_ACTIONS, AGMT_DSH_RUNTIME override these.
+# Existing /api/review and mechanical-check paths ignore them.
+flags:
+  word_v2: true
+  contextual_command: true
+  safe_actions: true
+  dsh_runtime: false

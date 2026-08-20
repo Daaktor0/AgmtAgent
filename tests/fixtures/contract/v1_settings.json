@@ -58,6 +58,16 @@
     "require_only_free"
   ],
   "get_api_health": {
+    "flags": {
+      "AGMT_CONTEXTUAL_COMMAND": true,
+      "AGMT_DSH_RUNTIME": false,
+      "AGMT_SAFE_ACTIONS": true,
+      "AGMT_WORD_V2": true,
+      "contextual_command": true,
+      "dsh_runtime": false,
+      "safe_actions": true,
+      "word_v2": true
+    },
     "has_key": false,
     "modes": {
       "A": "Full agreement review",

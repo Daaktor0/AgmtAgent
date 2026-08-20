@@ -23,6 +23,21 @@
 
   <section id="view-review">
 
+    <div id="contextual" class="contextual hidden">
+      <p class="hint" id="sel-preview">Select contractual language, then ask Agmt.</p>
+      <label>Ask Agmt
+        <textarea id="ctx-instruction" rows="3"
+          placeholder="Check this language against the indemnity clause for any double-recovery issue."></textarea>
+      </label>
+      <div class="row">
+        <button id="ctx-ask" class="primary" type="button">Ask Agmt</button>
+      </div>
+      <div id="ctx-status" class="status hidden"></div>
+      <div id="ctx-ambiguity" class="ambiguity hidden"></div>
+      <div id="ctx-card" class="result-card hidden"></div>
+      <div id="ctx-amend" class="amend hidden"></div>
+    </div>
+
     <button id="mandate-chip" class="mandate-chip hidden" type="button"></button>
 
     <details id="mandate" open>
@@ -112,6 +127,7 @@
 
 </main>
 
+<script src="v2.js"></script>
 <script src="taskpane.js"></script>
 </body>
 </html>

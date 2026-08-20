@@ -44,6 +44,7 @@ Office.onReady((info) => {
   $("mandate").addEventListener("toggle", () => {
     if (!$("mandate").open) paintMandateChip();
   });
+  $("ctx-ask").onclick = () => runContextual();
 
   bootstrap();
 });
@@ -88,6 +89,13 @@ async function bootstrap() {
       `Host: ${esc(API)}<br>Word comment API (WordApi 1.4): ` +
       (CAN_COMMENT ? "available." : "not available in this Word build — " +
         "tracked changes and copy still work.");
+    if (h.flags && h.flags.word_v2 && h.flags.contextual_command) {
+      $("contextual").classList.remove("hidden");
+      if (window.AgmtWord && AgmtWord.onSelectionChanged) {
+        AgmtWord.onSelectionChanged(() => { paintSelectionPreview(); });
+      }
+      paintSelectionPreview();
+    }
   } catch (e) {
     banner("Can't reach the review host at " + API + ".", true);
     $("diag").textContent = String(e);
@@ -783,5 +791,220 @@ async function act(kind, issue, out) {
     }
   } catch (e) {
     say(out, String(e.message || e), false);
+  }
+}
+
+/* ------------------------------------------------------------------ contextual */
+
+let CTX = { envelope: null, last: null, occurrence: {} };
+
+async function paintSelectionPreview() {
+  const node = $("sel-preview");
+  if (!window.AgmtWord) {
+    node.textContent = "Select contractual language, then ask Agmt.";
+    return;
+  }
+  try {
+    const env = await AgmtWord.captureSelection("primary", "live");
+    CTX.envelope = env;
+    const text = (env.selectedText || "").trim();
+    if (!text) {
+      node.textContent = "Select contractual language, then ask Agmt.";
+      return;
+    }
+    const shown = text.length > 180 ? text.slice(0, 179) + "…" : text;
+    node.textContent = "Selected: " + shown;
+  } catch (e) {
+    node.textContent = "Select contractual language, then ask Agmt.";
+  }
+}
+
+function ctxStatus(msg, show) {
+  const n = $("ctx-status");
+  n.textContent = msg || "";
+  n.classList.toggle("hidden", !show);
+}
+
+function paintAmbiguity(payload) {
+  const box = $("ctx-ambiguity");
+  const refs = (((payload.command || {}).references) || []).filter((r) => r.status === "ambiguous");
+  if (!refs.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const alts = [];
+  refs.forEach((r) => (r.alternatives || []).forEach((c) => alts.push(c)));
+  box.innerHTML = `<div>${esc(payload.message || "I found more than one potentially relevant provision.")}</div>` +
+    alts.map((c) => `<button type="button" data-ref="${esc(c.ref_id)}">${esc(c.label || c.clause_ref)}</button>`).join("");
+  box.classList.remove("hidden");
+  box.querySelectorAll("button").forEach((b) => {
+    b.onclick = () => runContextual({ chosen: [b.dataset.ref] });
+  });
+}
+
+function paintCard(payload) {
+  const card = payload.card || {};
+  const el = $("ctx-card");
+  const hooks = (card.hooks || []).join(" × ");
+  const evidence = (card.evidence || []).map((e, i) => {
+    const label = e.ref || ("Evidence " + (i + 1));
+    return `<div class="ev-row"><span>${esc(label)}</span>` +
+      `<button type="button" data-quote="${esc(e.quote || "")}" data-para="${e.para == null ? "" : e.para}">Go to</button></div>`;
+  }).join("");
+  const stamp = card.reviewer === "confirmed"
+    ? "Independent review: Confirmed"
+    : "Independent review: " + (card.reviewer || "unreviewed");
+  const stampClass = card.reviewer === "confirmed" ? "" : " warn";
+  el.innerHTML =
+    (hooks ? `<div class="hooks">${esc(hooks)}</div>` : "") +
+    `<h3>${esc(card.title || "")}</h3>` +
+    `<div>${esc(card.why || "")}</div>` +
+    (card.why ? `<div class="why"><strong>Why this matters</strong><br>${esc(card.why)}</div>` : "") +
+    `<div class="ev-label">Evidence</div>${evidence}` +
+    `<div class="reviewer-stamp${stampClass}">${esc(stamp)}</div>` +
+    `<div class="row">` +
+    (card.can_amend ? `<button type="button" id="ctx-show-amend">Show amendment</button>` : "") +
+    `<button type="button" id="ctx-dismiss">Dismiss</button></div>`;
+  el.classList.remove("hidden");
+  el.querySelectorAll(".ev-row button").forEach((b) => {
+    b.onclick = async () => {
+      const quote = b.dataset.quote;
+      const para = b.dataset.para === "" ? -1 : Number(b.dataset.para);
+      if (quote && window.AgmtWord) {
+        const key = quote;
+        CTX.occurrence[key] = (CTX.occurrence[key] || 0);
+        const loc = await AgmtWord.locateExact(quote, CTX.occurrence[key]);
+        CTX.occurrence[key] = loc.index + 1;
+      } else if (para >= 0 && window.AgmtWord) {
+        await AgmtWord.locateParagraph(para);
+      }
+    };
+  });
+  const show = $("ctx-show-amend");
+  if (show) show.onclick = () => showAmendment(payload);
+  $("ctx-dismiss").onclick = () => {
+    el.classList.add("hidden");
+    $("ctx-amend").classList.add("hidden");
+    $("ctx-ambiguity").classList.add("hidden");
+  };
+}
+
+async function showAmendment(payload) {
+  let amend = payload.amendment;
+  if (!amend || amend.status !== "ready") {
+    const ingest = window.AgmtWord ? await AgmtWord.ingestParagraphs() : { paragraphs: [] };
+    const r = await fetch(`${API}/api/contextual-commands/${encodeURIComponent(payload.command_id)}/draft`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command_id: payload.command_id, paragraphs: ingest.paragraphs }),
+    });
+    amend = await r.json();
+  }
+  const box = $("ctx-amend");
+  if (amend.status !== "ready") {
+    box.innerHTML = `<p class="hint">${esc(amend.reason || "No amendment.")}</p>`;
+    box.classList.remove("hidden");
+    return;
+  }
+  box.innerHTML =
+    `<div class="block-label">Current</div><pre>${esc(amend.current)}</pre>` +
+    `<div class="block-label">Proposed</div><pre>${esc(amend.proposed)}</pre>` +
+    `<div class="why">${esc(amend.reason || "")}</div>` +
+    `<button type="button" class="primary" id="ctx-approve">Approve tracked change</button>`;
+  box.classList.remove("hidden");
+  $("ctx-approve").onclick = () => approveAmendment(amend);
+}
+
+async function approveAmendment(amend) {
+  ctxStatus("Revalidating the live document…", true);
+  const ingest = await AgmtWord.ingestParagraphs();
+  const hash = AgmtWord.documentHash(ingest.paragraphs);
+  const prep = await (await fetch(`${API}/api/actions/prepare`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: amend.action,
+      paragraphs: ingest.paragraphs,
+      document_version_id: (amend.action && amend.action.document_version_id) || "live",
+      version_hash: hash,
+      protected: await AgmtWord.documentLooksProtected(),
+      capabilities: ["track_changes", "search"],
+    }),
+  })).json();
+  if (prep.status === "refused") {
+    ctxStatus("Refused: " + (prep.reason || "stale or ambiguous target") + ".", true);
+    return;
+  }
+  ctxStatus("Applying tracked change…", true);
+  const applied = await AgmtWord.applyTicket(prep.ticket);
+  if (applied.status !== "confirmed") {
+    ctxStatus(
+      applied.status === "failed_unknown"
+        ? "The write could not be verified. It was not retried."
+        : "Refused: " + (applied.reason || applied.status),
+      true,
+    );
+    return;
+  }
+  const after = await AgmtWord.ingestParagraphs();
+  await fetch(`${API}/api/actions/verify`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticket_id: prep.ticket.ticket_id || prep.ticket.ticketId,
+      paragraphs: after.paragraphs,
+      document_version_id: prep.ticket.document_version_id || "live",
+      version_hash: AgmtWord.documentHash(after.paragraphs),
+    }),
+  });
+  ctxStatus("Tracked change applied and verified.", true);
+}
+
+async function runContextual(opts) {
+  opts = opts || {};
+  $("ctx-card").classList.add("hidden");
+  $("ctx-amend").classList.add("hidden");
+  $("ctx-ambiguity").classList.add("hidden");
+  ctxStatus("Capturing the selection…", true);
+  try {
+    await paintSelectionPreview();
+    const env = CTX.envelope;
+    if (!env || !(env.selectedText || "").trim()) {
+      ctxStatus("Select some contractual language first.", true);
+      return;
+    }
+    ctxStatus("Reading the agreement…", true);
+    const ingest = await AgmtWord.ingestParagraphs();
+    const hash = AgmtWord.documentHash(ingest.paragraphs);
+    ctxStatus("Resolving selection and references…", true);
+    const body = {
+      matter_id: "local",
+      document_id: "primary",
+      document_version_id: "live",
+      raw_text: $("ctx-instruction").value.trim() ||
+        "Check this language against the indemnity clause for any double-recovery issue.",
+      modality: "text",
+      activation: "typed",
+      selection: AgmtWord.envelopeToAnchor(env),
+      paragraphs: ingest.paragraphs,
+      list_prefixes: ingest.list_prefixes,
+      unique_local_ids: ingest.unique_local_ids,
+      list_levels: ingest.list_levels,
+      captured_doc_hash: hash,
+      live_document_hash: hash,
+      chosen_ref_ids: opts.chosen || [],
+    };
+    const payload = await (await fetch(`${API}/api/contextual-commands`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })).json();
+    CTX.last = payload;
+    if (payload.state === "ambiguity") {
+      ctxStatus("", false);
+      paintAmbiguity(payload);
+      return;
+    }
+    if (payload.state === "stale" || payload.state === "error" || payload.error) {
+      ctxStatus(payload.error || "The command could not be completed.", true);
+      return;
+    }
+    ctxStatus("", false);
+    paintCard(payload);
+  } catch (e) {
+    ctxStatus(String(e.message || e), true);
   }
 }

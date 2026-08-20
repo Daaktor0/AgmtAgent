@@ -16,10 +16,20 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from agent.actions.tickets import (  # noqa: E402
+    LiveDocument, approve_action, apply_prepared, get_ticket, prepare_ticket,
+    verify_write,
+)
 from agent.config import Config  # noqa: E402
-from agent.document import build_document  # noqa: E402
+from agent.contextual.command import get_command  # noqa: E402
+from agent.contextual.drafter import draft_minimum_amendment  # noqa: E402
+from agent.contextual.pipeline import run_contextual_command  # noqa: E402
+from agent.document import Document, build_document  # noqa: E402
+from agent.flags import load_flags  # noqa: E402
 from agent.memory import get_store, record_disposition  # noqa: E402
 from agent.router import Router, RouterError  # noqa: E402
+from agent.schemas.action import ProposedAction  # noqa: E402
+from agent.schemas.ids import document_hash  # noqa: E402
 from agent.supervisor import MODES, Supervisor  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -127,10 +137,91 @@ class Settings(BaseModel):
     pinned: dict[str, str] | None = None
 
 
+class SelectionIn(BaseModel):
+    selection_id: str | None = None
+    document_id: str | None = None
+    document_version_id: str | None = None
+    story: str = "body"
+    story_type: str | None = None
+    selected_text: str = ""
+    selected_text_hash: str | None = None
+    selected_text_sha256: str | None = None
+    unique_local_ids: list[str] = []
+    block_ids: list[str] = []
+    first_block_idx: int | None = None
+    last_block_idx: int | None = None
+    prefix_text: str = ""
+    suffix_text: str = ""
+    structural_path: list[str] = []
+    paragraph_indexes: list[int] = []
+    captured_at: str | None = None
+    source_word_api: str = "Document.getSelection"
+
+
+class ContextualCommandIn(BaseModel):
+    matter_id: str = "local"
+    document_id: str = "primary"
+    document_version_id: str = ""
+    raw_text: str
+    modality: str = "text"
+    activation: str = "typed"
+    selection: SelectionIn | None = None
+    paragraphs: list[str] = []
+    list_prefixes: list[str] = []
+    unique_local_ids: list[str] = []
+    list_levels: list[int | None] = []
+    comments: list[CommentIn] | None = None
+    revisions: list[RevisionIn] | None = None
+    tables: list[TableIn] | None = None
+    captured_doc_hash: str | None = None
+    live_document_hash: str | None = None
+    chosen_ref_ids: list[str] = []
+    idempotency_key: str = ""
+    draft: bool = False
+
+
+class DraftIn(BaseModel):
+    command_id: str
+    paragraphs: list[str] = []
+    list_prefixes: list[str] = []
+
+
+class ActionApproveIn(BaseModel):
+    action: dict
+    paragraphs: list[str]
+    document_version_id: str
+    version_hash: str | None = None
+    protected: bool = False
+    capabilities: list[str] = ["track_changes", "search"]
+    tracking_mode: str = "off"
+
+
+class ActionApplyIn(BaseModel):
+    ticket_id: str
+    paragraphs: list[str]
+    document_version_id: str
+    version_hash: str | None = None
+    protected: bool = False
+    capabilities: list[str] = ["track_changes", "search"]
+    tracking_mode: str = "off"
+
+
+def _selection_payload(sel: SelectionIn | None) -> dict | None:
+    if sel is None:
+        return None
+    data = sel.model_dump()
+    if not data.get("selected_text_sha256"):
+        data["selected_text_sha256"] = data.get("selected_text_hash") or ""
+    if not data.get("story_type"):
+        data["story_type"] = "main" if data.get("story") == "body" else data.get("story")
+    return data
+
+
 @app.get("/api/health")
 def health():
+    flags = load_flags()
     return {"ok": True, "has_key": bool(cfg.api_key), "modes": {
-        k: v["name"] for k, v in MODES.items()}}
+        k: v["name"] for k, v in MODES.items()}, "flags": flags.as_dict()}
 
 
 @app.get("/api/models")
@@ -253,6 +344,116 @@ def positions(topic: str = ""):
     except OSError as exc:
         return {"error": str(exc), "positions": []}
     return {"positions": rows}
+
+
+@app.post("/api/contextual-commands")
+def contextual_commands(req: ContextualCommandIn):
+    flags = load_flags()
+    if not flags.contextual_command:
+        return {"error": "AGMT_CONTEXTUAL_COMMAND is off"}
+    version_id = req.document_version_id or "live"
+    extras = {
+        "paragraphs": req.paragraphs,
+        "list_prefixes": req.list_prefixes,
+        "unique_local_ids": req.unique_local_ids,
+        "list_levels": req.list_levels,
+    }
+    if req.comments is not None:
+        extras["comments"] = [c.model_dump() for c in req.comments]
+    if req.revisions is not None:
+        extras["revisions"] = [r.model_dump() for r in req.revisions]
+    if req.tables is not None:
+        extras["tables"] = [t.model_dump() for t in req.tables]
+    provenance = {}
+    captured = req.captured_doc_hash or (document_hash(req.paragraphs) if req.paragraphs else None)
+    if captured:
+        provenance["captured_doc_hash"] = captured
+    try:
+        return run_contextual_command(
+            matter_id=req.matter_id,
+            document_id=req.document_id,
+            document_version_id=version_id,
+            raw_text=req.raw_text,
+            paragraphs=req.paragraphs,
+            selection=_selection_payload(req.selection),
+            extras=extras,
+            provenance=provenance,
+            chosen_ref_ids=req.chosen_ref_ids,
+            idempotency_key=req.idempotency_key,
+            router=router if cfg.api_key else None,
+            live_document_hash=req.live_document_hash or captured,
+            draft=req.draft,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"error": repr(exc), "status": "failed"}
+
+
+@app.post("/api/contextual-commands/{command_id}/draft")
+def contextual_draft(command_id: str, req: DraftIn):
+    command = get_command(command_id)
+    if command is None:
+        return {"error": "command not found"}
+    extras = {"paragraphs": req.paragraphs, "list_prefixes": req.list_prefixes}
+    doc = build_document(extras) if req.paragraphs else Document([])
+    from agent.contextual.focused import run_focused_analysis
+    analysis = run_focused_analysis(command, doc)
+    return draft_minimum_amendment(command, analysis, doc)
+
+
+@app.post("/api/actions/prepare")
+def actions_prepare(req: ActionApproveIn):
+    flags = load_flags()
+    if not flags.safe_actions:
+        return {"error": "AGMT_SAFE_ACTIONS is off"}
+    action = approve_action(ProposedAction.model_validate(req.action))
+    live = LiveDocument(
+        paragraphs=req.paragraphs,
+        document_version_id=req.document_version_id,
+        version_hash=req.version_hash or document_hash(req.paragraphs),
+        tracking_mode=req.tracking_mode,  # type: ignore[arg-type]
+        protected=req.protected,
+        capabilities=set(req.capabilities),
+    )
+    ticket, reason = prepare_ticket(action, live)
+    if ticket is None:
+        return {"status": "refused", "reason": reason}
+    return {"status": "prepared", "ticket": ticket.model_dump(), "action": action.model_dump()}
+
+
+@app.post("/api/actions/apply")
+def actions_apply(req: ActionApplyIn):
+    flags = load_flags()
+    if not flags.safe_actions:
+        return {"error": "AGMT_SAFE_ACTIONS is off"}
+    live = LiveDocument(
+        paragraphs=req.paragraphs,
+        document_version_id=req.document_version_id,
+        version_hash=req.version_hash or document_hash(req.paragraphs),
+        tracking_mode=req.tracking_mode,  # type: ignore[arg-type]
+        protected=req.protected,
+        capabilities=set(req.capabilities),
+    )
+    result = apply_prepared(live, req.ticket_id)
+    ticket = get_ticket(req.ticket_id)
+    result["ticket"] = ticket.model_dump() if ticket else None
+    result["paragraphs"] = live.paragraphs
+    return result
+
+
+@app.post("/api/actions/verify")
+def actions_verify(req: ActionApplyIn):
+    ticket = get_ticket(req.ticket_id)
+    if ticket is None:
+        return {"status": "refused", "reason": "missing_ticket"}
+    live = LiveDocument(
+        paragraphs=req.paragraphs,
+        document_version_id=req.document_version_id,
+        version_hash=req.version_hash or document_hash(req.paragraphs),
+        protected=req.protected,
+        capabilities=set(req.capabilities),
+    )
+    status = verify_write(live, ticket)
+    return {"status": status, "live_hash": live.version_hash}
 
 
 app.mount("/", StaticFiles(directory=ROOT / "addin", html=True), name="addin")

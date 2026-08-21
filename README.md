@@ -1,4 +1,4 @@
-# Agmt
+# Agmt - an agent for your words
 
 A drafting partner that lives in the right-hand pane of Word and works to one
 specific skill: **Agreement Review & Drafting**. It reads the whole document,

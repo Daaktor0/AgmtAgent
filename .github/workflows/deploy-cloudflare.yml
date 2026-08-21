@@ -16,6 +16,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Cloudflare's container-application endpoint currently returns 401
-          # even with valid Containers and Cloudchamber write permissions.
-          command: deploy --containers-rollout=none
+          command: deploy

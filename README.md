@@ -1,6 +1,5 @@
 # Agmt
 
-
 A drafting partner that lives in the right-hand pane of Word and works to one
 specific skill: **Agreement Review & Drafting**. It reads the whole document,
 reasons about it as one contractual system, and proposes the smallest defensible

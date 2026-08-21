@@ -16,6 +16,6 @@ ENV PYTHONUNBUFFERED=1 \
     HOSTED=1 \
     PORT=8787
 
-EXPOSE 8787
+EXPOSE 10000
 
-CMD ["python", "-m", "uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8787", "--log-level", "info"]
+CMD ["sh", "-c", "python -m uvicorn server.app:app --host 0.0.0.0 --port ${PORT:-8787} --log-level info"]

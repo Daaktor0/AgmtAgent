@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -36,6 +36,11 @@ ROOT = Path(__file__).resolve().parent.parent
 cfg = Config.load()
 router = Router(cfg)
 app = FastAPI(title="Agreement Review & Drafting Agent")
+
+
+@app.get("/", include_in_schema=False)
+def app_home():
+    return RedirectResponse("/taskpane.html")
 
 
 class CommentIn(BaseModel):

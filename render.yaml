@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: agmt
+    runtime: docker
+    repo: https://github.com/Daaktor0/AgmtAgent
+    branch: main
+    region: singapore
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false

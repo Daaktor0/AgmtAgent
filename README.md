@@ -120,6 +120,7 @@ Word the pane detects this and offers **Copy comment** instead.
 
 ## Layout
 
+
 ```
 agent/document.py     deterministic parsing and checks — no model
 agent/tools.py        tool schemas and dispatch, quotation verification

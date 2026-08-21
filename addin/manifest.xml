@@ -12,12 +12,12 @@
   <DefaultLocale>en-GB</DefaultLocale>
   <DisplayName DefaultValue="Agmt Agent"/>
   <Description DefaultValue="Senior transactions drafting partner: review, surgical markup, bubble comments and pre-signing QC, running on your own models."/>
-  <IconUrl DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-80.png"/>
-  <SupportUrl DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/taskpane.html"/>
+  <IconUrl DefaultValue="https://agmt.onrender.com/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://agmt.onrender.com/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="https://agmt.onrender.com/taskpane.html"/>
 
   <AppDomains>
-    <AppDomain>https://agmtagent.srv1086106.hstgr.cloud</AppDomain>
+    <AppDomain>https://agmt.onrender.com</AppDomain>
   </AppDomains>
 
   <Hosts>
@@ -25,7 +25,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/taskpane.html"/>
+    <SourceLocation DefaultValue="https://agmt.onrender.com/taskpane.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -74,12 +74,12 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16" DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-16.png"/>
-        <bt:Image id="Icon.32" DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-32.png"/>
-        <bt:Image id="Icon.80" DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/assets/icon-80.png"/>
+        <bt:Image id="Icon.16" DefaultValue="https://agmt.onrender.com/assets/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://agmt.onrender.com/assets/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://agmt.onrender.com/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://agmtagent.srv1086106.hstgr.cloud/taskpane.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://agmt.onrender.com/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="Group.Label" DefaultValue="Agmt Agent"/>

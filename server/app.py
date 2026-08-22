@@ -366,6 +366,21 @@ def run_get(run_id: str, authorization: str | None = Header(default=None)):
     return row
 
 
+@app.get("/api/runs/{run_id}/events")
+def run_events(run_id: str, since: int = 0,
+               authorization: str | None = Header(default=None)):
+    """Replay persisted events after `since` — SSE resume without loss."""
+    if auth_enabled():
+        _guard(authorization)
+    try:
+        events = get_store().list_events(run_id, since_seq=since)
+    except OSError as exc:
+        return {"error": str(exc)}
+    return {"run_id": run_id, "since": since, "events": [
+        {"seq": e["seq"], "ts": e["ts"], **json.loads(e["payload_json"] or "{}"),
+         "event": e["event_type"]} for e in events]}
+
+
 @app.get("/api/positions")
 def positions(topic: str = "", authorization: str | None = Header(default=None)):
     if auth_enabled():

@@ -183,6 +183,55 @@ class Store:
             self._conn.commit()
         return run_id
 
+    def create_pending_run(self, *, mode: str, mandate: dict,
+                           instruction: str) -> str:
+        """Pre-create a run row with status 'running' so events can attach
+        before the run finishes. Returns the run id."""
+        run_id = str(uuid.uuid4())
+        now = _now()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO run (id, mode, mandate_json, instruction, status,"
+                " started_at, ended_at) VALUES (?,?,?,?,?,?,?)",
+                (run_id, mode, json.dumps(mandate, ensure_ascii=False),
+                 instruction, "running", now, None))
+            self._conn.commit()
+        return run_id
+
+    def finish_run(self, run_id: str, *, status: str, summary: str,
+                   issues: list[dict], usage: list[dict] | None = None,
+                   plan: dict | None = None, steps_used: int = 0) -> None:
+        """Complete a pending run row created by create_pending_run."""
+        tokens_in = tokens_out = 0
+        cost = 0.0
+        for row in usage or []:
+            tokens_in += int(row.get("prompt_tokens") or row.get("tokens_in") or 0)
+            tokens_out += int(row.get("completion_tokens") or row.get("tokens_out") or 0)
+            cost += float(row.get("cost") or row.get("cost_usd") or 0)
+        issue_ids = []
+        with self._lock:
+            self._conn.execute(
+                "UPDATE run SET status = ?, ended_at = ?, tokens_in = ?,"
+                " tokens_out = ?, cost_usd = ?, steps_used = ?, summary = ?,"
+                " plan_json = ? WHERE id = ?",
+                (status, _now(), tokens_in, tokens_out, cost, steps_used,
+                 summary, json.dumps(plan or {}, ensure_ascii=False), run_id))
+            for i in issues:
+                iid = str(uuid.uuid4())
+                issue_ids.append(iid)
+                self._conn.execute(
+                    "INSERT INTO issue (id, run_id, local_id, ref, block_idx,"
+                    " title, classification, severity, position, consequence,"
+                    " old_text, new_text, comment, evidence_tier, check_name,"
+                    " payload_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (iid, run_id, i.get("local_id"), i.get("ref"),
+                     i.get("para"), i.get("title"), i.get("classification"),
+                     i.get("severity"), i.get("position"), i.get("consequence"),
+                     i.get("old_text"), i.get("new_text"), i.get("comment"),
+                     i.get("evidence_tier"), i.get("check"),
+                     json.dumps(i, ensure_ascii=False)))
+            self._conn.commit()
+
     def get_issue(self, issue_id: str) -> dict | None:
         with self._lock:
             row = self._conn.execute(
@@ -225,6 +274,69 @@ class Store:
                 (issue_id,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # --- run event / checkpoint repositories (plan commit 5) ---
+
+    def append_event(self, run_id: str, *, event_type: str,
+                     payload: dict | None = None, latency_ms: int | None = None,
+                     tokens_in: int | None = None, tokens_out: int | None = None,
+                     cost_usd: float | None = None) -> int:
+        """Append one run_event; returns its sequence number."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 FROM run_event WHERE run_id = ?",
+                (run_id,)).fetchone()
+            seq = int(row[0])
+            self._conn.execute(
+                "INSERT INTO run_event (id, run_id, seq, ts, event_type,"
+                " payload_json, latency_ms, tokens_in, tokens_out, cost_usd)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), run_id, seq, _now(), event_type,
+                 json.dumps(payload or {}, ensure_ascii=False), latency_ms,
+                 tokens_in, tokens_out, cost_usd))
+            self._conn.execute(
+                "UPDATE run SET last_event_seq = ? WHERE id = ?", (seq, run_id))
+            self._conn.commit()
+        return seq
+
+    def list_events(self, run_id: str, since_seq: int = 0) -> list[dict]:
+        """Events in order; since_seq enables SSE resume without loss."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM run_event WHERE run_id = ? AND seq > ?"
+                " ORDER BY seq", (run_id, since_seq)).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_checkpoint(self, run_id: str, *, state: dict,
+                        plan: dict | None = None,
+                        messages_hash: str | None = None) -> str:
+        cp_id = str(uuid.uuid4())
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) FROM run_checkpoint WHERE run_id = ?",
+                (run_id,)).fetchone()
+            self._conn.execute(
+                "INSERT INTO run_checkpoint (id, run_id, seq, state_json,"
+                " plan_json, messages_hash, created_at) VALUES (?,?,?,?,?,?,?)",
+                (cp_id, run_id, int(row[0]) + 1,
+                 json.dumps(state, ensure_ascii=False),
+                 json.dumps(plan or {}, ensure_ascii=False),
+                 messages_hash, _now()))
+            self._conn.commit()
+        return cp_id
+
+    def latest_checkpoint(self, run_id: str) -> dict | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM run_checkpoint WHERE run_id = ?"
+                " ORDER BY seq DESC LIMIT 1", (run_id,)).fetchone()
+        return dict(row) if row else None
+
+    def set_run_status(self, run_id: str, status: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE run SET status = ? WHERE id = ?", (status, run_id))
+            self._conn.commit()
 
     def find_position(
         self, topic: str, polarity: str, scope: str = "global",

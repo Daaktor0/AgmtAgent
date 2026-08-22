@@ -162,6 +162,49 @@ class Supervisor:
     def run(self, paragraphs: list[str], mode: str, mandate: dict,
             instruction: str = "", prefixes: list[str] | None = None,
             extras: dict | None = None) -> Iterator[dict]:
+        """Public generator: persists every event before yielding it, so a
+        pane closing or an SSE disconnect never loses the event stream."""
+        store = None
+        run_id = None
+        try:
+            store = get_store()
+        except OSError:
+            pass
+        if store is not None:
+            # A durable shell row exists only after the run finishes in v1;
+            # events attach to a pre-created pending row instead.
+            try:
+                run_id = store.create_pending_run(
+                    mode=mode, mandate=mandate, instruction=instruction)
+                self._pending_run_id = run_id
+            except OSError:
+                run_id = None
+
+        def _record(seq_pair):
+            if store is None or run_id is None:
+                return
+            payload = {k: v for k, v in seq_pair.items() if k != "event"}
+            try:
+                store.append_event(run_id, event_type=seq_pair.get("event", "?"),
+                                   payload=payload)
+            except OSError:
+                pass
+
+        for ev in self._run_core(paragraphs, mode, mandate, instruction,
+                                 prefixes, extras):
+            _record(ev)
+            yield ev
+
+        # Finalise: write a closing checkpoint for reconnect/resume.
+        if store is not None and run_id is not None:
+            try:
+                store.save_checkpoint(run_id, state={"status": "done"})
+            except OSError:
+                pass
+
+    def _run_core(self, paragraphs: list[str], mode: str, mandate: dict,
+                  instruction: str = "", prefixes: list[str] | None = None,
+                  extras: dict | None = None) -> Iterator[dict]:
         extras = dict(extras or {})
         extras.setdefault("paragraphs", paragraphs)
         if prefixes is not None:
@@ -284,15 +327,20 @@ class Supervisor:
             for i in doc.mechanical_checks()
         ]
         summary = box.finished or "Review ended without a summary."
-        run_id = None
+        final_run_id = getattr(self, "_pending_run_id", None)
         try:
-            run_id = get_store().save_run(
-                mode=mode, mandate=mandate, instruction=instruction,
-                status="done", summary=summary, issues=box.issues,
-                usage=usages, plan=box.plan, steps_used=len(usages),
-            )
+            if final_run_id is not None:
+                get_store().finish_run(
+                    final_run_id, status="done", summary=summary,
+                    issues=box.issues, usage=usages, plan=box.plan,
+                    steps_used=len(usages))
+            else:
+                final_run_id = get_store().save_run(
+                    mode=mode, mandate=mandate, instruction=instruction,
+                    status="done", summary=summary, issues=box.issues,
+                    usage=usages, plan=box.plan, steps_used=len(usages))
         except OSError:
-            run_id = None
+            final_run_id = None
 
         yield {
             "event": "done",
@@ -301,7 +349,7 @@ class Supervisor:
             "questions": box.questions,
             "usage": usages,
             "plan": box.plan,
-            "run_id": run_id,
+            "run_id": final_run_id,
             "mechanical": mechanical,
             "suppressed": list(doc.suppressed_checks),
         }

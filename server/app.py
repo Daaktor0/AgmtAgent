@@ -225,8 +225,12 @@ def _selection_payload(sel: SelectionIn | None) -> dict | None:
 @app.get("/api/health")
 def health():
     flags = load_flags()
-    return {"ok": True, "has_key": bool(cfg.api_key), "modes": {
-        k: v["name"] for k, v in MODES.items()}, "flags": flags.as_dict()}
+    try:
+        schema_version = get_store().schema_version
+    except Exception:
+        schema_version = None
+    return {"ok": True, "has_key": bool(cfg.api_key), "schema_version": schema_version,
+            "modes": {k: v["name"] for k, v in MODES.items()}, "flags": flags.as_dict()}
 
 
 @app.get("/api/models")

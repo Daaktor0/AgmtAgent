@@ -517,8 +517,12 @@ def _bootstrap(tmp: Path) -> None:
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     import agent.memory.store as store_mod
+    import agent.memory.migrations as migrations_mod
 
     store_mod._now = lambda: FROZEN_NOW
+    # The migration ledger writes its own applied_at stamps; freeze that
+    # clock too or normalisation of two same-second stamps is unstable.
+    migrations_mod._now = lambda: FROZEN_NOW
 
 
 def generate(out_dir: Path) -> None:

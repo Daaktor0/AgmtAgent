@@ -85,7 +85,8 @@
       "M": "Email summarising changes",
       "N": "Near-final / pre-signing QC"
     },
-    "ok": true
+    "ok": true,
+    "schema_version": 6
   },
   "get_api_models": {
     "models": [

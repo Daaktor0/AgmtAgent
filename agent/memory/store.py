@@ -103,6 +103,8 @@ def _now() -> str:
 
 class Store:
     def __init__(self, path: Path | str | None = None):
+        from .migrations import migrate  # local import avoids a cycle
+
         self.path = Path(path) if path is not None else default_db_path()
         if str(self.path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,8 +112,12 @@ class Store:
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         with self._lock:
-            self._conn.executescript(SCHEMA)
-            self._conn.commit()
+            # PRAGMAs + ordered migration ledger; replaces the bare SCHEMA run.
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            self._conn.execute("PRAGMA journal_mode = WAL")
+            self._conn.execute("PRAGMA busy_timeout = 5000")
+            migrate(self.path)
+        self.schema_version = self._conn.execute("PRAGMA user_version").fetchone()[0]
 
     def close(self) -> None:
         with self._lock:
@@ -220,12 +226,25 @@ class Store:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def find_position(self, topic: str, polarity: str, scope: str = "global") -> dict | None:
+    def find_position(
+        self, topic: str, polarity: str, scope: str = "global",
+        scope_key: str | None = None,
+    ) -> dict | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM position WHERE topic = ? AND polarity = ? AND scope = ?",
-                (topic, polarity, scope),
-            ).fetchone()
+            # scope_key participates in the lookup when provided (migration
+            # 0006 fix: a house position for one matter must not be returned
+            # for another). Legacy callers without scope_key keep old behaviour.
+            if scope_key is not None:
+                row = self._conn.execute(
+                    "SELECT * FROM position WHERE topic = ? AND polarity = ? "
+                    "AND scope = ? AND scope_key = ?",
+                    (topic, polarity, scope, scope_key),
+                ).fetchone()
+            else:
+                row = self._conn.execute(
+                    "SELECT * FROM position WHERE topic = ? AND polarity = ? AND scope = ?",
+                    (topic, polarity, scope),
+                ).fetchone()
         return dict(row) if row else None
 
     def upsert_position(
@@ -238,7 +257,7 @@ class Store:
         scope: str = "global",
         scope_key: str = "",
     ) -> dict:
-        existing = self.find_position(topic, polarity, scope)
+        existing = self.find_position(topic, polarity, scope, scope_key=scope_key)
         now = _now()
         with self._lock:
             if existing:

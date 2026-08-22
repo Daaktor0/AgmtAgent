@@ -108,7 +108,7 @@ class Store:
         self.path = Path(path) if path is not None else default_db_path()
         if str(self.path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # reentrant: repos nest calls
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         with self._lock:
@@ -116,8 +116,33 @@ class Store:
             self._conn.execute("PRAGMA foreign_keys = ON")
             self._conn.execute("PRAGMA journal_mode = WAL")
             self._conn.execute("PRAGMA busy_timeout = 5000")
-            migrate(self.path)
+            if str(self.path) == ":memory:":
+                # migrate() opens its own connection, which would target a
+                # different database for :memory: — apply via this connection.
+                from .migrations import MIGRATIONS, _apply_sql_idempotent, _checksum
+                conn = self._conn
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS schema_migration ("
+                    "version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT,"
+                    " checksum TEXT)")
+                for mig in sorted(MIGRATIONS, key=lambda m: m.version):
+                    row = conn.execute(
+                        "SELECT checksum FROM schema_migration WHERE version=?",
+                        (mig.version,)).fetchone()
+                    if row is not None:
+                        continue
+                    with conn:
+                        _apply_sql_idempotent(conn, mig)
+                        conn.execute(
+                            "INSERT INTO schema_migration (version, name,"
+                            " applied_at, checksum) VALUES (?,?,?,?)",
+                            (mig.version, mig.name, _now(), _checksum(mig)))
+                        conn.execute(f"PRAGMA user_version = {mig.version}")
+            else:
+                migrate(self.path)
         self.schema_version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+        from .matters import MatterRepository
+        self.matters = MatterRepository(self)
 
     def close(self) -> None:
         with self._lock:

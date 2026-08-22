@@ -17,6 +17,9 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agent.runtime.auth import check_authorized, auth_enabled  # noqa: E402
+from server.middleware import (  # noqa: E402
+    BodySizeLimitMiddleware, RequestContextMiddleware, configure_logging,
+)
 
 from agent.actions.tickets import (  # noqa: E402
     LiveDocument, approve_action, apply_prepared, get_ticket, prepare_ticket,
@@ -38,6 +41,10 @@ ROOT = Path(__file__).resolve().parent.parent
 cfg = Config.load()
 router = Router(cfg)
 app = FastAPI(title="Agreement Review & Drafting Agent")
+
+configure_logging()
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)
 
 
 def _guard(authorization: str | None) -> None:

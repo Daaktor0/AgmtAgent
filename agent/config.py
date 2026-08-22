@@ -106,7 +106,7 @@ class Config:
             prefer=prefer,
             max_supervisor_steps=int(raw.get("max_supervisor_steps", 40)),
             temperature=float(raw.get("temperature", 0.2)),
-            port=int(raw.get("port", 8787)),
+            port=int(os.environ.get("PORT") or raw.get("port", 8787)),
             require_only_free=bool(raw.get("require_only_free", False)),
         )
 

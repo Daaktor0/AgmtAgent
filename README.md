@@ -144,3 +144,55 @@ somewhere reachable. It is also materially weaker for this particular skill:
 Docs has no true tracked-changes API, so surgical markup — the core of Mode D —
 degrades to suggestions. Say the word and I'll build it, but Word is the right
 home for this work.
+
+## Production architecture (v2)
+
+The server is a durable, testable service — not just a local script.
+
+```
+agent/
+  document/          deterministic engine: patterns, model, segmentation,
+                     helpers, ingest, versioned check registry
+  memory/            SQLite store with checksummed migrations, run events,
+                     checkpoints, matter/document/version repositories
+  runtime/           request context + local pairing auth
+  schemas/           typed contracts shared with the add-in
+  contextual/        selection-aware command pipeline
+  actions/           safe Word write protocol: tickets, prepare/verify
+  gateway.py         provider gateway with usage provenance
+  secrets.py         credential-store adapter (keyring; plaintext opt-in)
+  worker.py          durable background runs: replay, cancel, stale reaping
+server/
+  app.py             FastAPI app: API + task pane + SSE streams
+  middleware.py      security headers, request ids, error envelopes, body cap
+addin/               Word task pane and Agmt-owned Office.js library
+```
+
+### Running tests
+
+Every module has an offline test. Run them all:
+
+```
+python tests/test_pipeline.py        # core pipeline
+python tests/test_golden_slice.py    # contextual golden flow
+python tests/test_contract_freeze.py # API/schema freeze vs fixtures
+python tests/test_eval_gates.py      # anchor/overlap 1.00 gates
+python tests/test_migrations.py      # schema migration incl. legacy upgrade
+python tests/test_auth.py            # pairing/auth gate
+python tests/test_events.py          # event persistence + resume
+python tests/test_secrets.py         # credential adapter
+python tests/test_gateway.py         # provider provenance
+python tests/test_registry.py        # check registry integrity
+python tests/test_evidence_contract.py  # anchor/provenance invariants
+python tests/test_reviewer_evidence.py  # reviewer evidence re-read
+python tests/test_matters.py         # matter/document/version repos
+python tests/test_worker.py          # durable runs, replay, cancel
+python tests/test_hardening.py       # headers, envelopes, payload cap
+python -m agent.eval checks --corpus eval/corpus   # 29/29 must-finds
+```
+
+### Deployment
+
+Docker (non-root user, healthcheck on `/api/health`) and a Render blueprint
+(`render.yaml`) are included. Set `OPENROUTER_API_KEY` or let users paste keys
+in the pane; set `AGMT_PAIRING_TOKEN` to require paired clients.

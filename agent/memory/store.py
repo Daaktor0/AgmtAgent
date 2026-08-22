@@ -217,7 +217,8 @@ class Store:
                 (status, _now(), tokens_in, tokens_out, cost, steps_used,
                  summary, json.dumps(plan or {}, ensure_ascii=False), run_id))
             for i in issues:
-                iid = str(uuid.uuid4())
+                iid = i.get("issue_id") or str(uuid.uuid4())
+                i["issue_id"] = iid
                 issue_ids.append(iid)
                 self._conn.execute(
                     "INSERT INTO issue (id, run_id, local_id, ref, block_idx,"

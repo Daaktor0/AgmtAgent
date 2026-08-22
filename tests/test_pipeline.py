@@ -5,10 +5,16 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Supervisor store writes must never touch the live data/agmt.db (handover
+# landmine 1). Point AGMT_DB at a throwaway file before any agent.* import.
+os.environ.setdefault("AGMT_DB", tempfile.mktemp(prefix="agmt-test-pipeline-"))
 
 from agent.config import Config  # noqa: E402
 from agent.document import Document, words_to_number  # noqa: E402

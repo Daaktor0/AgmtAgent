@@ -50,6 +50,7 @@
   {
     "event": "issue",
     "issue": {
+      "anchor_method": "exact_at_para",
       "anchor_verified": true,
       "classification": "commercial_risk",
       "comment": "Clause [X] separately addresses the consequences of an Event of Default.",
@@ -64,6 +65,12 @@
       "overlap_trace": [],
       "para": 22,
       "position": "delete",
+      "provenance": {
+        "doc_hash": null,
+        "doc_id": "primary",
+        "n_paragraphs": 40,
+        "recorded_by": "supervisor.record_issue"
+      },
       "ref": "5.1",
       "severity": "high",
       "title": "Standalone indemnity trigger for an EOD duplicates limb (a)"
@@ -108,6 +115,7 @@
     "event": "done",
     "issues": [
       {
+        "anchor_method": "exact_at_para",
         "anchor_verified": true,
         "classification": "commercial_risk",
         "comment": "Clause [X] separately addresses the consequences of an Event of Default.",
@@ -123,6 +131,12 @@
         "overlap_trace": [],
         "para": 22,
         "position": "delete",
+        "provenance": {
+          "doc_hash": null,
+          "doc_id": "primary",
+          "n_paragraphs": 40,
+          "recorded_by": "supervisor.record_issue"
+        },
         "ref": "5.1",
         "reviewer_note": "real defect",
         "reviewer_verdict": "confirm",

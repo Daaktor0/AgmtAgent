@@ -105,13 +105,34 @@ def apply_verdicts(issues: list[dict], verdicts: list[dict]) -> list[dict]:
     return kept
 
 
-def _ask_model(issues: list[dict], router: Router) -> tuple[list[dict], str | None]:
+def _evidence_block(issue: dict, paragraphs: list[str]) -> dict:
+    """Exact cited evidence for one issue: the anchored paragraph text plus
+    surrounding context, re-read from the document — not the model's memory."""
+    para = issue.get("para")
+    old = (issue.get("old_text") or "")[:200]
+    if not isinstance(para, int) or not (0 <= para < len(paragraphs)):
+        return {"anchor": None, "cited_text": None,
+                "note": "no anchor; treat as judgement"}
+    lo, hi = max(0, para - 1), min(len(paragraphs), para + 2)
+    context = [f"[{i}] {paragraphs[i]}" for i in range(lo, hi)]
+    cited = paragraphs[para]
+    verified = bool(old) and old in cited
+    return {
+        "anchor_para": para,
+        "cited_text": cited[:1200],
+        "old_text_in_cited": verified,
+        "context": context,
+    }
+
+
+def _ask_model(issues: list[dict], router: Router,
+               paragraphs: list[str] | None = None) -> tuple[list[dict], str | None]:
     pending = [i for i in issues if i.get("reviewer_verdict") != "drop"]
     if not pending:
         return [], None
     compact = []
     for issue in pending:
-        compact.append({
+        entry = {
             "id": issue.get("id"),
             "ref": issue.get("ref"),
             "title": issue.get("title"),
@@ -121,7 +142,12 @@ def _ask_model(issues: list[dict], router: Router) -> tuple[list[dict], str | No
             "old_text": (issue.get("old_text") or "")[:200],
             "new_text": (issue.get("new_text") or "")[:200],
             "evidence_tier": issue.get("evidence_tier"),
-        })
+        }
+        if paragraphs is not None:
+            # Independent evidence re-read (plan commit 12): the reviewer sees
+            # the document's actual words at the cited anchor.
+            entry["evidence"] = _evidence_block(issue, paragraphs)
+        compact.append(entry)
     messages = [
         {"role": "system", "content":
             "You are a second reader on an agreement review. You receive recorded "
@@ -152,7 +178,7 @@ def review_issues(
     model_verdicts: list[dict] = []
     if router is not None and any(i.get("reviewer_verdict") != "drop" for i in work):
         try:
-            model_verdicts, model = _ask_model(work, router)
+            model_verdicts, model = _ask_model(work, router, paragraphs=paragraphs)
         except (RouterError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
             for issue in work:
                 if "reviewer_verdict" not in issue:

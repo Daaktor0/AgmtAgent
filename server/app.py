@@ -366,6 +366,79 @@ def run_get(run_id: str, authorization: str | None = Header(default=None)):
     return row
 
 
+# ---- durable async runs (plan commit 17) ----
+from agent.worker import RunWorker  # noqa: E402
+
+_worker: RunWorker | None = None
+
+
+def get_worker() -> RunWorker:
+    global _worker
+    if _worker is None:
+        _worker = RunWorker(get_store(),
+                            lambda: Supervisor(cfg, router))
+        for stale in _worker.recover_stale():
+            print(f"[startup] reaped stale run {stale}")
+    return _worker
+
+
+class AsyncRunIn(BaseModel):
+    paragraphs: list[str]
+    mode: str = "A"
+    instruction: str = ""
+    mandate: dict = {}
+    list_prefixes: list[str] | None = None
+
+
+@app.post("/api/runs")
+def create_async_run(body: AsyncRunIn,
+                     authorization: str | None = Header(default=None)):
+    """Start a durable background run; poll or stream via /api/runs/{id}."""
+    if auth_enabled():
+        _guard(authorization)
+    try:
+        run_id = get_worker().submit(
+            mode=body.mode, mandate=body.mandate,
+            instruction=body.instruction, paragraphs=body.paragraphs,
+            prefixes=body.list_prefixes)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": repr(exc)}
+    return {"run_id": run_id, "status": "running"}
+
+
+@app.get("/api/runs/{run_id}/stream")
+def stream_run(run_id: str, since: int = 0,
+               authorization: str | None = Header(default=None)):
+    """SSE long-poll over persisted events — reconnect-safe resume."""
+    if auth_enabled():
+        _guard(authorization)
+
+    def stream():
+        cursor = since
+        idle = 0
+        while idle < 120:  # ~10 min max idle before closing
+            events = get_worker().wait_for_events(run_id, cursor, timeout=5.0)
+            if not events:
+                idle += 1
+                yield ": keep-alive\n\n"
+                continue
+            idle = 0
+            for e in events:
+                payload = json.loads(e["payload_json"] or "{}")
+                payload["event"] = e["event_type"]
+                payload["seq"] = e["seq"]
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                cursor = e["seq"]
+            status = get_worker().status(run_id)
+            if status and status["status"] in {"done", "failed", "cancelled"}:
+                yield f'data: {{"event":"end","status":"{status["status"]}"}}\n\n'
+                break
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache",
+                                      "X-Accel-Buffering": "no"})
+
+
 @app.get("/api/runs/{run_id}/events")
 def run_events(run_id: str, since: int = 0,
                authorization: str | None = Header(default=None)):

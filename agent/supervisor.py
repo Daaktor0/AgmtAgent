@@ -161,24 +161,28 @@ class Supervisor:
 
     def run(self, paragraphs: list[str], mode: str, mandate: dict,
             instruction: str = "", prefixes: list[str] | None = None,
-            extras: dict | None = None) -> Iterator[dict]:
+            extras: dict | None = None,
+            run_id: str | None = None) -> Iterator[dict]:
         """Public generator: persists every event before yielding it, so a
-        pane closing or an SSE disconnect never loses the event stream."""
+        pane closing or an SSE disconnect never loses the event stream.
+
+        Pass run_id to attach events to an existing pending run row
+        (used by the durable worker); otherwise one is created."""
         store = None
-        run_id = None
         try:
             store = get_store()
         except OSError:
             pass
         if store is not None:
-            # A durable shell row exists only after the run finishes in v1;
-            # events attach to a pre-created pending row instead.
-            try:
-                run_id = store.create_pending_run(
-                    mode=mode, mandate=mandate, instruction=instruction)
+            if run_id is not None:
                 self._pending_run_id = run_id
-            except OSError:
-                run_id = None
+            else:
+                try:
+                    run_id = store.create_pending_run(
+                        mode=mode, mandate=mandate, instruction=instruction)
+                    self._pending_run_id = run_id
+                except OSError:
+                    run_id = None
 
         def _record(seq_pair):
             if store is None or run_id is None:

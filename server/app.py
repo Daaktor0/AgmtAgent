@@ -9,12 +9,14 @@ import json
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from agent.runtime.auth import check_authorized, auth_enabled  # noqa: E402
 
 from agent.actions.tickets import (  # noqa: E402
     LiveDocument, approve_action, apply_prepared, get_ticket, prepare_ticket,
@@ -36,6 +38,12 @@ ROOT = Path(__file__).resolve().parent.parent
 cfg = Config.load()
 router = Router(cfg)
 app = FastAPI(title="Agreement Review & Drafting Agent")
+
+
+def _guard(authorization: str | None) -> None:
+    """Pairing gate (plan commit 4). No-op until AGMT_PAIRING_TOKEN is set."""
+    if not check_authorized(authorization):
+        raise HTTPException(status_code=401, detail="unpaired or expired token")
 
 
 @app.get("/", include_in_schema=False)
@@ -234,7 +242,9 @@ def health():
 
 
 @app.get("/api/models")
-def models():
+def models(authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     try:
         catalog = router.catalog()
     except Exception as exc:
@@ -251,7 +261,9 @@ def models():
 
 
 @app.post("/api/settings")
-def settings(s: Settings):
+def settings(s: Settings, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     if s.api_key is not None:
         cfg.save_key(s.api_key.strip())
         router.cfg = cfg
@@ -262,7 +274,9 @@ def settings(s: Settings):
 
 
 @app.post("/api/checks")
-def checks(req: ReviewRequest):
+def checks(req: ReviewRequest, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     """Mechanical checks only. No model call, no cost, instant."""
     doc = build_document(_extras(req))
     findings = doc.mechanical_checks()
@@ -299,7 +313,9 @@ def checks(req: ReviewRequest):
 
 
 @app.post("/api/review")
-def review(req: ReviewRequest):
+def review(req: ReviewRequest, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     mandate = {
         "party_represented": req.party,
         "counterparty": req.counterparty,
@@ -325,7 +341,9 @@ def review(req: ReviewRequest):
 
 
 @app.post("/api/issues/{issue_id}/disposition")
-def disposition(issue_id: str, body: DispositionIn):
+def disposition(issue_id: str, body: DispositionIn, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     try:
         result = record_disposition(
             get_store(), issue_id, body.action, body.final_text, body.note,
@@ -336,7 +354,9 @@ def disposition(issue_id: str, body: DispositionIn):
 
 
 @app.get("/api/runs/{run_id}")
-def run_get(run_id: str):
+def run_get(run_id: str, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     try:
         row = get_store().get_run(run_id)
     except OSError as exc:
@@ -347,7 +367,9 @@ def run_get(run_id: str):
 
 
 @app.get("/api/positions")
-def positions(topic: str = ""):
+def positions(topic: str = "", authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     try:
         rows = get_store().active_positions(topic or None)
     except OSError as exc:
@@ -356,7 +378,9 @@ def positions(topic: str = ""):
 
 
 @app.post("/api/contextual-commands")
-def contextual_commands(req: ContextualCommandIn):
+def contextual_commands(req: ContextualCommandIn, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     flags = load_flags()
     if not flags.contextual_command:
         return {"error": "AGMT_CONTEXTUAL_COMMAND is off"}
@@ -398,7 +422,9 @@ def contextual_commands(req: ContextualCommandIn):
 
 
 @app.post("/api/contextual-commands/{command_id}/draft")
-def contextual_draft(command_id: str, req: DraftIn):
+def contextual_draft(command_id: str, req: DraftIn, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     command = get_command(command_id)
     if command is None:
         return {"error": "command not found"}
@@ -410,7 +436,9 @@ def contextual_draft(command_id: str, req: DraftIn):
 
 
 @app.post("/api/actions/prepare")
-def actions_prepare(req: ActionApproveIn):
+def actions_prepare(req: ActionApproveIn, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     flags = load_flags()
     if not flags.safe_actions:
         return {"error": "AGMT_SAFE_ACTIONS is off"}
@@ -430,7 +458,9 @@ def actions_prepare(req: ActionApproveIn):
 
 
 @app.post("/api/actions/apply")
-def actions_apply(req: ActionApplyIn):
+def actions_apply(req: ActionApplyIn, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     flags = load_flags()
     if not flags.safe_actions:
         return {"error": "AGMT_SAFE_ACTIONS is off"}
@@ -450,7 +480,9 @@ def actions_apply(req: ActionApplyIn):
 
 
 @app.post("/api/actions/verify")
-def actions_verify(req: ActionApplyIn):
+def actions_verify(req: ActionApplyIn, authorization: str | None = Header(default=None)):
+    if auth_enabled():
+        _guard(authorization)
     ticket = get_ticket(req.ticket_id)
     if ticket is None:
         return {"status": "refused", "reason": "missing_ticket"}

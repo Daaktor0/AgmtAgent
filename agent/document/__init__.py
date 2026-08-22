@@ -1168,7 +1168,7 @@ class Document:
         return out
 
     def _check_cross_document(self) -> list[Issue]:
-        from .matter import cross_document_checks
+        from ..matter import cross_document_checks
         return cross_document_checks(self, self.companions)
 
     def _named_parties(self) -> list[str]:

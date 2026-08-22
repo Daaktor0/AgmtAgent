@@ -626,12 +626,26 @@ class Toolbox:
         if old:
             kw["anchor_verified"] = True
             kw["evidence_tier"] = 2
+            # Record HOW the anchor was located (plan commit 11 provenance).
+            para_i = kw.get("para", -1)
+            if 0 <= para_i < len(self.doc.paras) and old in self.doc.paras[para_i]:
+                kw["anchor_method"] = "exact_at_para"
+            else:
+                kw["anchor_method"] = "document_wide_exact"
         else:
             kw["anchor_verified"] = None
             kw["evidence_tier"] = 3
+            kw["anchor_method"] = None
         if 0 <= para < len(self.doc.unique_local_ids):
             kw["unique_local_id"] = self.doc.unique_local_ids[para]
         kw["id"] = len(self.issues) + 1
+        # Provenance trail: which document version and engine produced this.
+        kw.setdefault("provenance", {
+            "recorded_by": "supervisor.record_issue",
+            "doc_id": self.doc.doc_id,
+            "doc_hash": self.doc.hash if hasattr(self.doc, "hash") else None,
+            "n_paragraphs": len(self.doc.paras),
+        })
         self.issues.append(kw)
         return {"recorded": kw["id"]}
 

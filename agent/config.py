@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from .secrets import SecretStore
+
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.yaml"
 SKILL_PATH = ROOT / "skill" / "AGREEMENT-SKILL.md"
@@ -62,6 +64,23 @@ DEFAULT_ROLES = {
 }
 
 
+class _ConfigBackend:
+    """Plaintext config.yaml backend used by the secrets adapter."""
+
+    def read_plain(self, key: str) -> str:
+        if not CONFIG_PATH.exists():
+            return ""
+        raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+        return raw.get(key, "") or ""
+
+    def write_plain(self, key: str, value: str) -> None:
+        raw = {}
+        if CONFIG_PATH.exists():
+            raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+        raw[key] = value
+        CONFIG_PATH.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+
+
 @dataclass
 class Config:
     api_key: str = ""
@@ -82,7 +101,7 @@ class Config:
             if slugs:
                 prefer[role] = list(slugs)
         return cls(
-            api_key=os.environ.get("OPENROUTER_API_KEY") or raw.get("openrouter_api_key", "") or "",
+            api_key=SecretStore(_ConfigBackend()).get_api_key(),
             pinned={k: v for k, v in (raw.get("pinned") or {}).items() if v},
             prefer=prefer,
             max_supervisor_steps=int(raw.get("max_supervisor_steps", 40)),
@@ -102,14 +121,12 @@ class Config:
         CONFIG_PATH.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
 
     def save_key(self, key: str) -> None:
+        """Store via the credential-store adapter (plan commit 6)."""
         self.api_key = key
         if os.environ.get("HOSTED") == "1":
             return
-        raw = {}
-        if CONFIG_PATH.exists():
-            raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
-        raw["openrouter_api_key"] = key
-        CONFIG_PATH.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+        from .secrets import SecretStore
+        SecretStore(_ConfigBackend()).set_api_key(key)
 
 
 def load_skill() -> str:

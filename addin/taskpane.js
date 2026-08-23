@@ -382,6 +382,12 @@ function payload(doc) {
 
 /* ------------------------------------------------------------------ running */
 
+function setBusy(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle("loading", on);
+  btn.disabled = on;
+}
+
 function resetOutput() {
   ISSUES = [];
   RUN_ID = null;
@@ -395,6 +401,17 @@ function resetOutput() {
   $("toggle-trace").classList.add("hidden");
   $("toggle-trace").textContent = "Show working";
   $("status").classList.remove("hidden");
+  $("empty-state").classList.add("hidden");
+  $("progress").classList.remove("hidden");
+}
+
+function finishRun(msg) {
+  $("progress").classList.add("hidden");
+  if (msg) $("status").textContent = msg;
+  if (!ISSUES.length && !$("issues").innerHTML.trim()) {
+    const es = $("empty-state");
+    es.classList.remove("hidden");
+  }
 }
 
 function toggleTrace() {
@@ -412,6 +429,7 @@ function trace(line) {
 
 async function runChecks() {
   resetOutput();
+  setBusy($("checks"), true);
   $("status").textContent = "Running mechanical checks…";
   try {
     const doc = await readDocument();
@@ -435,16 +453,23 @@ async function runChecks() {
     }));
     collapseMandate();
     if (!d.findings.length) {
-      $("issues").innerHTML = "<p class='done'>No mechanical defects found.</p>";
+      $("issues").innerHTML =
+        "<div class='empty-state'><div class='glyph'>✓</div><b>Clean</b>" +
+        "No mechanical defects found. This is a deterministic pass — it does " +
+        "not replace a substantive review.</div>";
     }
+    finishRun(`${d.findings.length} findings · ${d.clauses} provisions · ` +
+      `${d.definitions} defined terms`);
   } catch (e) {
-    $("status").textContent = "Failed: " + e;
+    finishRun("Failed: " + e);
+  } finally {
+    setBusy($("checks"), false);
   }
 }
 
 async function runReview() {
   resetOutput();
-  $("run").disabled = true;
+  setBusy($("run"), true);
   $("stop").classList.remove("hidden");
   $("status").textContent = "Reading the document…";
 
@@ -475,9 +500,10 @@ async function runReview() {
     if (e.name !== "AbortError") $("status").textContent = "Failed: " + e;
     else $("status").textContent = "Stopped.";
   } finally {
-    $("run").disabled = false;
+    setBusy($("run"), false);
     $("stop").classList.add("hidden");
     ABORT = null;
+    finishRun();
   }
 }
 
@@ -570,6 +596,8 @@ function paintPlan(plan) {
 }
 
 function addIssue(issue) {
+  const es = $("empty-state");
+  if (es) es.classList.add("hidden");
   ISSUES.push(issue);
   const i = ISSUES.length - 1;
   const el = document.createElement("div");

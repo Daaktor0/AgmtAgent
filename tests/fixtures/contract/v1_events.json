@@ -112,6 +112,16 @@
     "model": "stub/reviewer"
   },
   {
+    "cost_usd": 0.0,
+    "event": "budget",
+    "exhausted": false,
+    "exhausted_reason": null,
+    "max_steps": 40,
+    "steps_used": 8,
+    "tokens_in": 0,
+    "tokens_out": 0
+  },
+  {
     "event": "done",
     "issues": [
       {

@@ -358,11 +358,23 @@ class Store:
                 " ORDER BY seq DESC LIMIT 1", (run_id,)).fetchone()
         return dict(row) if row else None
 
-    def set_run_status(self, run_id: str, status: str) -> None:
+    def set_run_status(self, run_id: str, status: str) -> bool:
+        """Transition through the state machine when both states are known.
+        Returns False for illegal transitions; legacy strings pass through."""
+        from ..orchestrator.state import RunState, transition
+        run_row = self.get_run(run_id)
+        current_s = RunState.coerce(run_row["status"] if run_row else None)
+        target_s = RunState.coerce(status)
+        if current_s is not None and target_s is not None:
+            try:
+                transition(current_s, target_s)
+            except Exception:
+                return False
         with self._lock:
             self._conn.execute(
                 "UPDATE run SET status = ? WHERE id = ?", (status, run_id))
             self._conn.commit()
+        return True
 
     def find_position(
         self, topic: str, polarity: str, scope: str = "global",

@@ -14,6 +14,7 @@ from .config import Config, load_skill
 from .document import build_document
 from .memory import get_store
 from .reviewer import review_issues
+from .orchestrator.budget import Budget  # noqa: F401
 from .router import Router, RouterError
 from .tools import TOOL_SCHEMAS, Toolbox
 
@@ -159,6 +160,12 @@ class Supervisor:
         self.cfg = cfg
         self.router = router
 
+    @staticmethod
+    def _messages_hash(messages: list[dict]) -> str:
+        import hashlib
+        blob = json.dumps(messages, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(blob.encode()).hexdigest()
+
     def run(self, paragraphs: list[str], mode: str, mandate: dict,
             instruction: str = "", prefixes: list[str] | None = None,
             extras: dict | None = None,
@@ -208,7 +215,12 @@ class Supervisor:
 
     def _run_core(self, paragraphs: list[str], mode: str, mandate: dict,
                   instruction: str = "", prefixes: list[str] | None = None,
-                  extras: dict | None = None) -> Iterator[dict]:
+                  extras: dict | None = None,
+                  store=None, run_id: str | None = None,
+                  budget: "Budget | None" = None) -> Iterator[dict]:
+        from .orchestrator.budget import Budget as _B
+        budget = budget or _B(max_steps=self.cfg.max_supervisor_steps)
+        self._budget = budget
         extras = dict(extras or {})
         extras.setdefault("paragraphs", paragraphs)
         if prefixes is not None:
@@ -254,9 +266,12 @@ class Supervisor:
         ]
 
         usages: list[dict] = []
-        warn_at = max(1, int(self.cfg.max_supervisor_steps * 0.8))
-        for step in range(self.cfg.max_supervisor_steps):
-            if step == warn_at:
+        warned_80 = False
+        while not budget.exhausted:
+            if not budget.record_step():
+                break
+            if not warned_80 and budget.warn_threshold(0.8):
+                warned_80 = True
                 messages.append({
                     "role": "user",
                     "content": "Budget is at 80%. Record what you have and finish.",
@@ -268,8 +283,13 @@ class Supervisor:
                 yield {"event": "error", "message": str(exc)}
                 return
 
+            budget.record_usage(resp.get("usage"))
             if resp.get("usage"):
                 usages.append({"role": "supervisor", "model": model, **resp["usage"]})
+                if budget.exhausted:
+                    yield {"event": "budget_exhausted",
+                           "reason": budget.exhausted_reason}
+                    break
             msg = resp["choices"][0]["message"]
             messages.append(msg)
 
@@ -316,6 +336,23 @@ class Supervisor:
                 if name in {"plan", "revise_plan"} and box.plan:
                     yield {"event": "plan", "plan": box.plan}
 
+            # Checkpoint after each tool batch (plan §7.3): enough state to
+            # resume without repeating a tool call.
+            if store is not None and run_id is not None and box.plan:
+                try:
+                    store.save_checkpoint(
+                        run_id, state={"step_messages": len(messages),
+                                       "issues_recorded": len(box.issues)},
+                        plan=box.plan,
+                        messages_hash=self._messages_hash(messages))
+                except OSError:
+                    pass
+
+            if budget.exhausted:
+                yield {"event": "budget_exhausted",
+                       "reason": budget.exhausted_reason}
+                break
+
             if box.finished is not None:
                 break
 
@@ -331,13 +368,31 @@ class Supervisor:
             for i in doc.mechanical_checks()
         ]
         summary = box.finished or "Review ended without a summary."
+        if budget.exhausted:
+            summary += ("\n\n[Budget reached: " + budget.exhausted_reason
+                        + ". This is a partial review — the findings recorded "
+                        "before this point stand; the document was not fully "
+                        "covered.]")
+            run_status = "partial"
+        else:
+            run_status = "done"
+        budget_note = {"event": "budget", **budget.summary()}
+        yield budget_note
+
         final_run_id = getattr(self, "_pending_run_id", None)
         try:
             if final_run_id is not None:
                 get_store().finish_run(
-                    final_run_id, status="done", summary=summary,
+                    final_run_id, status=run_status, summary=summary,
                     issues=box.issues, usage=usages, plan=box.plan,
                     steps_used=len(usages))
+                try:
+                    get_store()._conn.execute(
+                        "UPDATE run SET budget_json=? WHERE id=?",
+                        (budget.to_json(), final_run_id))
+                    get_store()._conn.commit()
+                except Exception:
+                    pass
             else:
                 final_run_id = get_store().save_run(
                     mode=mode, mandate=mandate, instruction=instruction,

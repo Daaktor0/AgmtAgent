@@ -94,13 +94,28 @@ function fillModes(job) {
 
 async function bootstrap() {
   try {
+    let cfg = {};
+    try { cfg = await (await fetch(`${API}/api/config`)).json(); } catch (e) {}
     const h = await (await fetch(`${API}/api/health`)).json();
-    MODE_NAMES = h.modes || {};
+    MODE_NAMES = h.modes || Object.keys(MODE_FALLBACK).reduce((a, k) =>
+      (a[k] = MODE_FALLBACK[k], a), {});
     let job = "Review";
     try { job = localStorage.getItem("aa.job") || "Review"; } catch (e) {}
     if (!JOBS[job]) job = "Review";
     fillModes(job);
-    if (!h.has_key) {
+
+    // Server-managed key: hide the key entry entirely.
+    if (cfg.key_managed === "server") {
+      const keySection = $("apikey");
+      if (keySection) {
+        keySection.closest("label")?.classList.add("hidden");
+        $("savekey").classList.add("hidden");
+      }
+      const note = document.createElement("p");
+      note.className = "done";
+      note.textContent = "Model access is managed by the host — no key needed.";
+      $("apikey").closest("label").parentNode.insertBefore(note, $("apikey").closest("label"));
+    } else if (!h.has_key) {
       banner("No OpenRouter API key yet. Open Settings to add one.", false);
       toggleSettings();
     }

@@ -237,6 +237,18 @@ def _selection_payload(sel: SelectionIn | None) -> dict | None:
     return data
 
 
+@app.get("/api/config")
+def config_surface():
+    """Client bootstrap: what the pane should show. Key material never
+    leaves the server — only the fact that it exists."""
+    return {
+        "product": "Agmt",
+        "key_managed": "server" if bool(cfg.api_key) else "user",
+        "needs_key": not bool(cfg.api_key),
+        "brand": {"name": "Agmt"},
+    }
+
+
 @app.get("/api/health")
 def health():
     flags = load_flags()

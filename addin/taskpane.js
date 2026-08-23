@@ -18,13 +18,19 @@ const esc = (s) =>
 
 Office.onReady((info) => {
   if (info.host !== Office.HostType.Word) {
-    banner("This add-in runs in Word.", true);
-    return;
+    // Web preview (phone/laptop browser): still useful for mandate + settings.
+    banner("Preview mode — document reads and tracked-change writes need "
+         + "Word. Everything else works here.", false);
+  } else {
+    CAN_COMMENT = Office.context.requirements.isSetSupported("WordApi", "1.4");
   }
-  CAN_COMMENT = Office.context.requirements.isSetSupported("WordApi", "1.4");
 
-  $("run").onclick = () => runReview();
-  $("checks").onclick = () => runChecks();
+  const IN_WORD = info.host === Office.HostType.Word;
+  $("run").onclick = () => IN_WORD ? runReview()
+    : banner("Document actions need Word. Open this add-in inside Word to run reviews.", true);
+  $("checks").onclick = () => IN_WORD ? runChecks()
+    : banner("Mechanical checks read the document, so they need Word too. "
+           + "Settings and mandate work here.", true);
   $("stop").onclick = () => ABORT && ABORT.abort();
   $("tab-settings").onclick = toggleSettings;
   $("savekey").onclick = saveKey;
@@ -57,7 +63,20 @@ const JOBS = {
   Negotiate: ["G", "H", "M"],
   QC: ["N"],
 };
-let MODE_NAMES = {};
+// Static fallback so the Mode dropdown is never blank on first paint;
+// bootstrap() refines these with the server's live names.
+const MODE_FALLBACK = {
+  A: "Full agreement review", B: "Clause review", C: "Drafting / redrafting",
+  D: "Surgical inline amendment", E: "Bubble comments",
+  F: "Counterparty markup review", G: "Negotiation strategy",
+  H: "Negotiation call prep", I: "Interpretation / explanation",
+  J: "Consistency / cross-reference check", K: "Proofreading",
+  L: "Comparison of versions", M: "Email summarising changes",
+  N: "Near-final / pre-signing QC",
+};
+MODE_NAMES = { ...MODE_FALLBACK };
+// Paint the default job's modes right now — no waiting for the network.
+fillModes("Review");
 
 function fillModes(job) {
   const keys = JOBS[job] || JOBS.Review;

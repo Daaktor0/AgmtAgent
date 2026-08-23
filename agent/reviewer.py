@@ -180,9 +180,10 @@ def review_issues(
         try:
             model_verdicts, model = _ask_model(work, router, paragraphs=paragraphs)
         except (RouterError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+            # Reviewer failure must never become implicit confirmation.
             for issue in work:
                 if "reviewer_verdict" not in issue:
-                    issue["reviewer_verdict"] = "confirm"
+                    issue["reviewer_verdict"] = "unreviewed"
                     issue["reviewer_note"] = f"reviewer unavailable: {exc}"
     kept = apply_verdicts(work, model_verdicts)
     report = {

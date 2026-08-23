@@ -223,6 +223,20 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE position ADD COLUMN precedent_clause TEXT;
         """,
     ),
+    # Unlisted share tokens for web report/dashboard surfaces. Tokens are
+    # random, stored per row, issued lazily on first share.
+    Migration(
+        7,
+        "share_tokens",
+        sql="""
+        ALTER TABLE run ADD COLUMN share_token TEXT;
+        ALTER TABLE matter ADD COLUMN share_token TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_run_share ON run(share_token)
+            WHERE share_token IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_share ON matter(share_token)
+            WHERE share_token IS NOT NULL;
+        """,
+    ),
 ]
 
 

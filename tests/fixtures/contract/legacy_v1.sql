@@ -87,7 +87,7 @@ INSERT INTO "issue" VALUES('<id:25>','<id:18>',8,'4.1',19,'"Business Warranties"
 CREATE TABLE matter (
             id TEXT PRIMARY KEY, name TEXT, client TEXT, party_represented TEXT,
             counterparty TEXT, deal_type TEXT, governing_law TEXT,
-            status TEXT DEFAULT 'active', created_at TEXT, archived_at TEXT);
+            status TEXT DEFAULT 'active', created_at TEXT, archived_at TEXT, share_token TEXT);
 CREATE TABLE position (
             id TEXT PRIMARY KEY, scope TEXT, scope_key TEXT, topic TEXT NOT NULL,
             statement TEXT, polarity TEXT, evidence_count INTEGER DEFAULT 1,
@@ -102,9 +102,9 @@ CREATE TABLE run (
             status TEXT, started_at TEXT, ended_at TEXT,
             tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0,
             cost_usd REAL DEFAULT 0, steps_used INTEGER DEFAULT 0,
-            summary TEXT, plan_json TEXT, matter_id TEXT, document_version_id TEXT, engine_version TEXT, skill_version TEXT, model_roles_json TEXT, provider_provenance_json TEXT, budget_json TEXT, lease_until TEXT, last_event_seq INTEGER);
-INSERT INTO "run" VALUES('<id:13>','A','{"party_represented": "Company"}','','done','<ts:1>','<ts:1>',0,0,0.0,8,'Two points matter.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
-INSERT INTO "run" VALUES('<id:18>','checks','{}','','done','<ts:1>','<ts:1>',0,0,0.0,0,'8 mechanical findings',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+            summary TEXT, plan_json TEXT, matter_id TEXT, document_version_id TEXT, engine_version TEXT, skill_version TEXT, model_roles_json TEXT, provider_provenance_json TEXT, budget_json TEXT, lease_until TEXT, last_event_seq INTEGER, share_token TEXT);
+INSERT INTO "run" VALUES('<id:13>','A','{"party_represented": "Company"}','','done','<ts:1>','<ts:1>',0,0,0.0,8,'Two points matter.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+INSERT INTO "run" VALUES('<id:18>','checks','{}','','done','<ts:1>','<ts:1>',0,0,0.0,0,'8 mechanical findings',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 CREATE TABLE run_checkpoint (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES run(id),
             seq INTEGER NOT NULL, state_json TEXT, plan_json TEXT,
@@ -121,6 +121,7 @@ INSERT INTO "schema_migration" VALUES(3,'matter_documents_versions','<ts:1>','43
 INSERT INTO "schema_migration" VALUES(4,'run_events_checkpoints_audit','<ts:1>','e9046a4296cb807956efbba7ee85585341e1487a4c6fcb6a6e887bfd233c2864');
 INSERT INTO "schema_migration" VALUES(5,'contextual_commands','<ts:1>','1cb05e68e3c23b318db5d93203fba564536d4b4d3915de1b75a65ccda47fabbd');
 INSERT INTO "schema_migration" VALUES(6,'positions_precedent','<ts:1>','847221ef702d0c7aeda28712295be1827ef835dfe2160e3676b604c9e998b44d');
+INSERT INTO "schema_migration" VALUES(7,'share_tokens','<ts:1>','cc326afc16c0ac0e5950c3e60b72edf6487cd346e9da9a1d8f4951b1d39a817d');
 CREATE INDEX idx_issue_run ON issue(run_id);
 CREATE INDEX idx_disp_issue ON disposition(issue_id);
 CREATE INDEX idx_pos_topic ON position(topic);
@@ -137,4 +138,8 @@ CREATE UNIQUE INDEX idx_cmd_idem
             ON contextual_command(matter_id, idempotency_key)
             WHERE idempotency_key IS NOT NULL;
 CREATE INDEX idx_proposal_issue ON action_proposal(issue_id);
+CREATE UNIQUE INDEX idx_run_share ON run(share_token)
+            WHERE share_token IS NOT NULL;
+CREATE UNIQUE INDEX idx_matter_share ON matter(share_token)
+            WHERE share_token IS NOT NULL;
 COMMIT;

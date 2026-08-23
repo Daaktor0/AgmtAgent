@@ -42,6 +42,9 @@ cfg = Config.load()
 router = Router(cfg)
 app = FastAPI(title="Agmt — Agreement Review & Drafting")
 
+from server.pages import register_routes  # noqa: E402
+register_routes(app)
+
 configure_logging()
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)

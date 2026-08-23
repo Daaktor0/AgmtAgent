@@ -21,11 +21,17 @@ CREATE UNIQUE INDEX idx_document_word_doc_id ON document(word_doc_id)
 
 CREATE INDEX idx_issue_run ON issue(run_id);
 
+CREATE UNIQUE INDEX idx_matter_share ON matter(share_token)
+            WHERE share_token IS NOT NULL;
+
 CREATE INDEX idx_pos_topic ON position(topic);
 
 CREATE INDEX idx_proposal_issue ON action_proposal(issue_id);
 
 CREATE INDEX idx_run_event_run ON run_event(run_id, seq);
+
+CREATE UNIQUE INDEX idx_run_share ON run(share_token)
+            WHERE share_token IS NOT NULL;
 
 CREATE TABLE action_proposal (
             id TEXT PRIMARY KEY, issue_id TEXT REFERENCES issue(id),
@@ -106,7 +112,7 @@ CREATE TABLE issue (
 CREATE TABLE matter (
             id TEXT PRIMARY KEY, name TEXT, client TEXT, party_represented TEXT,
             counterparty TEXT, deal_type TEXT, governing_law TEXT,
-            status TEXT DEFAULT 'active', created_at TEXT, archived_at TEXT);
+            status TEXT DEFAULT 'active', created_at TEXT, archived_at TEXT, share_token TEXT);
 
 CREATE TABLE position (
             id TEXT PRIMARY KEY, scope TEXT, scope_key TEXT, topic TEXT NOT NULL,
@@ -120,7 +126,7 @@ CREATE TABLE run (
             status TEXT, started_at TEXT, ended_at TEXT,
             tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0,
             cost_usd REAL DEFAULT 0, steps_used INTEGER DEFAULT 0,
-            summary TEXT, plan_json TEXT, matter_id TEXT, document_version_id TEXT, engine_version TEXT, skill_version TEXT, model_roles_json TEXT, provider_provenance_json TEXT, budget_json TEXT, lease_until TEXT, last_event_seq INTEGER);
+            summary TEXT, plan_json TEXT, matter_id TEXT, document_version_id TEXT, engine_version TEXT, skill_version TEXT, model_roles_json TEXT, provider_provenance_json TEXT, budget_json TEXT, lease_until TEXT, last_event_seq INTEGER, share_token TEXT);
 
 CREATE TABLE run_checkpoint (
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES run(id),

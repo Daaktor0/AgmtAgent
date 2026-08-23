@@ -588,6 +588,7 @@ function handleEvent(ev) {
       ISSUES.length = 0;
       (ev.issues || []).forEach(addIssue);
       $("status").textContent = statusLine(ev.issues || []);
+      if (RUN_ID) paintShareLink(RUN_ID);
       break;
   }
 }
@@ -739,6 +740,28 @@ function say(node, msg, ok) {
 // Word Find treats ^ as an escape character; everything else is literal
 // while match-wildcards is off.
 const forWordSearch = (s) => s.replace(/\^/g, "^^");
+
+async function paintShareLink(runId) {
+  try {
+    const r = await fetch(`${API}/api/runs/${encodeURIComponent(runId)}/share`);
+    const d = await r.json();
+    if (!d.url) return;
+    const host = window.location.origin;
+    const bar = document.createElement("div");
+    bar.className = "sharebar";
+    bar.innerHTML =
+      `<div><b>Review complete.</b> Share the report:
+        <a href="${host}${d.url}" target="_blank" rel="noopener">open</a>
+        · <button type="button" id="copy-report" class="linkbtn">copy link</button></div>`;
+    const existing = document.querySelector(".sharebar");
+    if (existing) existing.remove();
+    $("issues").parentNode.insertBefore(bar, $("issues"));
+    $("copy-report").onclick = () => {
+      navigator.clipboard && navigator.clipboard.writeText(host + d.url);
+      $("copy-report").textContent = "copied";
+    };
+  } catch (e) { /* sharing is best-effort */ }
+}
 
 async function findRange(context, issue) {
   const ps = context.document.body.paragraphs;

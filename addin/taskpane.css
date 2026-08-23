@@ -708,3 +708,14 @@ summary::marker { color: var(--faint); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* share bar */
+.sharebar {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--ok-soft);
+  border: 1px solid #cfe0d4;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+}
+.sharebar a { color: var(--accent); font-weight: 600; }

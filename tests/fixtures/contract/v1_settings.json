@@ -86,7 +86,7 @@
       "N": "Near-final / pre-signing QC"
     },
     "ok": true,
-    "schema_version": 6
+    "schema_version": 7
   },
   "get_api_models": {
     "models": [

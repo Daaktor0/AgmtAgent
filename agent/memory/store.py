@@ -358,6 +358,21 @@ class Store:
                 " ORDER BY seq DESC LIMIT 1", (run_id,)).fetchone()
         return dict(row) if row else None
 
+    def get_run_issues(self, run_id: str) -> list[dict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM issue WHERE run_id = ?"
+                " ORDER BY local_id, rowid", (run_id,)).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["payload"] = json.loads(d.get("payload_json") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                d["payload"] = {}
+            out.append(d)
+        return out
+
     def set_run_status(self, run_id: str, status: str) -> bool:
         """Transition through the state machine when both states are known.
         Returns False for illegal transitions; legacy strings pass through."""

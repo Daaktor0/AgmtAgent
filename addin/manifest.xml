@@ -8,9 +8,9 @@
 
   <Id>528a23ed-8e75-418e-9e0e-b6cb5e827f41</Id>
   <Version>1.1.2.0</Version>
-  <ProviderName>Agmt Agent</ProviderName>
+  <ProviderName>Agmt</ProviderName>
   <DefaultLocale>en-GB</DefaultLocale>
-  <DisplayName DefaultValue="Agmt Agent"/>
+  <DisplayName DefaultValue="Agmt"/>
   <Description DefaultValue="Senior transactions drafting partner: review, surgical markup, bubble comments and pre-signing QC, running on your own models."/>
   <IconUrl DefaultValue="https://agmt.onrender.com/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://agmt.onrender.com/assets/icon-80.png"/>
@@ -82,9 +82,9 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://agmt.onrender.com/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="Group.Label" DefaultValue="Agmt Agent"/>
+        <bt:String id="Group.Label" DefaultValue="Agmt"/>
         <bt:String id="Button.Label" DefaultValue="Review"/>
-        <bt:String id="GetStarted.Title" DefaultValue="Agmt Agent is ready."/>
+        <bt:String id="GetStarted.Title" DefaultValue="Agmt is ready."/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="Button.Tooltip" DefaultValue="Open the review pane. Reviews run on your VPS."/>

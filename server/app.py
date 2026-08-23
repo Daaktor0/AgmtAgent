@@ -40,7 +40,7 @@ from agent.supervisor import MODES, Supervisor  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 cfg = Config.load()
 router = Router(cfg)
-app = FastAPI(title="Agreement Review & Drafting Agent")
+app = FastAPI(title="Agmt — Agreement Review & Drafting")
 
 configure_logging()
 app.add_middleware(RequestContextMiddleware)
@@ -610,7 +610,7 @@ def main():
         scheme = "https"
     else:
         scheme = "http"
-    print(f"\n  Agreement Agent running at {scheme}://{host}:{cfg.port}")
+    print(f"\n  Agmt running at {scheme}://{host}:{cfg.port}")
     print(f"  API key configured: {'yes' if cfg.api_key else 'NO — set it in the task pane'}\n")
     uvicorn.run(app, **kwargs)
 

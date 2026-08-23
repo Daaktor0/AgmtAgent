@@ -1,5 +1,11 @@
 [
   {
+    "clean": true,
+    "event": "scan",
+    "findings": [],
+    "risk": "none"
+  },
+  {
     "capabilities": [
       "paragraphs",
       "structure"

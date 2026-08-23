@@ -12,6 +12,9 @@ from typing import Iterator
 
 from .config import Config, load_skill
 from .document import build_document
+from .document_scan import scan_paragraphs, sanitize
+from .external_skills import (load_supplementary_skills,
+                              supplementary_prompt_block)
 from .memory import get_store
 from .reviewer import review_issues
 from .orchestrator.budget import Budget  # noqa: F401
@@ -225,7 +228,17 @@ class Supervisor:
         extras.setdefault("paragraphs", paragraphs)
         if prefixes is not None:
             extras.setdefault("list_prefixes", prefixes)
+        # Pre-ingest security scan (untrusted-data rule): detect hidden
+        # Unicode that could steer the model; strip it from what we parse.
+        _scan = scan_paragraphs(extras.get("paragraphs") or [])
+        if not _scan.clean:
+            extras["paragraphs"] = [sanitize(p) for p in extras["paragraphs"]]
         doc = build_document(extras, doc_id=str(extras.get("doc_id") or "primary"))
+        matter = [doc] + list(doc.companions)
+        box = Toolbox(doc, self.router, mandate, matter=matter)
+
+        yield {"event": "scan", "clean": _scan.clean, "risk": _scan.risk,
+               "findings": _scan.summary()["findings"]}
         matter = [doc] + list(doc.companions)
         box = Toolbox(doc, self.router, mandate, matter=matter)
 
@@ -254,9 +267,22 @@ class Supervisor:
 
         opening = instruction.strip() or (
             f"Run mode {mode.upper()} on this document.")
+
+        # Supplementary playbooks: per-document-type depth from the open
+        # LQ skills library. Core skill rules always win on conflict.
+        full_text = "\n".join(doc.paras)
+        try:
+            suppl = load_supplementary_skills(full_text)
+        except Exception:
+            suppl = []
+        system_prompt = build_system_prompt(
+            mode, mandate, self.cfg.max_supervisor_steps, house_slim)
+        if suppl:
+            yield {"event": "playbooks", "loaded": [s["name"] for s in suppl]}
+            system_prompt += supplementary_prompt_block(suppl)
+
         messages = [
-            {"role": "system", "content": build_system_prompt(
-                mode, mandate, self.cfg.max_supervisor_steps, house_slim)},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content":
                 f"{opening}\n\nThe document has {len(doc.paras)} paragraphs and "
                 f"{len(doc.clauses)} numbered provisions"

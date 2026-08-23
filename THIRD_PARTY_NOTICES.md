@@ -134,3 +134,29 @@ then any Derivative Works that You distribute must include a readable copy of
 the attribution notices contained within such NOTICE file.
 
 END OF TERMS AND CONDITIONS
+
+
+## LegalQuants lq-skills
+
+Copyright 2026 LegalQuants contributors
+
+Licensed under the Apache License, Version 2.0
+https://www.apache.org/licenses/LICENSE-2.0
+Source: https://github.com/LegalQuants/lq-skills
+
+Selected review playbooks (nda-review, msa-review-saas,
+msa-review-commercial-purchase, dpa-checklist-review, contract-qa) are
+fetched at runtime as supplementary reference material and appended to the
+system prompt below the core Agreement Skill. The core skill's rules take
+precedence on any conflict. Skills remain the work of their authors; Agmt
+adds no edits and stores cached copies only.
+
+## LegalQuants noroboto (concepts)
+
+Copyright 2026 LegalQuants contributors · MIT licence
+Source: https://github.com/LegalQuants/noroboto
+
+The pre-ingest hidden-character scan (agent/document_scan.py) is adapted
+from noroboto's Unicode-obfuscation detection concepts: zero-width, bidi
+override, private-use-area, and mixed-script detection. Reimplemented for
+Agmt's paragraph model; no noroboto code is copied.

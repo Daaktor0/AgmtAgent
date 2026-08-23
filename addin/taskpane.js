@@ -572,6 +572,19 @@ function handleEvent(ev) {
         ` · reviewer kept ${ev.kept}` +
         (ev.dropped && ev.dropped.length ? `, dropped ${ev.dropped.length}` : "");
       break;
+    case "scan":
+      if (!ev.clean && ev.risk === "high") {
+        const names = (ev.findings || []).slice(0, 3)
+          .map((f) => `${f.label} ×${f.count}`).join(", ");
+        banner(`Security scan: hidden characters found in this document (${names}). ` +
+               "They were stripped before analysis — the visible text was not touched.", true);
+      }
+      break;
+    case "playbooks":
+      if (ev.loaded && ev.loaded.length) {
+        trace(`Playbooks loaded: ${ev.loaded.join(", ")}`);
+      }
+      break;
     case "question":
       addQuestion(ev.question);
       break;

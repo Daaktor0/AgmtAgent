@@ -95,6 +95,13 @@ def refuse_reason(
         if sha256_hex(old) != (action.expected_old_text_hash or sha256_hex(old)):
             return "stale"
     if ticket is not None:
+        # The ticket binds the exact live document it was prepared against.
+        # Re-check at apply time: a document that changed between prepare and
+        # apply must refuse, even if the target text itself still matches.
+        if ticket.expected_doc_hash and live.version_hash != ticket.expected_doc_hash:
+            return "stale"
+        if live.document_version_id != ticket.document_version_id:
+            return "stale"
         if ticket.consumed:
             return "replay"
         if _expired(ticket, now=now):

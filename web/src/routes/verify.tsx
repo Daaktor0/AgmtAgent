@@ -31,8 +31,13 @@ function Verify() {
       return;
     }
     void verifyMagicLink({ data: { token } })
-      .then((r) => {
+      .then(async (r) => {
         storeBearer(r.sessionToken);
+        try {
+          await authClient.getSession();
+        } catch {
+          /* session store will recover on the next fetch */
+        }
         setMsg("Email verified. Opening your Matters.");
         window.location.replace("/");
       })

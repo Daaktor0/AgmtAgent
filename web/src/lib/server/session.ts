@@ -1,5 +1,23 @@
-import { createHmac } from "node:crypto";
 import { auth, SESSION_TOKEN_COOKIE } from "@/lib/auth/server";
+
+/**
+ * Sign a Better Auth session token the way better-call does: WebCrypto
+ * HMAC-SHA256, standard base64 with padding (length 44, trailing '=').
+ * The live-preview popup posts the decoded cookie value as the bearer, so
+ * we return the same `token.signature` shape (not URI-encoded).
+ */
+async function signSessionToken(token: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signatureBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token));
+  const signature = btoa(String.fromCharCode(...new Uint8Array(signatureBuf)));
+  return `${token}.${signature}`;
+}
 
 /**
  * Open a Better Auth session for a verified email user.
@@ -40,10 +58,7 @@ export async function openVerifiedEmailSession(email: string): Promise<{
   const session = await ctx.internalAdapter.createSession(userId);
   if (!session?.token) throw new Error("Could not open a session.");
 
-  // Match better-call's cookie signature: HMAC-SHA256, standard base64, padded.
-  // getSignedCookie requires signature.length === 44 and a trailing '='.
-  const signature = createHmac("sha256", ctx.secret).update(session.token).digest("base64");
-  const signed = `${session.token}.${signature}`;
+  const signed = await signSessionToken(session.token, ctx.secret);
 
   try {
     const { setCookie } = await import("@tanstack/react-start/server");

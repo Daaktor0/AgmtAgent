@@ -1,5 +1,5 @@
 import { getSql } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/verify.server";
+import { auth } from "@/lib/auth/server";
 import { nowIso } from "@/lib/agmt/ids";
 import { auditLog } from "@/lib/agmt/log";
 
@@ -11,10 +11,33 @@ export type Account = {
   status: string;
 };
 
-export async function ensureAccount(userId: string, bearer?: string): Promise<Account> {
+/**
+ * Resolve the Better Auth user by id. Live preview sessions ride a bearer
+ * token, so cookies on this request are often empty — never look the email
+ * up from getSessionUser() without that bearer.
+ *
+ * Any Better Auth email is treated as verified for Agmt: Google is a broker
+ * identity, and the product-layer magic link marks emailVerified before
+ * ensureAccount runs.
+ */
+async function identityFor(userId: string): Promise<{
+  email: string | null;
+  displayName: string | null;
+}> {
+  try {
+    const ctx = await auth.$context;
+    const user = await ctx.internalAdapter.findUserById(userId);
+    const email = user?.email?.trim().toLowerCase() || null;
+    const displayName = user?.name?.trim() || email;
+    return { email, displayName };
+  } catch {
+    return { email: null, displayName: null };
+  }
+}
+
+export async function ensureAccount(userId: string): Promise<Account> {
   const sql = await getSql();
-  const session = await getSessionUser(bearer);
-  const email = session?.email?.toLowerCase() ?? null;
+  const { email, displayName } = await identityFor(userId);
   const verified = Boolean(email);
   const existing = await sql<Account>`
     select user_id as "userId", email_normalised as "emailNormalised",
@@ -22,19 +45,23 @@ export async function ensureAccount(userId: string, bearer?: string): Promise<Ac
     from user_account where user_id = ${userId}
   `;
   if (existing[0]) {
-    if (verified && !existing[0].emailVerifiedAt && email) {
+    if (verified && email && (!existing[0].emailVerifiedAt || !existing[0].emailNormalised)) {
+      const at = existing[0].emailVerifiedAt ?? nowIso();
+      const name = existing[0].displayName ?? displayName ?? email;
       await sql`
         update user_account
-        set email_normalised = ${email}, email_verified_at = ${nowIso()}
+        set email_normalised = ${email},
+            email_verified_at = ${at},
+            display_name = ${name}
         where user_id = ${userId}
       `;
-      return { ...existing[0], emailNormalised: email, emailVerifiedAt: nowIso() };
+      return { ...existing[0], emailNormalised: email, emailVerifiedAt: at, displayName: name };
     }
     return existing[0];
   }
   await sql`
     insert into user_account (user_id, email_normalised, email_verified_at, display_name, status, created_at)
-    values (${userId}, ${email}, ${verified ? nowIso() : null}, ${email}, 'active', ${nowIso()})
+    values (${userId}, ${email}, ${verified ? nowIso() : null}, ${displayName ?? email}, 'active', ${nowIso()})
   `;
   await sql`
     insert into review_entitlement (user_id, review_enabled, extra_run_credits, stronger_override_credits)
@@ -46,27 +73,20 @@ export async function ensureAccount(userId: string, bearer?: string): Promise<Ac
     userId,
     emailNormalised: email,
     emailVerifiedAt: verified ? nowIso() : null,
-    displayName: email,
+    displayName: displayName ?? email,
     status: "active",
   };
 }
 
 export async function requireVerified(userId: string): Promise<Account> {
-  const sql = await getSql();
-  const rows = await sql<Account>`
-    select user_id as "userId", email_normalised as "emailNormalised",
-           email_verified_at as "emailVerifiedAt", display_name as "displayName", status
-    from user_account where user_id = ${userId}
-  `;
-  const a = rows[0];
-  if (!a) throw new Error("Unauthorized");
-  if (!a.emailVerifiedAt) {
+  const account = await ensureAccount(userId);
+  if (!account.emailVerifiedAt) {
     throw Object.assign(new Error("Email is not verified. Verify your email for Agmt before opening a Matter pack."), {
       code: "unverified_email",
     });
   }
-  if (a.status !== "active") {
+  if (account.status !== "active") {
     throw Object.assign(new Error("Account is not active."), { code: "disabled" });
   }
-  return a;
+  return account;
 }

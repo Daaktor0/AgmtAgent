@@ -1,5 +1,11 @@
 # Agmt - an agent for your words
 
+**v1 web (Slice 0)** lives in [`web/`](web/). Sign-in, Matter, native DOCX ingest,
+canonicalisation map and deterministic Proof. No model call. The Word add-in below
+is legacy and is not the v1 launch surface.
+
+---
+
 A drafting partner that lives in the right-hand pane of Word and works to one
 specific skill: **Agreement Review & Drafting**. It reads the whole document,
 reasons about it as one contractual system, and proposes the smallest defensible

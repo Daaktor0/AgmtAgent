@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Agmt">
+  <rect width="32" height="32" rx="6" fill="#F3EFE6"/>
+  <path fill="#1A1916" fill-rule="evenodd" d="M16 6L26 26h-4l-2-6H12l-2 6H6L16 6zm0 6l3 8h-6l3-8z"/>
+  <rect x="12" y="6" width="8" height="2" fill="#1A1916"/>
+  <rect x="4" y="24" width="8" height="2" fill="#1A1916"/>
+  <rect x="20" y="24" width="8" height="2" fill="#1A1916"/>
+</svg>

@@ -2,36 +2,40 @@ import { Link } from "@tanstack/react-router";
 import { brand } from "./tokens";
 import { cn } from "@/lib/utils";
 
-/**
- * The wordmark is the word, set in the serif, under a short accent rule —
- * a masthead, not a logo. There is no symbol to draw and none is invented.
- */
-export function Wordmark({ size = "sm", asLink = true }: { size?: "sm" | "lg"; asLink?: boolean }) {
-  const word = (
-    <span
-      className={cn(
-        "block font-serif leading-none tracking-[-0.02em] text-ink",
-        size === "lg" ? "text-[2.75rem] sm:text-[3.25rem]" : "text-[1.375rem]",
-      )}
-    >
-      {brand.name}
-    </span>
-  );
-
+export function Wordmark({
+  size = "sm",
+  asLink = true,
+  inverse = false,
+}: {
+  size?: "sm" | "lg";
+  asLink?: boolean;
+  inverse?: boolean;
+}) {
   const body = (
-    <span className="inline-block">
+    <span className="inline-flex items-start gap-1.5">
+      <span
+        className={cn(
+          "block font-serif leading-none tracking-[-0.035em]",
+          inverse ? "text-paper" : "text-ink",
+          size === "lg" ? "text-[3.25rem] sm:text-[4.5rem]" : "text-[1.625rem]",
+        )}
+      >
+        {brand.name}
+      </span>
       <span
         aria-hidden
-        className={cn("mb-2 block bg-accent", size === "lg" ? "h-[3px] w-14" : "h-[2px] w-7")}
+        className={cn(
+          "mt-[0.18em] rounded-full bg-accent",
+          size === "lg" ? "size-2.5 sm:size-3" : "size-1.5",
+        )}
       />
-      {word}
     </span>
   );
 
   if (!asLink) return body;
 
   return (
-    <Link to="/" aria-label={`${brand.name} — home`} className="inline-block no-underline">
+    <Link to="/" aria-label={`${brand.name} — home`} className="inline-flex no-underline">
       {body}
     </Link>
   );

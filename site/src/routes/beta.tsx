@@ -1,48 +1,36 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BETA } from "@/brand/copy";
-import { SEAT_OPEN, SEAT_RESERVED, SEAT_TOTAL } from "@/brand/tokens";
-import { Aside, Page, Prose, SiteFrame } from "@/components/site/frame";
-import { SeatForm } from "@/components/site/seat-form";
-import { getSeatCounts } from "@/lib/waitlist";
+import { ArrowRight } from "lucide-react";
+import { APP_URL, PRODUCT } from "@/brand/copy";
+import { Page, SiteFrame } from "@/components/site/frame";
 
 export const Route = createFileRoute("/beta")({
-  loader: () => getSeatCounts(),
   component: BetaPage,
-  head: () => ({ meta: [{ title: "Beta seats — Agmt" }] }),
+  head: () => ({ meta: [{ title: "Open Agmt — Agmt" }] }),
 });
 
 function BetaPage() {
-  const counts = Route.useLoaderData();
-
   return (
     <SiteFrame current="/beta">
       <Page>
-        <header className="max-w-[var(--measure)]">
-          <p className="label">Beta</p>
-          <h1 className="mt-2 text-[2rem] leading-tight text-ink">
-            {SEAT_TOTAL} seats, split {SEAT_OPEN} and {SEAT_RESERVED}
+        <header className="max-w-3xl">
+          <p className="label text-accent">Open Agmt</p>
+          <h1 className="mt-4 text-[2.8rem] leading-[1.02] text-ink sm:text-[4rem]">
+            Take the next document into Agmt.
           </h1>
-          <div className="mt-5 space-y-3">
-            {BETA.rule.map((line) => (
-              <Prose key={line} className="text-lg">
-                {line}
-              </Prose>
-            ))}
-          </div>
-          <div className="mt-5">
-            <Aside>{BETA.aside}</Aside>
-          </div>
+          <p className="mt-6 max-w-[var(--measure)] text-lg leading-relaxed text-ink-2">
+            Sign in with Google or a single-use email link. Create a Matter, upload a native DOCX and run Proof.
+          </p>
+          <a
+            href={APP_URL}
+            className="group mt-8 inline-flex min-h-12 items-center gap-2 bg-accent px-5 font-medium text-accent-ink no-underline transition-colors hover:bg-accent-hover"
+          >
+            Open Agmt
+            <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+          </a>
+          <p className="mt-7 max-w-[var(--measure)] text-sm leading-relaxed text-muted">
+            {PRODUCT.scope}
+          </p>
         </header>
-
-        <div className="mt-10 max-w-2xl">
-          <SeatForm counts={counts} />
-        </div>
-
-        <p className="mt-8 max-w-[var(--measure)] text-[0.9375rem] text-muted">
-          A reminder is not a seat, and the site will not tell you otherwise. If the {SEAT_OPEN} are
-          gone, the form puts you on the waitlist and says so; the {SEAT_RESERVED} reserved seats
-          stay closed until they are allotted by hand.
-        </p>
       </Page>
     </SiteFrame>
   );

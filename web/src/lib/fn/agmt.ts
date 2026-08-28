@@ -988,6 +988,7 @@ export const getProof = createServerFn({ method: "GET" })
       ? await sql<{
           proofHitId: string;
           checkId: string;
+          checkVersion: number;
           severity: string;
           certainty: string;
           provisionId: string;
@@ -998,7 +999,7 @@ export const getProof = createServerFn({ method: "GET" })
           detailArgs: Record<string, string | number | null>;
           sourceMappingValid: boolean;
         }>`
-          select proof_hit_id as "proofHitId", check_id as "checkId", severity, certainty,
+          select proof_hit_id as "proofHitId", check_id as "checkId", check_version as "checkVersion", severity, certainty,
                  provision_id as "provisionId", quote_start as "quoteStart", quote_end as "quoteEnd",
                  server_quote_snapshot as "quoteEnc", detail_code as "detailCode",
                  detail_args as "detailArgs", source_mapping_valid as "sourceMappingValid"
@@ -1060,6 +1061,7 @@ export const getProof = createServerFn({ method: "GET" })
       return {
         proofHitId: h.proofHitId,
         checkId: h.checkId,
+        checkVersion: h.checkVersion,
         severity: h.severity,
         certainty: h.certainty,
         provisionId: h.provisionId,

@@ -40,7 +40,7 @@ Not created: Review-run, catalogue, Mail, export, lineage.
 
 ## Explicitly unfinished
 
-- Slice 1 corpus runner (12–13 labelled agreements in CI).
+- Slice 1 corpus runner — landed; see SLICE-1.md.
 - Slice 2 polish on index quality weights vs a golden set.
 - Slices 3–6 (Review, exports, Mail, v2 lineage).
 - Production wrapping keys in KMS (preview uses a process-derived wrap key).

@@ -9,6 +9,11 @@ function headingKind(word: string): NodeType {
   return "clause";
 }
 
+function nativeNumber(block: ExtractedBlock): string | null {
+  if (!block.numbering || block.numberingFormat === "bullet" || block.numberingFormat === "none") return null;
+  return block.numbering.trim().replace(/\.$/, "") || null;
+}
+
 function classifyBlock(
   b: ExtractedBlock,
   inSignature: boolean,
@@ -33,6 +38,18 @@ function classifyBlock(
       confidence: 0.95,
     };
   }
+
+  const resolvedNumber = nativeNumber(b);
+  if (resolvedNumber) {
+    const level = b.numberingLevel ?? 0;
+    return {
+      nodeType: level > 0 ? "subclause" : "clause",
+      number: resolvedNumber,
+      heading: text.length < 120 ? text : text.slice(0, 80),
+      confidence: 0.96,
+    };
+  }
+
   const d = text.match(RE_DECIMAL);
   if (d) {
     const rest = text.slice(d[0].length).trim();
@@ -161,8 +178,11 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
     }
 
     const dec = trimmed.match(RE_DECIMAL);
-    if (dec && !dec[1].includes(".")) {
-      const rest = trimmed.slice(dec[0].length).trim();
+    const nativeTopLevel =
+      Boolean(nativeNumber(b)) && (b.numberingLevel ?? 0) === 0 && !b.isHeaderFooter;
+    const typedTopLevel = Boolean(dec && !dec[1].includes("."));
+    if (nativeTopLevel || typedTopLevel) {
+      const rest = dec ? trimmed.slice(dec[0].length).trim() : trimmed;
       if (/^definitions?\b/i.test(rest) || /^interpretation\b/i.test(rest)) {
         inDefinitions = true;
         inRecitals = false;
@@ -180,7 +200,7 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
       }
     }
 
-    if ((/^definitions?\b/i.test(trimmed) || /^interpretation\b/i.test(trimmed)) && !dec && !h) {
+    if ((/^definitions?\b/i.test(trimmed) || /^interpretation\b/i.test(trimmed)) && !dec && !h && !nativeTopLevel) {
       inDefinitions = true;
       inheritType = "definition_entry";
       if (!isScheduleScope(currentScope.type)) {
@@ -205,8 +225,11 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
       cls.confidence = Math.max(cls.confidence, 0.7);
     }
 
-    const isStructural =
-      Boolean(h) || (cls.nodeType === "clause" && cls.number && !cls.number.includes("."));
+    const topLevelClause =
+      cls.nodeType === "clause" &&
+      Boolean(cls.number) &&
+      (b.numberingLevel != null ? b.numberingLevel === 0 : !String(cls.number).includes("."));
+    const isStructural = Boolean(h) || topLevelClause;
 
     if (isStructural && (cls.nodeType === "schedule" || cls.nodeType === "annex" || cls.nodeType === "part")) {
       const containerId = `p:c:${b.index}`;
@@ -233,7 +256,7 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
         blockIndex: null,
       });
       currentParent = containerId;
-    } else if (isStructural && cls.nodeType === "clause" && cls.number && !String(cls.number).includes(".")) {
+    } else if (isStructural && topLevelClause) {
       currentParent = isScheduleScope(currentScope.type) ? currentParent : rootId;
     }
 

@@ -24,5 +24,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
       - name: Proof golden corpus
         run: npm run test:proof

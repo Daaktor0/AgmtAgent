@@ -70,7 +70,12 @@ export type ExtractedBlock = {
   text: string;
   xmlAnchor: { kind: "paragraph" | "cell" | "header" | "footer"; path: string };
   styleId: string | null;
+  /** Computed visible Word label, e.g. `1`, `1.2` or `(a)`. */
   numbering: string | null;
+  /** Native Word numbering instance and level, when the label came from numbering.xml. */
+  numberingNumId?: string | null;
+  numberingLevel?: number | null;
+  numberingFormat?: string | null;
   isTable: boolean;
   isHeaderFooter: boolean;
   pageBreakBefore: boolean;

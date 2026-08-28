@@ -170,7 +170,9 @@ export const requestMagicLink = createServerFn({ method: "POST" })
 export const verifyMagicLink = createServerFn({ method: "POST" })
   .validator((data: { token: string }) => data)
   .handler(async ({ data }) => {
-    if (!data.token || data.token.length > 256) {
+    // New production tokens are exactly 32 random bytes encoded as base64url
+    // (43 characters). This deliberately rejects the old preview UUID token.
+    if (!/^[A-Za-z0-9_-]{43}$/.test(data.token)) {
       throw new Error("This sign-in link is invalid.");
     }
 

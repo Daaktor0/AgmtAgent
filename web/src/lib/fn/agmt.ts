@@ -422,17 +422,7 @@ async function persistIngest(opts: {
       )
     `;
   }
-  await sql`
-    insert into source_capability (source_capability_id, document_version_id, owner_user_id, capability_name, available, detector_version, suppression_reason)
-    select * from (
-      select ${newId()} as a, ${versionId} as b, ${opts.userId} as c, 'comments' as d,
-             ${ingested.extracted.capabilities.find((c) => c.name === "comments")?.available ?? false} as e,
-             'ooxml-v1' as f,
-             ${ingested.extracted.capabilities.find((c) => c.name === "comments")?.suppressionReason ?? null} as g
-    ) s
-  `;
   for (const cap of ingested.extracted.capabilities) {
-    if (cap.name === "comments") continue;
     await sql`
       insert into source_capability (source_capability_id, document_version_id, owner_user_id, capability_name, available, detector_version, suppression_reason)
       values (${newId()}, ${versionId}, ${opts.userId}, ${cap.name}, ${cap.available}, ${cap.detectorVersion}, ${cap.suppressionReason})
@@ -1039,10 +1029,23 @@ export const getProof = createServerFn({ method: "GET" })
       available: boolean;
       reason: string | null;
     }>`
-      select capability_name as name, available, suppression_reason as reason
+      select capability_name as "name", available, suppression_reason as "reason"
       from source_capability
       where document_version_id = ${d.currentVersionId} and owner_user_id = ${context.userId}
     `;
+    const capabilities =
+      caps.length > 0
+        ? caps
+        : (() => {
+            const missing = new Set(
+              executions.flatMap((e) => (Array.isArray(e.missing) ? e.missing : [])),
+            );
+            return ["comments", "revisions", "fields", "tables", "headers_footers"].map((name) => ({
+              name,
+              available: !missing.has(name),
+              reason: missing.has(name) ? `missing ${name}` : null,
+            }));
+          })();
     const defs = await sql<{
       term: string;
       kind: string;
@@ -1088,7 +1091,7 @@ export const getProof = createServerFn({ method: "GET" })
       executions,
       hits: filledHits,
       dealMap: deal,
-      capabilities: caps,
+      capabilities,
       definitions: defs,
       outline: provisions.map((p) => ({
         provisionId: p.provisionId,

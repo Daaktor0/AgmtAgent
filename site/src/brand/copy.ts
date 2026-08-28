@@ -1,124 +1,125 @@
 /**
- * Every claim the site makes, in one file.
+ * Product claims used by the marketing site.
  *
- * The rule for editing this: if a fact is not already here, it does not go on
- * the site. No metrics, no customer names, no certifications, no pricing, no
- * model names, no page limits. A short honest page beats a long invented one.
- *
- * The dry lines are deliberate and rationed — at most one per section, never
- * in a seat confirmation and never on /legal.
+ * Keep this file factual. Do not add customer names, metrics, certifications,
+ * pricing amounts, model/provider claims, or promises about document handling.
  */
 
-export const FOOTER = "Agmt · not legal advice · launching soon · India transactional";
+export const FOOTER = "Agmt · Software for Indian transactional lawyers · India";
 
 export const PRODUCT = {
-  what: "A web product for Indian transactional counsel. It reads SHA, SSA, SPA and disclosure-letter packs.",
-  modes: "Two modes, launching soon.",
-  seats: "Launching soon. 50 beta seats — 30 first-come, 20 allotted.",
+  eyebrow: "Built for Indian transaction teams",
+  tagline: "Proof the artefact. Review the deal.",
+  heading: "Your deal pack, under control.",
+  lede: "Upload the documents. Catch what breaks. Work the issues. Download the redline.",
+  scope:
+    "Proof starts with SHA, SSA, SPA and disclosure letters. Review launches first for company-side SHA at signing.",
+  matter:
+    "Agmt is organised around a Matter: one deal pack, its documents, versions and the calls you make along the way.",
+  seats: "The first beta is limited to 50 seats: 30 first-come and 20 allotted.",
 } as const;
 
 export const PROOF = {
   label: "Proof",
-  price: "Free",
-  heading: "A mechanical integrity pass.",
-  lede: "No language model. Instant.",
+  price: "Free mode",
+  heading: "Catch what breaks before it travels.",
+  lede:
+    "Upload a native Word file and run a fast integrity pass before the document moves to the next reviewer.",
   does: [
     "Undefined and unused definitions",
-    "Dangling cross-references",
-    "Numbering breaks",
-    "Signature block against the parties",
-    "Hidden characters",
-    "Table-versus-prose number clashes",
+    "Broken cross-references and numbering",
+    "Placeholders and hidden characters",
+    "Words-versus-figures conflicts",
+    "Party and signature-block mismatches",
+    "A deal map and document outline",
   ],
-  refusesTitle: "It will not",
-  refuses: ["Guess", "Say whether a clause is “market”"],
-  aside: "If it has to guess, it waits for Review.",
+  refusesTitle: "Proof stays in its lane",
+  refuses: ["It does not decide the legal position", "It does not call a clause “market”"],
+  aside: "A clean result is shown only when every required check completed.",
 } as const;
 
 export const REVIEW = {
   label: "Review",
-  price: "Paid",
-  heading: "A planned read of named provisions.",
-  lede: "Read against a mandate: who you act for, the stage, what must be protected.",
+  price: "Paid mode",
+  heading: "Turn the review into a list you can work.",
+  lede:
+    "Set who you act for, the stage and what must be protected. Agmt reads the named provisions and builds a Key Issues List.",
   does: [
-    "Severity and topic",
-    "Clause and verbatim quote",
-    "Why it matters for this mandate",
-    "The ask, and optional proposed language",
-    "A reviewer stamp",
+    "Severity, topic and clause",
+    "The exact document wording",
+    "Why it matters for the mandate",
+    "A clear ask and reviewer stamp",
+    "Accept, edit, reject or park",
+    "Accepted edits in a tracked-change DOCX",
   ],
-  refusesTitle: "It will not be",
-  refuses: ["A chatbot summary", "A memo that disappears"],
-  survives: "The list survives v2 of the file, counterparty markup, and the rest of the pack.",
-  aside: "A list you can tick. Not a memo you can skim once and lose.",
+  refusesTitle: "The working object",
+  refuses: ["A structured list, not a disappearing memo", "A lawyer makes every final call"],
+  survives:
+    "The list stays with the Matter, so the document and your decisions remain connected.",
+  aside: "Work the issue. Record the call. Carry it into the next document round.",
 } as const;
 
-/** The plain-words list. Order matters: the add-in question comes first. */
 export const IS_NOT = [
-  "Not a Word add-in at launch. You download a tracked-change DOCX and open it in Word. Word still opens the redline. It is good at that.",
-  "Not CLM, not a repository, not e-signature, not obligation management.",
-  "Not legal research, not litigation, not Google Docs.",
-  "Not Harvey / Spellbook / Ivo / “AI for all of legal.”",
-  "Not connected to your ChatGPT, Claude or Grok consumer subscription. That subscription is for drafting emails.",
-  "Not legal advice. A lawyer still signs the paper.",
-  "Not generally available yet. Proof and Review are launching soon. This site takes interest and assigns beta seats.",
+  "Not a Word add-in at launch. Agmt is a web app and returns a tracked-change DOCX that opens in Word.",
+  "Not CLM, a document repository, e-signature or obligation management.",
+  "Not legal research, litigation software or a general legal chatbot.",
+  "Not an in-browser replacement for Word.",
+  "Not legal advice. The lawyer decides what is accepted, shared and signed.",
 ] as const;
 
 export const WHO = {
-  is: "Indian transactional associates and partners working SHA, SSA, SPA and disclosure letters.",
-  isNot: "Not in-house vendor-paper review. Not students. Not “anyone with a contract.”",
+  is: "Indian transactional associates and partners working on SHA, SSA, SPA and disclosure-letter deal packs.",
+  isNot: "Agmt is not designed as a general contract tool for every document or every legal workflow.",
 } as const;
-
-/** The site's one mention of AI, qualified in the same breath. */
-export const AI_LINE =
-  "Review is the one place Agmt uses AI, and it is fenced: a planned read of named clauses, every finding carrying a verbatim quote and a reviewer stamp.";
 
 export const HOW = [
   {
-    heading: "Proof is model-free",
-    body: "A mechanical pass over the artefact. If a defect can be shown in the file — a definition that never appears again, a cross-reference that does not resolve, a numbering break — it is reported. If it cannot be shown, it is not reported.",
+    heading: "Create the Matter",
+    body: "Name the deal pack and set the mandate: who you act for, the instrument, the stage and what must be protected.",
   },
   {
-    heading: "Review is a planned read, not RAG over chunks",
-    body: "Named clauses, read against the mandate you set. The output is a Key Issues List, not a chat window.",
+    heading: "Upload the native DOCX",
+    body: "Add the agreement to the Matter. Agmt builds the document outline, definition graph and proposed canonicalisation map.",
   },
   {
-    heading: "No quote, no finding",
-    body: "Every finding quotes the file. If the words are not in the document, there is no finding.",
+    heading: "Confirm the map",
+    body: "Review legal-name mappings and identifier candidates before the document moves into Proof or Review.",
   },
   {
-    heading: "The matter outlives the first run",
-    body: "Dispositions, the version diff and the rest of the pack stay with the matter, so the list is still there when v2 arrives.",
+    heading: "Run Proof",
+    body: "Inspect mechanical hits, the deal map, source quality and any check that could not complete. Proof remains useful on its own.",
   },
   {
-    heading: "Signature pages are not auto-generated",
-    body: "Missing blocks are flagged. Agmt will tell you a signature block is absent; it will not invent one.",
+    heading: "Work the Review list",
+    body: "Open each issue with its clause, exact wording, mandate-specific reason and ask. Accept, edit, reject or park it.",
+  },
+  {
+    heading: "Download the work",
+    body: "Export the current list or download eligible accepted edits in a tracked-change DOCX for Word.",
   },
 ] as const;
 
 export const BETA = {
   rule: [
-    "Fifty seats in all.",
-    "Thirty are open and first-come: submit while they last and the seat is yours.",
-    "Twenty are reserved and allotted by hand, so the site never fills them on its own.",
+    "Fifty seats in the first beta.",
+    "Thirty are first-come. Submit while one is available and the seat is held.",
+    "Twenty are allotted by hand for a balanced testing group.",
   ],
-  aside:
-    "Thirty seats are first-come. Twenty are allotted, because some paper should not be a race.",
-  emailHelper: "The one your firm would not mind seeing on a waitlist.",
-  reminderNote: "Email only. No seat is claimed.",
+  aside: "Join for Proof, Review or both. The form tells you exactly what your submission secured.",
+  emailHelper: "Use the address where you want the beta invitation.",
+  reminderNote: "Email only. No beta seat is claimed.",
 } as const;
 
 export const LEGAL = [
-  "Agmt is not legal advice. A lawyer still signs the paper.",
-  "When the product launches, the documents you submit to it remain yours.",
-  "This marketing site stores only what the form asks for: name, work email, optional firm and role, which mode interests you, your reminder preferences, and the seat status that follows. Nothing else.",
-  "This site does not accept agreements. There is no upload here.",
+  "Agmt is software for legal professionals. It does not replace professional judgment or provide legal advice.",
+  "The marketing site accepts beta sign-ups. The product accepts documents when product access is available.",
+  "You decide what you submit to Agmt and what output you accept, share or sign.",
 ] as const;
 
 export const FLOW = [
-  { step: "Upload pack", note: "SHA, SSA, SPA, letters" },
-  { step: "Proof", note: "Instant. No model." },
-  { step: "Review", note: "Key Issues List" },
-  { step: "Dispositions", note: "Your calls, kept" },
-  { step: "v2 diff", note: "The list carries over" },
+  { step: "Matter", note: "Set the deal and mandate" },
+  { step: "Upload", note: "Add native DOCX files" },
+  { step: "Proof", note: "Catch artefact defects" },
+  { step: "Review", note: "Work the Key Issues List" },
+  { step: "Download", note: "Take the list or redline" },
 ] as const;

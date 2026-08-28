@@ -5,7 +5,7 @@ import { FlowDiagram } from "@/components/site/flow-diagram";
 
 export const Route = createFileRoute("/how")({
   component: HowPage,
-  head: () => ({ meta: [{ title: "How it works — Agmt" }] }),
+  head: () => ({ meta: [{ title: "How Agmt works — Agmt" }] }),
 });
 
 function HowPage() {
@@ -13,33 +13,34 @@ function HowPage() {
     <SiteFrame current="/how">
       <Page>
         <header className="max-w-[var(--measure)]">
-          <p className="label">How</p>
-          <h1 className="mt-2 text-[2rem] leading-tight text-ink">How it works</h1>
-          <p className="mt-4 text-lg text-ink-2">
-            Five rules the product is built to keep. They are the reason it refuses as often as it
-            reports.
+          <p className="label text-accent">How</p>
+          <h1 className="mt-4 text-[2.8rem] leading-[1.02] text-ink sm:text-[4rem]">
+            From a Matter to a working redline.
+          </h1>
+          <p className="mt-6 text-lg leading-relaxed text-ink-2">
+            The document, its evidence and your decisions stay connected throughout the workflow.
           </p>
         </header>
 
-        <div className="mt-12 space-y-10">
-          {HOW.map((item, i) => (
-            <Clause key={item.heading} n={String(i + 1)} title={item.heading}>
+        <div className="mt-14 space-y-11">
+          {HOW.map((item, index) => (
+            <Clause key={item.heading} n={String(index + 1)} title={item.heading}>
               <Prose className="mt-3">{item.body}</Prose>
             </Clause>
           ))}
         </div>
 
-        <section className="mt-14 border-t border-rule pt-8">
-          <h2 className="text-[1.375rem] text-ink">The path a pack takes</h2>
+        <section className="mt-16 border-t border-rule pt-9">
+          <h2 className="text-[1.5rem] text-ink">The short version</h2>
           <FlowDiagram />
         </section>
 
         <p className="mt-12 border-t border-rule pt-6 text-[0.9375rem] text-muted">
-          Neither mode is available yet.{" "}
+          Agmt is entering private beta.{" "}
           <Link to="/beta" className="text-accent underline underline-offset-4">
-            Beta seats
-          </Link>{" "}
-          are how you see it first.
+            Request a seat
+          </Link>
+          .
         </p>
       </Page>
     </SiteFrame>

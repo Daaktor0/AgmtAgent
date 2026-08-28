@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AI_LINE, IS_NOT, PRODUCT, PROOF, REVIEW, WHO } from "@/brand/copy";
+import { IS_NOT, PRODUCT, PROOF, REVIEW, WHO } from "@/brand/copy";
 import { Clause, Page, Prose, SiteFrame } from "@/components/site/frame";
 
 export const Route = createFileRoute("/what")({
@@ -12,33 +12,38 @@ function WhatPage() {
     <SiteFrame current="/what">
       <Page>
         <header className="max-w-[var(--measure)]">
-          <p className="label">What</p>
-          <h1 className="mt-2 text-[2rem] leading-tight text-ink">
-            What Agmt is, and what it is not
+          <p className="label text-accent">What</p>
+          <h1 className="mt-4 text-[2.8rem] leading-[1.02] text-ink sm:text-[4rem]">
+            A working surface for the deal pack.
           </h1>
-          <p className="mt-4 text-lg text-ink-2">{PRODUCT.what}</p>
+          <p className="mt-6 text-lg leading-relaxed text-ink-2">{PRODUCT.matter}</p>
         </header>
 
-        <div className="mt-12 space-y-10">
+        <div className="mt-14 space-y-11">
           <Clause n="1" title="Proof">
-            <Prose className="mt-3">
-              A mechanical integrity pass. No language model. It catches artefact defects: undefined
-              and unused definitions, dangling cross-references, numbering breaks, signature block
-              against the parties, hidden characters, table-versus-prose number clashes. Instant. It
-              does not guess, and it does not say whether a clause is “market.”
-            </Prose>
-            <Prose className="mt-3">{PROOF.aside}</Prose>
+            <Prose className="mt-3">{PROOF.lede}</Prose>
+            <ul className="mt-5 space-y-2">
+              {PROOF.does.map((item) => (
+                <li key={item} className="flex gap-3 text-ink-2">
+                  <span aria-hidden className="mt-[0.7em] size-1.5 shrink-0 bg-accent" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <Prose className="mt-4">{PROOF.aside}</Prose>
           </Clause>
 
           <Clause n="2" title="Review">
-            <Prose className="mt-3">
-              A planned read of named provisions against a mandate — who you act for, the stage,
-              what must be protected. The output is a Key Issues List: severity, topic, clause,
-              verbatim quote, why it matters for this mandate, the ask, optional proposed language,
-              and a reviewer stamp. {REVIEW.survives} Not a chatbot summary. Not a memo that
-              disappears.
-            </Prose>
-            <Prose className="mt-3">{AI_LINE}</Prose>
+            <Prose className="mt-3">{REVIEW.lede}</Prose>
+            <ul className="mt-5 space-y-2">
+              {REVIEW.does.map((item) => (
+                <li key={item} className="flex gap-3 text-ink-2">
+                  <span aria-hidden className="mt-[0.7em] size-1.5 shrink-0 bg-accent" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <Prose className="mt-4">{REVIEW.survives}</Prose>
           </Clause>
 
           <Clause n="3" title="What it is not">
@@ -61,13 +66,13 @@ function WhatPage() {
         </div>
 
         <p className="mt-12 border-t border-rule pt-6 text-[0.9375rem] text-muted">
-          How the two modes work is on{" "}
+          See the complete{" "}
           <Link to="/how" className="text-accent underline underline-offset-4">
-            how
-          </Link>
-          . Seats are on{" "}
+            workflow
+          </Link>{" "}
+          or{" "}
           <Link to="/beta" className="text-accent underline underline-offset-4">
-            beta
+            join the beta
           </Link>
           .
         </p>

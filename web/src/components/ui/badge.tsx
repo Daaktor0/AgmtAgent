@@ -10,16 +10,16 @@ export function Badge({
   children: React.ReactNode;
 }) {
   const tones = {
-    neutral: "border-rule text-ink-muted",
-    ok: "border-forest/30 text-forest",
-    warn: "border-warn/40 text-warn",
-    danger: "border-danger/40 text-danger",
-    forest: "bg-forest text-forest-fg border-forest",
+    neutral: "border-rule text-stone",
+    ok: "border-rule-strong text-stone",
+    warn: "border-ink text-ink",
+    danger: "border-oxblood text-oxblood",
+    forest: "border-oxblood bg-oxblood text-paper",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide",
+        "inline-flex items-center rounded-[2px] border px-2 py-0.5 text-[11px] font-medium tracking-[0.08em]",
         tones[tone],
         className,
       )}

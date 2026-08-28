@@ -381,16 +381,79 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
   };
 }
 
+export type BuildDocxOpts = {
+  pages?: number;
+  header?: string;
+  tableRows?: string[][];
+  comments?: { author: string; text: string }[];
+  fields?: string[];
+};
+
 /** Minimal DOCX writer used for fixtures and the in-app sample SHA. */
-export async function buildDocx(paragraphs: string[], opts?: { pages?: number }): Promise<Buffer> {
+export async function buildDocx(paragraphs: string[], opts?: BuildDocxOpts): Promise<Buffer> {
   const zip = new JSZip();
-  const body = paragraphs
+  const bodyParas = paragraphs
     .map((text) => {
       const page = text === "\\page" ? `<w:br w:type="page"/>` : "";
       const xmlText = escapeXml(text === "\\page" ? "" : text);
       return `<w:p><w:r>${page}<w:t xml:space="preserve">${xmlText}</w:t></w:r></w:p>`;
     })
     .join("");
+  const fieldParas = (opts?.fields ?? [])
+    .map(
+      (instr) =>
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${escapeXml(instr)} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+    )
+    .join("");
+  const tables = (opts?.tableRows ?? [])
+    .map((row) => {
+      const cells = row
+        .map(
+          (cell) =>
+            `<w:tc><w:p><w:r><w:t xml:space="preserve">${escapeXml(cell)}</w:t></w:r></w:p></w:tc>`,
+        )
+        .join("");
+      return `<w:tbl><w:tr>${cells}</w:tr></w:tbl>`;
+    })
+    .join("");
+  const rels: string[] = [];
+  const overrides: string[] = [];
+  let sectPr = "<w:sectPr/>";
+  if (opts?.header) {
+    rels.push(
+      `<Relationship Id="rIdHdr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>`,
+    );
+    overrides.push(
+      `<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`,
+    );
+    zip.file(
+      "word/header1.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:p><w:r><w:t xml:space="preserve">${escapeXml(opts.header)}</w:t></w:r></w:p>
+</w:hdr>`,
+    );
+    sectPr = `<w:sectPr><w:headerReference w:type="default" r:id="rIdHdr"/></w:sectPr>`;
+  }
+  if (opts?.comments?.length) {
+    rels.push(
+      `<Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>`,
+    );
+    overrides.push(
+      `<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>`,
+    );
+    const commentXml = opts.comments
+      .map(
+        (c, i) =>
+          `<w:comment w:id="${i}" w:author="${escapeXml(c.author)}"><w:p><w:r><w:t xml:space="preserve">${escapeXml(c.text)}</w:t></w:r></w:p></w:comment>`,
+      )
+      .join("");
+    zip.file(
+      "word/comments.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${commentXml}</w:comments>`,
+    );
+  }
   zip.file(
     "[Content_Types].xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -399,6 +462,7 @@ export async function buildDocx(paragraphs: string[], opts?: { pages?: number })
 <Default Extension="xml" ContentType="application/xml"/>
 <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+${overrides.join("\n")}
 </Types>`,
   );
   zip.file(
@@ -412,13 +476,13 @@ export async function buildDocx(paragraphs: string[], opts?: { pages?: number })
   zip.file(
     "word/_rels/document.xml.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`,
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`,
   );
   zip.file(
     "word/document.xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:body>${body}<w:sectPr/></w:body></w:document>`,
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<w:body>${bodyParas}${fieldParas}${tables}${sectPr}</w:body></w:document>`,
   );
   zip.file(
     "docProps/app.xml",

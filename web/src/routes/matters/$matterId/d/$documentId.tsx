@@ -276,6 +276,12 @@ function ProofPanel({
           <Badge tone="warn">Source quality {proof.version.sourceQuality}</Badge>
         ) : null}
       </div>
+      <p className="text-xs text-ink-muted">
+        Source capability:{" "}
+        {proof.capabilities.length
+          ? proof.capabilities.map((c) => `${c.name} ${c.available ? "available" : "off"}`).join(" · ")
+          : "not recorded"}
+      </p>
       {proof.run?.status === "partial" ? (
         <p className="text-sm text-warn">
           Partial. Suppressed checks: {suppressed.map((s) => s.checkId).join(", ") || "none listed"}. This is not a clean result.
@@ -303,7 +309,9 @@ function ProofPanel({
               {proof.hits.map((h) => (
                 <li key={h.proofHitId} className="border-b border-rule pb-4 last:border-0 last:pb-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={h.severity === "high" ? "danger" : "neutral"}>{h.checkId}</Badge>
+                    <Badge tone={h.severity === "high" ? "danger" : "neutral"}>
+                      {h.checkId} · v{h.checkVersion}
+                    </Badge>
                     <Badge>{h.severity}</Badge>
                     <Badge>{h.certainty}</Badge>
                     <span className="text-xs text-ink-muted">{h.clause}</span>
@@ -376,7 +384,9 @@ function ProofPanel({
           <ul className="mt-3 space-y-2 text-sm">
             {proof.executions.map((e) => (
               <li key={e.checkId} className="flex justify-between gap-3">
-                <span className="font-mono text-xs">{e.checkId}</span>
+                <span className="font-mono text-xs">
+                  {e.checkId} · v{e.checkVersion}
+                </span>
                 <span>
                   {e.status}
                   {e.hitCount ? ` · ${e.hitCount} hits` : ""}

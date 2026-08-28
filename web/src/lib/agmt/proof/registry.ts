@@ -38,34 +38,34 @@ export const CHECKS: CheckSpec[] = [
   },
   {
     checkId: "structure.broken_xref",
-    version: 2,
+    version: 1,
     family: "structure",
     defaultSeverity: "high",
     certainty: "exact",
     mustFind: true,
-    requiresCapabilities: ["numbering"],
+    requiresCapabilities: [],
     scope: "document",
     runner: "structure",
   },
   {
     checkId: "structure.numbering_gap",
-    version: 2,
+    version: 1,
     family: "structure",
     defaultSeverity: "medium",
     certainty: "exact",
     mustFind: true,
-    requiresCapabilities: ["numbering"],
+    requiresCapabilities: [],
     scope: "document",
     runner: "structure",
   },
   {
     checkId: "structure.duplicate_number",
-    version: 2,
+    version: 1,
     family: "structure",
     defaultSeverity: "medium",
     certainty: "exact",
     mustFind: true,
-    requiresCapabilities: ["numbering"],
+    requiresCapabilities: [],
     scope: "document",
     runner: "structure",
   },
@@ -149,7 +149,7 @@ export const CHECKS: CheckSpec[] = [
 ];
 
 export function registrySha(): string {
-  return sha256Hex(JSON.stringify(CHECKS));
+  return sha256Hex(CHECKS.map((c) => `${c.checkId}:${c.version}`).join("|"));
 }
 
 export const BY_ID = Object.fromEntries(CHECKS.map((c) => [c.checkId, c]));

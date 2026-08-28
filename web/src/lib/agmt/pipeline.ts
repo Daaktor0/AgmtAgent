@@ -167,7 +167,26 @@ export function runConfirmedProof(
     return { hit, quote: validation.quote, valid: validation.ok };
   });
   const visibleHits = filled.filter((item) => item.valid).map((item) => item.hit);
-  const invalidEvidenceCount = filled.length - visibleHits.length;
+  const invalidFindings = filled.filter((item) => !item.valid);
+  const invalidEvidenceCount = invalidFindings.length;
+
+  // Persistence derives the run status from execution rows. If any finding
+  // cannot prove its quote/source binding, fail the responsible rule execution
+  // before persistence. The invalid finding itself is never stored or surfaced.
+  if (invalidFindings.length) {
+    const invalidChecks = new Set(invalidFindings.map((item) => item.hit.checkId));
+    result.executions = result.executions.map((execution) =>
+      invalidChecks.has(execution.checkId)
+        ? {
+            ...execution,
+            status: "failed" as const,
+            outcome: "failed" as const,
+            errorCode: "invalid_source_mapping",
+          }
+        : execution,
+    );
+  }
+
   const product = deriveProofProductSummary(result, {
     invalidEvidenceCount,
     visibleHits,

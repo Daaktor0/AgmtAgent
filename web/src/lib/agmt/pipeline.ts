@@ -11,6 +11,7 @@ import { signatureInventory } from "./proof/checks.ts";
 import { FILE_BYTE_CAP, INGEST_SCHEMA_VERSION, PAGE_CAP, RECOGNISER_VERSION } from "./config.ts";
 import type { ProposedEntry, Provision } from "./types.ts";
 import { exceedsPageCap } from "./page-count.ts";
+import { resolveExtractedNumbering } from "./numbering.ts";
 
 export type IngestRefusal = {
   refused: true;
@@ -45,7 +46,8 @@ export async function ingestBuffer(bytes: Buffer): Promise<IngestOk | IngestRefu
   }
   let extracted;
   try {
-    extracted = await extractDocx(bytes);
+    const rawExtracted = await extractDocx(bytes);
+    extracted = await resolveExtractedNumbering(bytes, rawExtracted);
   } catch (e) {
     const code = (e as { code?: string }).code ?? "corrupt";
     const messages: Record<string, string> = {

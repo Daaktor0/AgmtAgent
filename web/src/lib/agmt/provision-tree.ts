@@ -20,9 +20,7 @@ function classifyBlock(
   currentScope: { type: string; id: string },
 ): { nodeType: NodeType; number: string | null; heading: string | null; confidence: number } {
   const text = b.text.trim();
-  if (!text) {
-    return { nodeType: "unclassified", number: null, heading: null, confidence: 1 };
-  }
+  if (!text) return { nodeType: "unclassified", number: null, heading: null, confidence: 1 };
   if (inSignature || RE_SIG_START.test(text) || /^signed\s+for\s+and\s+on\s+behalf/i.test(text)) {
     return { nodeType: "signature_block", number: null, heading: text.slice(0, 80), confidence: 0.9 };
   }
@@ -43,7 +41,7 @@ function classifyBlock(
   if (resolvedNumber) {
     const level = b.numberingLevel ?? 0;
     return {
-      nodeType: level > 0 ? "subclause" : "clause",
+      nodeType: currentScope.type === "definitions" && level > 0 ? "definition_entry" : level > 0 ? "subclause" : "clause",
       number: resolvedNumber,
       heading: text.length < 120 ? text : text.slice(0, 80),
       confidence: 0.96,
@@ -169,17 +167,14 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
         currentScope = { type: "part", id: `part:${h[2]}` };
         inheritType = "part";
       } else {
-        if (!isScheduleScope(currentScope.type)) {
-          currentScope = { type: "main_body", id: "main" };
-        }
+        if (!isScheduleScope(currentScope.type)) currentScope = { type: "main_body", id: "main" };
         inRecitals = false;
         inheritType = "clause";
       }
     }
 
     const dec = trimmed.match(RE_DECIMAL);
-    const nativeTopLevel =
-      Boolean(nativeNumber(b)) && (b.numberingLevel ?? 0) === 0 && !b.isHeaderFooter;
+    const nativeTopLevel = Boolean(nativeNumber(b)) && (b.numberingLevel ?? 0) === 0 && !b.isHeaderFooter;
     const typedTopLevel = Boolean(dec && !dec[1].includes("."));
     if (nativeTopLevel || typedTopLevel) {
       const rest = dec ? trimmed.slice(dec[0].length).trim() : trimmed;
@@ -187,9 +182,7 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
         inDefinitions = true;
         inRecitals = false;
         inheritType = "definition_entry";
-        if (!isScheduleScope(currentScope.type)) {
-          currentScope = { type: "definitions", id: "definitions" };
-        }
+        if (!isScheduleScope(currentScope.type)) currentScope = { type: "definitions", id: "definitions" };
       } else if (!inSignature) {
         inDefinitions = false;
         inRecitals = false;
@@ -203,9 +196,7 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
     if ((/^definitions?\b/i.test(trimmed) || /^interpretation\b/i.test(trimmed)) && !dec && !h && !nativeTopLevel) {
       inDefinitions = true;
       inheritType = "definition_entry";
-      if (!isScheduleScope(currentScope.type)) {
-        currentScope = { type: "definitions", id: "definitions" };
-      }
+      if (!isScheduleScope(currentScope.type)) currentScope = { type: "definitions", id: "definitions" };
     }
 
     const classifyScope = inDefinitions
@@ -301,9 +292,8 @@ export function assertLineOwnership(provisions: Provision[], blocks: ExtractedBl
       if (!line.trim()) return;
       const key = `${b.index}:${i}`;
       const owners = leaves.filter((p) => p.blockIndex === b.index);
-      if (owners.length !== 1) {
-        errors.push(`line ${key} owners=${owners.length}`);
-      } else {
+      if (owners.length !== 1) errors.push(`line ${key} owners=${owners.length}`);
+      else {
         if (owned.has(key)) errors.push(`overlap ${key}`);
         owned.add(key);
       }

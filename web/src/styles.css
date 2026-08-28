@@ -1,26 +1,34 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400;1,8..60,600&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --color-paper: #f3efe6;
-  --color-paper-elevated: #faf7f0;
-  --color-rule: #d4cbb8;
-  --color-rule-strong: #b7ad97;
-  --color-ink: #1a1916;
-  --color-ink-muted: #6b6560;
-  --color-ink-subtle: #8a8378;
-  --color-forest: #2f4a3c;
-  --color-forest-fg: #f3efe6;
-  --color-danger: #8f2d2d;
-  --color-warn: #8a5a12;
-  --color-ok: #2f4a3c;
-  --font-display: "Newsreader", "Iowan Old Style", "Palatino Linotype", serif;
-  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --color-paper: #f4efe6;
+  --color-paper-elevated: #f4efe6;
+  --color-paper-sunk: #ede7da;
+  --color-rule: #d9d2c4;
+  --color-rule-strong: #6e7478;
+  --color-ink: #1c1917;
+  --color-ink-muted: #6e7478;
+  --color-ink-subtle: #6e7478;
+  --color-stone: #6e7478;
+  --color-oxblood: #6b2b2b;
+  --color-oxblood-pressed: #571f1f;
+
+  /* Compatibility aliases while older screens are migrated. No green remains. */
+  --color-forest: #6b2b2b;
+  --color-forest-fg: #f4efe6;
+  --color-danger: #6b2b2b;
+  --color-warn: #1c1917;
+  --color-ok: #6e7478;
+
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-sans: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Archivo", "Segoe UI", system-ui, sans-serif;
+
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
   --motion-quick: 150ms;
 }
 
@@ -29,6 +37,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
   html,
   body,
   #app {
@@ -37,22 +46,45 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
   }
+
   body {
     margin: 0;
   }
+
+  ::selection {
+    background: var(--color-paper-sunk);
+    color: var(--color-ink);
+  }
+
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
+    font-weight: 400;
     text-wrap: balance;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
   }
+
   p {
     text-wrap: pretty;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    border-radius: 2px;
+  }
+
+  [data-tabular],
+  time,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 

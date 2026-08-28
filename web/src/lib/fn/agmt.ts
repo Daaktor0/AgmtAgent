@@ -9,9 +9,10 @@ import { encryptText, decryptText, hashToken, sha256Hex } from "@/lib/agmt/crypt
 import { ingestBuffer, applyMap, runConfirmedProof, identifierCategoryCounts } from "@/lib/agmt/pipeline";
 import { sampleShaDocx } from "@/lib/agmt/sample-sha";
 import { RETENTION, MAGIC_LINK_TTL_MS, MAGIC_LINK_RATE_EMAIL, MAGIC_LINK_RATE_WINDOW_MS, MAGIC_LINK_SUBJECT, SUPPORT_CONTACT, INGEST_SCHEMA_VERSION, RECOGNISER_VERSION, INDEX_QUALITY_VERSION } from "@/lib/agmt/config";
+import { reviewGate as computeReviewGate } from "@/lib/agmt/review-gate";
 import { reviewUnsupportedReason } from "@/lib/agmt/instrument";
 import { mapSha } from "@/lib/agmt/canonicalise";
-import type { Instrument, ProposedEntry, RepresentedParty, Stage, UserDecision } from "@/lib/agmt/types";
+import type { IndexQuality, Instrument, ProposedEntry, RepresentedParty, Stage, UserDecision } from "@/lib/agmt/types";
 
 function envelopeToText(plain: string): string {
   return JSON.stringify(encryptText(plain));
@@ -175,7 +176,7 @@ export const getMatter = createServerFn({ method: "GET" })
       where d.matter_id = ${data.matterId} and d.owner_user_id = ${context.userId}
       order by d.created_at
     `;
-    const reviewGate = reviewUnsupportedReason(
+    const route = reviewUnsupportedReason(
       (docs[0]?.detectedInstrument as Instrument) || "unknown",
       m.representedParty ?? "company",
       m.stage ?? "signing",
@@ -184,7 +185,7 @@ export const getMatter = createServerFn({ method: "GET" })
       ...m,
       mustProtectNotes: textToPlain(m.notes),
       documents: docs,
-      reviewGate,
+      reviewGate: route ?? "Run Review ships in Slice 3. Open a document for the index-quality gate.",
       reviewEnabled: false,
     };
   });
@@ -384,7 +385,8 @@ async function persistIngest(opts: {
       document_version_id, document_id, matter_id, owner_user_id, version_no, supersedes_version_id,
       source_sha256, mime_type, byte_size, page_count, page_count_method, original_object_key,
       wrapped_data_key, cipher_metadata, ingest_status, source_quality, structure_confidence,
-      index_quality_version, ingest_schema_version
+      index_quality_version, ingest_schema_version, classified_share, material_unclassified,
+      usable_outline, unclassified_chars, unclassified_leaf_count, index_quality_json
     ) values (
       ${versionId}, ${documentId}, ${opts.matterId}, ${opts.userId}, ${versionNo},
       ${prev[0]?.document_version_id ?? null}, ${sha},
@@ -392,7 +394,10 @@ async function persistIngest(opts: {
       ${opts.bytes.byteLength}, ${ingested.extracted.pageCount}, ${ingested.extracted.pageCountMethod},
       ${blob.objectKey}, ${blob.envelope.wrappedDataKey}, ${JSON.stringify(blob.envelope.cipherMetadata)},
       'map_pending', ${ingested.quality.sourceQuality}, ${ingested.quality.structureConfidence},
-      ${INDEX_QUALITY_VERSION}, ${INGEST_SCHEMA_VERSION}
+      ${INDEX_QUALITY_VERSION}, ${INGEST_SCHEMA_VERSION}, ${ingested.quality.classifiedShare},
+      ${ingested.quality.materialUnclassified}, ${ingested.quality.usableOutline},
+      ${ingested.quality.unclassifiedChars}, ${ingested.quality.unclassifiedLeafCount},
+      ${JSON.stringify(ingested.quality)}
     )
   `;
   await sql`
@@ -839,6 +844,17 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
         on conflict (document_id, document_version_id, scope_type, scope_id, normalised_term) do nothing
       `;
     }
+    await sql`
+      delete from definition_use
+      where owner_user_id = ${context.userId}
+        and definition_id in (select definition_id from definition where document_version_id = ${d.currentVersionId} and owner_user_id = ${context.userId})
+    `;
+    for (const u of ingested.uses) {
+      await sql`
+        insert into definition_use (definition_use_id, definition_id, owner_user_id, provision_id, start_offset, end_offset)
+        values (${u.definitionUseId}, ${u.definitionId}, ${context.userId}, ${u.provisionId}, ${u.start}, ${u.end})
+      `;
+    }
 
     for (const e of proof.dealMap) {
       await sql`
@@ -895,7 +911,14 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     await sql`
       update document_version
       set ingest_status = 'indexed', source_quality = ${ingested.quality.sourceQuality},
-          structure_confidence = ${ingested.quality.structureConfidence}
+          structure_confidence = ${ingested.quality.structureConfidence},
+          index_quality_version = ${INDEX_QUALITY_VERSION},
+          classified_share = ${ingested.quality.classifiedShare},
+          material_unclassified = ${ingested.quality.materialUnclassified},
+          usable_outline = ${ingested.quality.usableOutline},
+          unclassified_chars = ${ingested.quality.unclassifiedChars},
+          unclassified_leaf_count = ${ingested.quality.unclassifiedLeafCount},
+          index_quality_json = ${JSON.stringify(ingested.quality)}
       where document_version_id = ${d.currentVersionId} and owner_user_id = ${context.userId}
     `;
     await writeAudit({
@@ -943,10 +966,21 @@ export const getProof = createServerFn({ method: "GET" })
       pageCount: number;
       pageCountMethod: string;
       refusalCode: string | null;
+      classifiedShare: number | null;
+      materialUnclassified: boolean | null;
+      usableOutline: boolean | null;
+      unclassifiedChars: number | null;
+      unclassifiedLeafCount: number | null;
+      indexQualityJson: IndexQuality | null;
+      indexQualityVersion: string | null;
     }>`
       select ingest_status as "ingestStatus", source_quality as "sourceQuality",
              structure_confidence as "structureConfidence", page_count as "pageCount",
-             page_count_method as "pageCountMethod", refusal_code as "refusalCode"
+             page_count_method as "pageCountMethod", refusal_code as "refusalCode",
+             classified_share as "classifiedShare", material_unclassified as "materialUnclassified",
+             usable_outline as "usableOutline", unclassified_chars as "unclassifiedChars",
+             unclassified_leaf_count as "unclassifiedLeafCount",
+             index_quality_json as "indexQualityJson", index_quality_version as "indexQualityVersion"
       from document_version
       where document_version_id = ${d.currentVersionId} and owner_user_id = ${context.userId}
     `;
@@ -1012,7 +1046,7 @@ export const getProof = createServerFn({ method: "GET" })
              order_index as "orderIndex"
       from provision
       where document_version_id = ${d.currentVersionId} and owner_user_id = ${context.userId}
-      order by order_index
+      order by case when owns_text = false and line_start = 0 then 1 else 0 end, line_start, order_index
     `;
     const deal = await sql<{
       category: string;
@@ -1050,8 +1084,9 @@ export const getProof = createServerFn({ method: "GET" })
       term: string;
       kind: string;
       scopeType: string;
+      scopeId: string;
     }>`
-      select term, definition_kind as kind, scope_type as "scopeType"
+      select term, definition_kind as kind, scope_type as "scopeType", scope_id as "scopeId"
       from definition
       where document_version_id = ${d.currentVersionId} and owner_user_id = ${context.userId}
     `;
@@ -1084,9 +1119,55 @@ export const getProof = createServerFn({ method: "GET" })
         ? "No Proof issues found"
         : null;
 
+    const v = ver[0];
+    const leaves = provisions.filter((p) => p.ownsText);
+    const unclassifiedLeaves = leaves.filter((p) => p.nodeType === "unclassified");
+    const unclassifiedCharsComputed = unclassifiedLeaves.reduce(
+      (n, p) => n + (textToPlain(p.textEnc) ?? "").replace(/\s+/g, "").length,
+      0,
+    );
+    const storedQuality = v?.indexQualityJson;
+    const quality = storedQuality ?? {
+      sourceQuality: (v?.sourceQuality ?? "unreadable") as IndexQuality["sourceQuality"],
+      structureConfidence: Number(v?.structureConfidence ?? 0),
+      classifiedShare: Number(v?.classifiedShare ?? 0),
+      materialUnclassified: Boolean(v?.materialUnclassified),
+      usableOutline: Boolean(v?.usableOutline),
+      unclassifiedChars: v?.unclassifiedChars ?? unclassifiedCharsComputed,
+      unclassifiedLeafCount: v?.unclassifiedLeafCount ?? unclassifiedLeaves.length,
+      indexQualityVersion: v?.indexQualityVersion ?? INDEX_QUALITY_VERSION,
+      components: {},
+    };
+
+    const mandate = await sql<{ representedParty: string | null; stage: string | null }>`
+      select mv.represented_party as "representedParty", mv.stage
+      from matter m
+      left join mandate_version mv on mv.mandate_version_id = m.active_mandate_version_id
+      where m.matter_id = ${d.matterId} and m.owner_user_id = ${context.userId}
+    `;
+
+    const gate = computeReviewGate({
+      quality,
+      instrument: (d.detectedInstrument as Instrument) || "unknown",
+      representedParty: mandate[0]?.representedParty ?? "company",
+      stage: mandate[0]?.stage ?? "signing",
+      refused: v?.ingestStatus === "refused",
+      reviewShipped: false,
+    });
+
+    const signatures = {
+      namedParties: [...new Set(defs.filter((x) => x.kind === "defined_party").map((x) => x.term))],
+      blocks: provisions
+        .filter((p) => p.nodeType === "signature_block")
+        .map((p) => ({
+          label: p.heading || (textToPlain(p.textEnc) ?? "").slice(0, 48),
+          provisionId: p.provisionId,
+        })),
+    };
+
     return {
       document: d,
-      version: ver[0],
+      version: v,
       run: run[0] ?? null,
       executions,
       hits: filledHits,
@@ -1102,6 +1183,9 @@ export const getProof = createServerFn({ method: "GET" })
         heading: p.heading,
         preview: p.ownsText ? (textToPlain(p.textEnc) ?? "").slice(0, 140) : "",
       })),
+      quality,
+      signatures,
+      reviewGate: gate,
       noHitsCopy,
       llmCalls: 0,
     };

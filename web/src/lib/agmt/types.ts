@@ -210,6 +210,9 @@ export type IndexQuality = {
   classifiedShare: number;
   materialUnclassified: boolean;
   usableOutline: boolean;
+  unclassifiedChars: number;
+  unclassifiedLeafCount: number;
+  indexQualityVersion: string;
   components: Record<string, number>;
 };
 

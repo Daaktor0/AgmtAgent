@@ -38,5 +38,4 @@ A check ID/version, recogniser or exception change that does not replay this set
 
 ## Explicitly unfinished
 
-- Slice 2 index-quality weights vs a golden set.
 - Slices 3–6 (Review, exports, Mail, v2 lineage).

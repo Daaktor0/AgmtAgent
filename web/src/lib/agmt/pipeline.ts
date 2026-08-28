@@ -72,7 +72,7 @@ export async function ingestBuffer(bytes: Buffer): Promise<IngestOk | IngestRefu
   const sourceProvisions = buildProvisionTree(extracted);
   const { definitions, uses } = extractDefinitions(sourceProvisions);
   const proposed = proposeCanonicalisation(sourceProvisions, definitions);
-  const quality = scoreIndex(proposed.provisions, extracted);
+  const quality = scoreIndex(proposed.provisions, extracted, { definitions, uses });
   const instrument = detectInstrument(sourceProvisions);
   return {
     refused: false,

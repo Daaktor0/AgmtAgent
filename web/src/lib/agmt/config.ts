@@ -15,7 +15,7 @@ export const PAGE_COUNT_VERSION = "pc-v1";
 export const PAGE_WORDS_PER_PAGE = 450;
 export const PAGE_CHARS_PER_PAGE = 2500;
 
-export const INDEX_QUALITY_VERSION = "iq-v1";
+export const INDEX_QUALITY_VERSION = "iq-v2";
 export const INGEST_SCHEMA_VERSION = "ingest-v1";
 export const RECOGNISER_VERSION = "presidio-in-v1";
 export const CHECK_REGISTRY_VERSION = "proof-registry-v1";

@@ -18,6 +18,7 @@ export function detectInstrument(provisions: Provision[]): Instrument {
   return "unknown";
 }
 
+/** Null when the v1 Review route is supported. Slice 3 ships the run. */
 export function reviewUnsupportedReason(
   instrument: Instrument,
   representedParty: string,
@@ -32,5 +33,5 @@ export function reviewUnsupportedReason(
   if (representedParty !== "company" || stage !== "signing") {
     return "v1 Review is SHA / Company / signing only. Proof remains available.";
   }
-  return "Review ships in a later slice.";
+  return null;
 }

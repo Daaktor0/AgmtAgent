@@ -261,21 +261,74 @@ function ProofPanel({
   proof: NonNullable<Awaited<ReturnType<typeof getProof>>>;
   onVote: () => void;
 }) {
-  const [tab, setTab] = useState<"hits" | "deal" | "outline" | "coverage">("hits");
+  const [tab, setTab] = useState<"hits" | "deal" | "outline" | "index" | "coverage">("hits");
   const statusTone =
     proof.run?.status === "complete" ? "ok" : proof.run?.status === "partial" ? "warn" : "danger";
-
   const suppressed = proof.executions.filter((e) => e.status === "suppressed");
+  const q = proof.quality;
+  const qualityTone =
+    q?.sourceQuality === "high" ? "ok" : q?.sourceQuality === "unreadable" ? "danger" : "warn";
+  const gate = proof.reviewGate;
+  const unclassifiedShare =
+    q && q.classifiedShare != null ? Math.round((1 - q.classifiedShare) * 100) : null;
+
+  const defsByScope = new Map<string, typeof proof.definitions>();
+  for (const d of proof.definitions) {
+    const key = `${d.scopeType} · ${d.scopeId}`;
+    const list = defsByScope.get(key) ?? [];
+    list.push(d);
+    defsByScope.set(key, list);
+  }
 
   return (
     <div className="mt-6 space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={statusTone}>Proof {proof.run?.status}</Badge>
         <Badge>LLM calls {proof.llmCalls}</Badge>
-        {proof.version.sourceQuality !== "high" ? (
+        {q ? (
+          <Badge tone={qualityTone}>Source quality {q.sourceQuality}</Badge>
+        ) : proof.version.sourceQuality !== "high" ? (
           <Badge tone="warn">Source quality {proof.version.sourceQuality}</Badge>
         ) : null}
+        {q?.materialUnclassified ? <Badge tone="warn">incomplete source</Badge> : null}
+        {q && !q.usableOutline ? <Badge tone="danger">no usable outline</Badge> : null}
       </div>
+
+      {q ? (
+        <Card>
+          <p className="text-xs uppercase tracking-wider text-ink-subtle">Source quality</p>
+          <p className="mt-1 font-display text-xl">
+            {q.sourceQuality}
+            {q.structureConfidence != null ? (
+              <span className="ml-2 font-sans text-sm text-ink-muted">
+                structure {Number(q.structureConfidence).toFixed(2)} · {q.indexQualityVersion}
+              </span>
+            ) : null}
+          </p>
+          <p className="mt-2 text-sm text-ink-muted">
+            Classified coverage {Math.round((q.classifiedShare ?? 0) * 100)}%. Unclassified{" "}
+            {q.unclassifiedLeafCount} {q.unclassifiedLeafCount === 1 ? "leaf" : "leaves"},{" "}
+            {q.unclassifiedChars.toLocaleString()} characters
+            {unclassifiedShare != null ? ` (${unclassifiedShare}%)` : ""}.
+            {q.materialUnclassified
+              ? " Material unclassified text — Review would run with incomplete_source, not a refusal."
+              : q.usableOutline
+                ? " Outline is usable."
+                : " No usable outline — Review is blocked."}
+          </p>
+          {q.components && Object.keys(q.components).length > 0 ? (
+            <ul className="mt-3 grid gap-1 text-xs text-ink-muted sm:grid-cols-2">
+              {Object.entries(q.components).map(([k, n]) => (
+                <li key={k} className="flex justify-between gap-3 border-b border-rule/50 py-1">
+                  <span>{k}</span>
+                  <span className="font-mono">{Number(n).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
+      ) : null}
+
       <p className="text-xs text-ink-muted">
         Source capability:{" "}
         {proof.capabilities.length
@@ -284,14 +337,23 @@ function ProofPanel({
       </p>
       {proof.run?.status === "partial" ? (
         <p className="text-sm text-warn">
-          Partial. Suppressed checks: {suppressed.map((s) => s.checkId).join(", ") || "none listed"}. This is not a clean result.
+          Partial. Suppressed checks: {suppressed.map((s) => s.checkId).join(", ") || "none listed"}. This is not a
+          clean result.
         </p>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        {(["hits", "deal", "outline", "coverage"] as const).map((t) => (
+        {(["hits", "deal", "outline", "index", "coverage"] as const).map((t) => (
           <Button key={t} size="sm" variant={tab === t ? "primary" : "secondary"} onClick={() => setTab(t)}>
-            {t === "hits" ? "Hits" : t === "deal" ? "Deal map" : t === "outline" ? "Outline" : "Coverage"}
+            {t === "hits"
+              ? "Hits"
+              : t === "deal"
+                ? "Deal map"
+                : t === "outline"
+                  ? "Outline"
+                  : t === "index"
+                    ? "Index"
+                    : "Coverage"}
           </Button>
         ))}
       </div>
@@ -351,13 +413,19 @@ function ProofPanel({
             ))}
           </ul>
           <div className="mt-4">
-            <p className="text-xs uppercase tracking-wider text-ink-subtle">Definitions (namespaced)</p>
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {proof.definitions.map((d, i) => (
-                <Badge key={i}>
-                  {d.term} · {d.scopeType}
-                </Badge>
+            <p className="text-xs uppercase tracking-wider text-ink-subtle">Signature inventory</p>
+            <p className="mt-2 text-sm">
+              Named parties: {proof.signatures?.namedParties.length ? proof.signatures.namedParties.join(", ") : "none"}
+            </p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {(proof.signatures?.blocks ?? []).map((b) => (
+                <li key={b.provisionId} className="font-mono text-xs">
+                  {b.label}
+                </li>
               ))}
+              {(proof.signatures?.blocks ?? []).length === 0 ? (
+                <li className="text-ink-muted">No signature blocks extracted.</li>
+              ) : null}
             </ul>
           </div>
         </Card>
@@ -365,16 +433,54 @@ function ProofPanel({
 
       {tab === "outline" ? (
         <Card>
-          <ul className="space-y-1 font-mono text-xs">
-            {proof.outline
-              .filter((p) => p.ownsText)
-              .map((p) => (
-                <li key={p.provisionId}>
+          <p className="text-xs uppercase tracking-wider text-ink-subtle">Provision tree</p>
+          <ul className="mt-2 space-y-1 font-mono text-xs">
+            {proof.outline.map((p) => {
+              const depth = p.parent && p.parent !== "p:root" ? 1 : 0;
+              const unclassified = p.nodeType === "unclassified";
+              return (
+                <li
+                  key={p.provisionId}
+                  className={unclassified ? "text-warn" : undefined}
+                >
+                  {depth ? <span className="inline-block w-3" /> : null}
                   <span className="text-ink-subtle">{p.nodeType}</span>{" "}
                   {p.number ? <strong>{p.number}</strong> : null} {p.heading || p.preview}
+                  {unclassified ? " · unclassified" : null}
+                  {!p.ownsText ? " · container" : null}
                 </li>
-              ))}
+              );
+            })}
           </ul>
+          {q ? (
+            <p className="mt-3 text-xs text-ink-muted">
+              Unclassified volume: {q.unclassifiedLeafCount} leaves / {q.unclassifiedChars.toLocaleString()} characters.
+              Every non-blank line owns exactly one leaf.
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {tab === "index" ? (
+        <Card>
+          <p className="text-xs uppercase tracking-wider text-ink-subtle">Namespaced definitions</p>
+          {defsByScope.size === 0 ? (
+            <p className="mt-2 text-sm text-ink-muted">No definitions stored.</p>
+          ) : (
+            [...defsByScope.entries()].map(([scope, list]) => (
+              <div key={scope} className="mt-3">
+                <p className="text-xs text-ink-muted">{scope}</p>
+                <ul className="mt-1 flex flex-wrap gap-2">
+                  {list.map((d, i) => (
+                    <Badge key={`${d.term}-${i}`}>
+                      {d.term}
+                      {d.kind === "defined_party" ? " · party" : ""}
+                    </Badge>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
         </Card>
       ) : null}
 
@@ -411,11 +517,16 @@ function ProofPanel({
       ) : null}
 
       <Card>
-        <p className="text-sm text-ink-muted">
-          Run Review is unavailable in this slice. Proof made no language-model call.
-        </p>
+        <p className="text-sm text-ink-muted">{gate?.reason ?? "Run Review is unavailable in this slice."}</p>
+        {gate?.coverage === "incomplete_source" ? (
+          <p className="mt-2 text-sm text-warn">Coverage flag: incomplete_source. This is not a clean Review path.</p>
+        ) : null}
         <Button className="mt-3" disabled>
-          Run Review — next slice
+          {gate?.code === "no_usable_outline" || gate?.code === "unreadable" || gate?.code === "refused"
+            ? "Run Review — blocked"
+            : gate?.coverage === "incomplete_source"
+              ? "Run Review — incomplete source"
+              : "Run Review — Slice 3"}
         </Button>
       </Card>
     </div>

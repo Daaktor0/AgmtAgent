@@ -101,7 +101,7 @@ function MatterPage() {
           <p className="text-xs uppercase tracking-wider text-ink-subtle">Review</p>
           <p className="mt-2 text-sm text-ink-muted">{data.reviewGate}</p>
           <Button className="mt-4" disabled title={data.reviewGate ?? undefined}>
-            Run Review — next slice
+            Run Review — Slice 3
           </Button>
         </Card>
       </div>

@@ -9,6 +9,16 @@ import { Card } from "@/components/ui/card";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
+function friendlySignInError(raw: string): string {
+  if (/pop-?up blocked/i.test(raw)) {
+    return "The Google sign-in window was blocked. Allow pop-ups for this preview, then try again. Or use the email link below.";
+  }
+  if (/cancelled or failed/i.test(raw)) {
+    return "Google sign-in did not finish. Close any leftover sign-in window and try again, or use the email link.";
+  }
+  return raw;
+}
+
 function Login() {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
@@ -35,7 +45,8 @@ function Login() {
         <Card className="space-y-4 p-6">
           <h1 className="font-display text-xl font-medium">Sign in</h1>
           <p className="text-sm text-ink-muted">
-            Google sign-in, or a single-use email link that expires in 15 minutes. No password is stored.
+            Google sign-in (opens a small window), or a single-use email link that expires in 15
+            minutes. No password is stored.
           </p>
           {authEnabled ? (
             <div className="space-y-2">
@@ -47,13 +58,17 @@ function Login() {
                   onClick={() => {
                     setBusy(p.providerId);
                     setError(null);
-                    void signIn(p.providerId, { callbackURL: "/" }).catch((e: Error) => {
-                      setError(e.message);
-                      setBusy(null);
-                    });
+                    void signIn(p.providerId, { callbackURL: "/" })
+                      .then(() => {
+                        void navigate({ to: "/" });
+                      })
+                      .catch((e: Error) => {
+                        setError(friendlySignInError(e.message || "Sign-in failed"));
+                      })
+                      .finally(() => setBusy(null));
                   }}
                 >
-                  Continue with {p.label}
+                  {busy === p.providerId ? "Opening Google…" : `Continue with ${p.label}`}
                 </Button>
               ))}
             </div>
@@ -90,7 +105,7 @@ function Login() {
               />
             </label>
             <Button type="submit" variant="secondary" className="w-full" disabled={busy !== null}>
-              Send verification link
+              {busy === "email" ? "Sending link…" : "Send verification link"}
             </Button>
           </form>
           {mail ? (
@@ -113,7 +128,8 @@ function Login() {
           {error ? <p className="text-sm text-danger">{error}</p> : null}
         </Card>
         <p className="text-xs text-ink-subtle">
-          Agmt does not provide legal advice. A lawyer remains responsible for the document signed or shared.
+          Agmt does not provide legal advice. A lawyer remains responsible for the document signed or
+          shared.
         </p>
       </div>
     </main>

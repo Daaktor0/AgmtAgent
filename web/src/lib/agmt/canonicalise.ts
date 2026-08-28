@@ -68,6 +68,15 @@ function projectProvision(
     });
   };
 
+  if (!active.length) {
+    canonical = original;
+    if (original.length) pushSegment(0, original.length, 0, original.length, null);
+    return {
+      provision: { ...provision, canonicalText: canonical, canonicalLength: canonical.length },
+      segments,
+    };
+  }
+
   for (const entry of active) {
     if (
       entry.sourceStart < sourceCursor ||
@@ -111,11 +120,6 @@ function projectProvision(
     const start = canonical.length;
     canonical += untouched;
     pushSegment(sourceCursor, original.length, start, canonical.length, null);
-  }
-
-  if (!active.length) {
-    canonical = original;
-    if (original.length) pushSegment(0, original.length, 0, original.length, null);
   }
 
   return {

@@ -6,6 +6,7 @@ import { scoreIndex } from "./index-quality.ts";
 import { detectInstrument } from "./instrument.ts";
 import { buildDealMap } from "./deal-map.ts";
 import { runProof, validateHit } from "./proof/runner.ts";
+import { deriveProofProductSummary } from "./proof/product.ts";
 import { signatureInventory } from "./proof/checks.ts";
 import { FILE_BYTE_CAP, INGEST_SCHEMA_VERSION, PAGE_CAP, RECOGNISER_VERSION } from "./config.ts";
 import type { ProposedEntry, Provision } from "./types.ts";
@@ -89,55 +90,110 @@ export async function ingestBuffer(bytes: Buffer): Promise<IngestOk | IngestRefu
   };
 }
 
-export function applyMap(
-  sourceProvisions: Provision[],
-  entries: ProposedEntry[],
-): Provision[] {
-  const byProv = new Map<string, ProposedEntry[]>();
-  for (const e of entries) {
-    if (e.userDecision === "not_identifier") continue;
-    const list = byProv.get(e.sourceProvisionId) ?? [];
-    list.push(e);
-    byProv.set(e.sourceProvisionId, list);
+/**
+ * Apply final user decisions against immutable source text. We refuse overlapping,
+ * out-of-range, or stale entries rather than manufacturing a projection whose
+ * evidence offsets can no longer be trusted.
+ */
+export function applyMap(sourceProvisions: Provision[], entries: ProposedEntry[]): Provision[] {
+  const byProvision = new Map<string, ProposedEntry[]>();
+  for (const entry of entries) {
+    if (entry.userDecision === "not_identifier") continue;
+    const list = byProvision.get(entry.sourceProvisionId) ?? [];
+    list.push(entry);
+    byProvision.set(entry.sourceProvisionId, list);
   }
-  return sourceProvisions.map((p) => {
-    const list = (byProv.get(p.provisionId) ?? []).slice().sort((a, b) => a.sourceStart - b.sourceStart);
-    if (!list.length || !p.ownsText) return { ...p };
-    const source = p.canonicalText;
+
+  return sourceProvisions.map((provision) => {
+    const list = (byProvision.get(provision.provisionId) ?? [])
+      .slice()
+      .sort((a, b) => a.sourceStart - b.sourceStart || a.sourceEnd - b.sourceEnd);
+    if (!list.length || !provision.ownsText) return { ...provision };
+
+    const source = provision.canonicalText;
     let cursor = 0;
     let canonical = "";
-    for (const e of list) {
-      if (e.sourceStart > cursor) canonical += source.slice(cursor, e.sourceStart);
-      canonical += e.replacement;
-      cursor = e.sourceEnd;
+    for (const entry of list) {
+      if (
+        entry.sourceStart < cursor ||
+        entry.sourceStart < 0 ||
+        entry.sourceEnd < entry.sourceStart ||
+        entry.sourceEnd > source.length
+      ) {
+        throw Object.assign(new Error("canonicalisation_overlap_or_bounds"), {
+          code: "canonicalisation_overlap_or_bounds",
+          entryId: entry.entryId,
+        });
+      }
+      if (source.slice(entry.sourceStart, entry.sourceEnd) !== entry.originalValue) {
+        throw Object.assign(new Error("canonicalisation_source_mismatch"), {
+          code: "canonicalisation_source_mismatch",
+          entryId: entry.entryId,
+        });
+      }
+      if (entry.sourceStart > cursor) canonical += source.slice(cursor, entry.sourceStart);
+      canonical += entry.replacement;
+      cursor = entry.sourceEnd;
     }
     if (cursor < source.length) canonical += source.slice(cursor);
-    return { ...p, canonicalText: canonical, canonicalLength: canonical.length };
+    return { ...provision, canonicalText: canonical, canonicalLength: canonical.length };
   });
 }
 
 export function runConfirmedProof(
   provisions: Provision[],
-  definitions: ReturnType<typeof extractDefinitions>["definitions"],
-  uses: ReturnType<typeof extractDefinitions>["uses"],
+  _proposalDefinitions: ReturnType<typeof extractDefinitions>["definitions"],
+  _proposalUses: ReturnType<typeof extractDefinitions>["uses"],
   extracted: Awaited<ReturnType<typeof extractDocx>>,
 ) {
-  const result = runProof({ provisions, definitions, uses, extracted });
-  const filled = result.hits.map((h) => {
-    const v = validateHit(h, provisions);
-    return { hit: h, quote: v.quote, valid: v.ok };
+  // Canonicalisation can change token lengths and use sites. All derived indexes
+  // used by Proof must therefore be rebuilt from the final confirmed projection.
+  const finalIndex = extractDefinitions(provisions);
+  const result = runProof({
+    provisions,
+    definitions: finalIndex.definitions,
+    uses: finalIndex.uses,
+    extracted,
   });
+
+  const filled = result.hits.map((hit) => {
+    const validation = validateHit(hit, provisions);
+    return { hit, quote: validation.quote, valid: validation.ok };
+  });
+  const visibleHits = filled.filter((item) => item.valid).map((item) => item.hit);
+  const invalidEvidenceCount = filled.length - visibleHits.length;
+  const product = deriveProofProductSummary(result, {
+    invalidEvidenceCount,
+    visibleHits,
+  });
+
   const dealMap = buildDealMap(provisions);
-  const signatures = signatureInventory({ provisions, definitions, uses, extracted });
-  return { result, filled, dealMap, signatures };
+  const signatures = signatureInventory({
+    provisions,
+    definitions: finalIndex.definitions,
+    uses: finalIndex.uses,
+    extracted,
+  });
+
+  return {
+    result,
+    filled,
+    visibleHits,
+    invalidEvidenceCount,
+    product,
+    dealMap,
+    signatures,
+    finalDefinitions: finalIndex.definitions,
+    finalUses: finalIndex.uses,
+  };
 }
 
 export function identifierCategoryCounts(entries: ProposedEntry[]) {
   const counts: Record<string, number> = {};
-  for (const e of entries) {
-    if (e.kind !== "identifier") continue;
-    const k = e.identifierType ?? "other";
-    counts[k] = (counts[k] ?? 0) + 1;
+  for (const entry of entries) {
+    if (entry.kind !== "identifier") continue;
+    const key = entry.identifierType ?? "other";
+    counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
 }

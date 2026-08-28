@@ -1,47 +1,51 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { verifyMagicLink } from "@/lib/fn/agmt";
+import { verifyMagicLink } from "@/lib/fn/auth-email";
 import { authClient } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/verify")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    token: typeof s.token === "string" ? s.token : "",
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: typeof search.token === "string" ? search.token : "",
   }),
   component: Verify,
 });
 
-function storeBearer(token: string) {
+function storePreviewBearer(token: string) {
+  if (!window.location.hostname.endsWith(".grok-sandbox.com")) return;
   try {
     window.sessionStorage.setItem("grok-auth.bearer-token", token);
   } catch {
-    /* ignore */
+    /* preview storage unavailable */
   }
 }
 
 function Verify() {
   const { token } = Route.useSearch();
-  const [msg, setMsg] = useState("Verifying your email…");
+  const [message, setMessage] = useState("Verifying your secure sign-in link…");
   const started = useRef(false);
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
     if (!token) {
-      setMsg("This verification link is missing a token.");
+      setMessage("This sign-in link is missing its token.");
       return;
     }
+
     void verifyMagicLink({ data: { token } })
-      .then(async (r) => {
-        storeBearer(r.sessionToken);
+      .then(async (result) => {
+        // Deployed sessions remain in the HttpOnly __Host- cookie set server-side.
+        // Only the sandbox preview needs a bearer because its iframe cookies are partitioned.
+        storePreviewBearer(result.sessionToken);
         try {
           await authClient.getSession();
         } catch {
-          /* session store will recover on the next fetch */
+          /* the session store will recover on the next request */
         }
-        setMsg("Email verified. Opening your Matters.");
+        setMessage("Signed in. Opening your Matters…");
         window.location.replace("/");
       })
-      .catch(async (e: Error) => {
+      .catch(async (error: Error) => {
         try {
           const existing = await authClient.getSession();
           if (existing.data?.user) {
@@ -49,17 +53,17 @@ function Verify() {
             return;
           }
         } catch {
-          /* stay on the error */
+          /* stay on the verification error */
         }
-        setMsg(e.message);
+        setMessage(error.message);
       });
   }, [token]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-4">
       <div className="max-w-md text-center">
-        <p className="font-display text-3xl">Agmt</p>
-        <p className="mt-4 text-sm text-ink-muted">{msg}</p>
+        <p className="font-display text-3xl text-ink">Agmt</p>
+        <p className="mt-4 text-sm leading-6 text-ink-muted">{message}</p>
       </div>
     </main>
   );

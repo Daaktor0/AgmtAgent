@@ -16,7 +16,7 @@ export function Wordmark({
       <span
         className={cn(
           "block font-serif leading-none tracking-[-0.035em]",
-          inverse ? "text-paper" : "text-ink",
+          inverse ? "text-on-hero" : "text-ink",
           size === "lg" ? "text-[3.25rem] sm:text-[4.5rem]" : "text-[1.625rem]",
         )}
       >

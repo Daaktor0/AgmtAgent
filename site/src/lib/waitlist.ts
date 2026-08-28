@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { SEAT_OPEN, SEAT_RESERVED } from "@/brand/tokens";
+import { SEAT_OPEN, SEAT_RESERVED, SEAT_TOTAL } from "@/brand/tokens";
 
 /**
  * The beta list.
@@ -21,6 +21,15 @@ export type SeatCounts = {
   reservedRemaining: number;
 };
 
+/**
+ * The only capacity information exposed to public routes. The internal split
+ * remains available to the admin route and never crosses the public loader.
+ */
+export type PublicSeatStatus = {
+  capacity: number;
+  bookingOpen: boolean;
+};
+
 export type WaitlistRow = {
   id: number;
   created_at: string;
@@ -38,8 +47,7 @@ export type WaitlistRow = {
 
 export type SignupResult = {
   ok: true;
-  status: SeatStatus;
-  seat: number | null;
+  outcome: "booked" | "waitlist" | "reminder";
   /** True when this email was already on the list. */
   returning: boolean;
   /** True when this submit changed their standing — a new seat, or a promotion. */
@@ -134,11 +142,11 @@ const EMPTY_COUNTS: SeatCounts = {
 function confirm(row: WaitlistRow): string {
   switch (row.status) {
     case "seat-fcfs":
-      return `Seat ${row.fcfs_seat} of ${SEAT_OPEN} held.`;
+      return "Your beta seat is booked. We will write to this address before access opens.";
     case "waitlist":
-      return `You're on the waitlist. ${SEAT_OPEN} open seats are taken. ${SEAT_RESERVED} are reserved for manual allotment.`;
+      return "Your seat request is on the waitlist. We will write if a place opens in the first beta.";
     case "reserved-allotted":
-      return `A reserved seat is allotted to this email. Seat ${row.reserved_seat} of ${SEAT_RESERVED}.`;
+      return "Your beta seat is booked. We will write to this address before access opens.";
     case "reminder-only": {
       if (row.remind_beta && row.remind_launch) {
         return "We will write when the beta opens, and again when the product launches. No seat is held.";
@@ -157,8 +165,12 @@ function toResult(
 ): SignupResult {
   return {
     ok: true,
-    status: row.status,
-    seat: row.status === "seat-fcfs" ? row.fcfs_seat : row.reserved_seat,
+    outcome:
+      row.status === "seat-fcfs" || row.status === "reserved-allotted"
+        ? "booked"
+        : row.status === "waitlist"
+          ? "waitlist"
+          : "reminder",
     returning,
     changed,
     message: confirm(row),
@@ -171,6 +183,17 @@ export const getSeatCounts = createServerFn({ method: "GET" }).handler(
       return await readCounts();
     } catch {
       return EMPTY_COUNTS;
+    }
+  },
+);
+
+export const getPublicSeatStatus = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicSeatStatus> => {
+    try {
+      const counts = await readCounts();
+      return { capacity: SEAT_TOTAL, bookingOpen: counts.openRemaining > 0 };
+    } catch {
+      return { capacity: SEAT_TOTAL, bookingOpen: true };
     }
   },
 );

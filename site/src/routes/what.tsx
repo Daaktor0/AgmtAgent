@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { APP_URL, IS_NOT, PRODUCT, PROOF, REVIEW, WHO } from "@/brand/copy";
+import { MAIL, PRODUCT, PROOF, REVIEW, WHO } from "@/brand/copy";
 import { Clause, Page, Prose, SiteFrame } from "@/components/site/frame";
 
 export const Route = createFileRoute("/what")({
   component: WhatPage,
-  head: () => ({ meta: [{ title: "What Agmt is — Agmt" }] }),
+  head: () => ({ meta: [{ title: "What Agmt solves — Agmt" }] }),
 });
 
 function WhatPage() {
@@ -12,11 +12,15 @@ function WhatPage() {
     <SiteFrame current="/what">
       <Page>
         <header className="max-w-[var(--measure)]">
-          <p className="label text-accent">What</p>
+          <p className="label text-accent">What Agmt solves</p>
           <h1 className="mt-4 text-[2.8rem] leading-[1.02] text-ink sm:text-[4rem]">
-            A working surface for the deal pack.
+            The final proof is careful work done under the worst clock.
           </h1>
-          <p className="mt-6 text-lg leading-relaxed text-ink-2">{PRODUCT.matter}</p>
+          <p className="mt-6 text-lg leading-relaxed text-ink-2">
+            Every document turn can disturb definitions, references, numbering, blanks, figures
+            and execution details. Agmt makes that mechanical pass available free, before the
+            lawyer spends time on the legal call.
+          </p>
         </header>
 
         <div className="mt-14 space-y-11">
@@ -46,34 +50,22 @@ function WhatPage() {
             <Prose className="mt-4">{REVIEW.survives}</Prose>
           </Clause>
 
-          <Clause n="3" title="What it is not">
-            <ul className="mt-4 space-y-3">
-              {IS_NOT.map((line) => (
-                <li key={line} className="flex max-w-[var(--measure)] gap-3">
-                  <span aria-hidden className="mt-[0.15em] shrink-0 font-mono text-sm text-accent">
-                    ×
-                  </span>
-                  <span className="text-ink-2">{line}</span>
-                </li>
-              ))}
-            </ul>
+          <Clause n="3" title="The working trail">
+            <Prose className="mt-3">{PRODUCT.matter}</Prose>
+            <Prose className="mt-3">{MAIL.lede}</Prose>
           </Clause>
 
-          <Clause n="4" title="Who it is for">
+          <Clause n="4" title="Built first for">
             <Prose className="mt-3">{WHO.is}</Prose>
             <Prose className="mt-3">{WHO.isNot}</Prose>
           </Clause>
         </div>
 
         <p className="mt-12 border-t border-rule pt-6 text-[0.9375rem] text-muted">
-          See the complete{" "}
-          <Link to="/how" className="text-accent underline underline-offset-4">
-            workflow
-          </Link>{" "}
-          or{" "}
-          <a href={APP_URL} className="text-accent underline underline-offset-4">
-            open Agmt
-          </a>
+          Agmt is launching soon.{" "}
+          <Link to="/beta" className="text-accent underline underline-offset-4">
+            Book a beta seat or set a reminder
+          </Link>
           .
         </p>
       </Page>

@@ -1,14 +1,16 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Wordmark } from "@/brand/wordmark";
-import { APP_URL, FOOTER } from "@/brand/copy";
+import { FOOTER } from "@/brand/copy";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/#product", label: "Product" },
-  { href: "/#workflow", label: "Workflow" },
-  { href: "/#modes", label: "Proof & Review" },
+  { href: "/#problem", label: "The problem" },
+  { href: "/#proof", label: "Proof" },
+  { href: "/#review", label: "Review" },
+  { href: "/#beta", label: "Beta" },
 ] as const;
 
 export function SiteFrame({
@@ -26,27 +28,26 @@ export function SiteFrame({
         Skip to content
       </a>
 
-      <header className="site-nav sticky top-0 z-50 border-b border-white/10 bg-ink/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-[4.75rem] max-w-7xl items-center justify-between gap-8 px-5 sm:px-8">
+      <header className="site-nav sticky top-0 z-50 border-b border-white/10">
+        <div className="mx-auto flex h-[4.75rem] max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
           <Wordmark inverse />
           <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
             {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="nav-link text-[0.875rem] text-paper/65 no-underline transition-colors hover:text-paper"
-              >
+              <a key={item.href} href={item.href} className="nav-link">
                 {item.label}
               </a>
             ))}
           </nav>
-          <a
-            href={APP_URL}
-            className="group inline-flex min-h-10 items-center gap-2 border border-accent bg-accent px-4 text-sm font-medium text-accent-ink no-underline transition-colors hover:bg-accent-hover"
-          >
-            Open Agmt
-            <ArrowUpRight className="size-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-          </a>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              to="/beta"
+              className="group inline-flex min-h-10 items-center gap-2 bg-accent px-4 text-sm font-medium text-accent-ink no-underline transition-colors hover:bg-accent-hover"
+            >
+              Book a seat
+              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -54,23 +55,23 @@ export function SiteFrame({
         {children}
       </main>
 
-      <footer className="border-t border-white/10 bg-ink text-paper">
+      <footer className="border-t border-white/10 bg-hero text-on-hero">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] md:items-end">
           <div>
             <Wordmark inverse />
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-paper/55">{FOOTER}</p>
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-on-hero-muted">{FOOTER}</p>
           </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-paper/60">
-            <Link to="/what" className="no-underline hover:text-paper">
+          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-on-hero-muted">
+            <Link to="/what" className="no-underline hover:text-on-hero">
               What
             </Link>
-            <Link to="/how" className="no-underline hover:text-paper">
+            <Link to="/how" className="no-underline hover:text-on-hero">
               How
             </Link>
-            <a href={APP_URL} className="no-underline hover:text-paper">
-              Open Agmt
-            </a>
-            <Link to="/legal" className="no-underline hover:text-paper">
+            <Link to="/beta" className="no-underline hover:text-on-hero">
+              Beta
+            </Link>
+            <Link to="/legal" className="no-underline hover:text-on-hero">
               Legal
             </Link>
           </div>

@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { APP_URL, HOW } from "@/brand/copy";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { HOW } from "@/brand/copy";
 import { Clause, Page, Prose, SiteFrame } from "@/components/site/frame";
 import { FlowDiagram } from "@/components/site/flow-diagram";
 
@@ -15,10 +15,11 @@ function HowPage() {
         <header className="max-w-[var(--measure)]">
           <p className="label text-accent">How</p>
           <h1 className="mt-4 text-[2.8rem] leading-[1.02] text-ink sm:text-[4rem]">
-            From a Matter to a working redline.
+            Check the document. Then work the legal call.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-ink-2">
-            The document, its evidence and your decisions stay connected throughout the workflow.
+            Proof and Review remain distinct, but the evidence and decisions stay in the same
+            working trail.
           </p>
         </header>
 
@@ -36,10 +37,10 @@ function HowPage() {
         </section>
 
         <p className="mt-12 border-t border-rule pt-6 text-[0.9375rem] text-muted">
-          Agmt is ready to open.{" "}
-          <a href={APP_URL} className="text-accent underline underline-offset-4">
-            Start a Matter
-          </a>
+          The first beta is capped at 50 seats.{" "}
+          <Link to="/beta" className="text-accent underline underline-offset-4">
+            Book a seat
+          </Link>
           .
         </p>
       </Page>

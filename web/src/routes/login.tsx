@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { requestMagicLink } from "@/lib/fn/agmt";
+import { requestMagicLink } from "@/lib/fn/auth-email";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -26,8 +26,8 @@ function Login() {
   const [busy, setBusy] = useState<string | null>(null);
   const [mail, setMail] = useState<{
     subject: string;
-    previewToken: string;
-    support: string;
+    expiresMinutes: number;
+    sentTo: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,9 +44,9 @@ function Login() {
         </div>
         <Card className="space-y-4 p-6">
           <h1 className="font-display text-xl font-medium">Sign in</h1>
-          <p className="text-sm text-ink-muted">
-            Google sign-in (opens a small window), or a single-use email link that expires in 15
-            minutes. No password is stored.
+          <p className="text-sm leading-6 text-ink-muted">
+            Continue with Google, or receive a secure single-use sign-in link by email. No password is
+            stored.
           </p>
           {authEnabled ? (
             <div className="space-y-2">
@@ -73,7 +73,7 @@ function Login() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-ink-muted">Sign-in is disabled.</p>
+            <p className="text-sm text-ink-muted">Google sign-in is unavailable. Use the email link below.</p>
           )}
           <div className="flex items-center gap-3 text-xs uppercase tracking-wider text-ink-subtle">
             <span className="h-px flex-1 bg-rule" />
@@ -82,47 +82,50 @@ function Login() {
           </div>
           <form
             className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
+            onSubmit={(event) => {
+              event.preventDefault();
+              const targetEmail = email.trim();
               setBusy("email");
               setError(null);
-              void requestMagicLink({ data: { email } })
-                .then((r) => setMail(r))
+              setMail(null);
+              void requestMagicLink({ data: { email: targetEmail } })
+                .then((result) =>
+                  setMail({
+                    subject: result.subject,
+                    expiresMinutes: result.expiresMinutes,
+                    sentTo: targetEmail,
+                  }),
+                )
                 .catch((err: Error) => setError(err.message))
                 .finally(() => setBusy(null));
             }}
           >
             <label className="block text-sm font-medium">
-              Email
+              Work email
               <Input
                 className="mt-1"
                 type="email"
                 required
                 autoComplete="email"
                 value={email}
-                onChange={(ev) => setEmail(ev.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@firm.in"
               />
             </label>
             <Button type="submit" variant="secondary" className="w-full" disabled={busy !== null}>
-              {busy === "email" ? "Sending link…" : "Send verification link"}
+              {busy === "email" ? "Sending secure link…" : "Email me a sign-in link"}
             </Button>
           </form>
           {mail ? (
-            <div className="space-y-2 rounded-[16px] border border-rule bg-paper p-4 text-sm">
-              <p>
-                Production sends a message with subject <strong>{mail.subject}</strong>. It states the
-                15-minute expiry, names no Matter, and gives {mail.support}.
+            <div className="space-y-2 rounded-[2px] border border-rule bg-paper p-4 text-sm">
+              <p className="font-medium text-ink">Check your inbox</p>
+              <p className="leading-6 text-ink-muted">
+                We sent <strong className="font-medium text-ink">{mail.subject}</strong> to {mail.sentTo}.
+                The link is single-use and expires in {mail.expiresMinutes} minutes.
               </p>
-              <p className="text-ink-muted">
-                This preview cannot deliver mail. Open the one-time link to verify.
+              <p className="text-xs leading-5 text-ink-subtle">
+                If it does not arrive, check spam before requesting another link.
               </p>
-              <a
-                className="inline-flex min-h-11 items-center text-forest underline"
-                href={`/verify?token=${encodeURIComponent(mail.previewToken)}`}
-              >
-                Verify email for Agmt
-              </a>
             </div>
           ) : null}
           {error ? <p className="text-sm text-danger">{error}</p> : null}

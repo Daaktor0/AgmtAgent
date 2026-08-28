@@ -3,19 +3,21 @@ import { cn } from "@/lib/utils";
 import type { ButtonHTMLAttributes } from "react";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 font-medium transition-opacity duration-[var(--motion-quick)] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest min-h-11",
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-[2px] font-medium transition-colors duration-[var(--motion-quick)] disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oxblood",
   {
     variants: {
       variant: {
-        primary: "bg-forest text-forest-fg hover:opacity-90 rounded-[10px] px-4",
+        primary:
+          "border border-oxblood bg-oxblood px-5 text-paper hover:border-oxblood-pressed hover:bg-oxblood-pressed",
         secondary:
-          "bg-paper-elevated text-ink border border-rule hover:border-rule-strong rounded-[10px] px-4",
-        ghost: "text-ink-muted hover:text-ink px-3 rounded-[8px]",
-        danger: "bg-danger text-paper-elevated rounded-[10px] px-4",
+          "border border-ink bg-transparent px-5 text-ink hover:bg-paper-sunk",
+        ghost: "border border-transparent px-3 text-ink-muted hover:text-ink",
+        danger:
+          "border border-oxblood bg-transparent px-5 text-oxblood hover:bg-paper-sunk",
       },
       size: {
-        default: "text-sm h-11",
-        sm: "text-sm h-9 min-h-9",
+        default: "h-10 text-sm",
+        sm: "h-9 min-h-9 text-xs",
       },
     },
     defaultVariants: { variant: "primary", size: "default" },

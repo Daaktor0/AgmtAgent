@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { confirmCanonicalMap, getCanonicalMap, getProof, voteNotADefect } from "@/lib/fn/agmt";
+import {
+  confirmCanonicalMap,
+  getCanonicalMap,
+  getProof,
+  voteNotADefect,
+} from "@/lib/fn/agmt";
 import { Shell } from "@/components/agmt/shell";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import type { UserDecision } from "@/lib/agmt/types";
@@ -14,12 +18,21 @@ export const Route = createFileRoute("/matters/$matterId/d/$documentId")({
   component: DocumentPage,
 });
 
+const MUST_FIX = new Set([
+  "structure.broken_xref",
+  "exec.suspicious_field",
+  "exec.unfilled_placeholder",
+  "exec.unresolved_comment",
+  "party.header_counterparty_mismatch",
+  "amount.table_prose_conflict",
+]);
+
 function DocumentPage() {
   const { matterId, documentId } = Route.useParams();
   const { user, isPending } = useCurrentUserState();
-  const [map, setMap] = useState<Awaited<ReturnType<typeof getCanonicalMap>> | undefined>(undefined);
-  const [proof, setProof] = useState<Awaited<ReturnType<typeof getProof>> | undefined>(undefined);
-  const [err, setErr] = useState<string | null>(null);
+  const [map, setMap] = useState<Awaited<ReturnType<typeof getCanonicalMap>> | undefined>();
+  const [proof, setProof] = useState<Awaited<ReturnType<typeof getProof>> | undefined>();
+  const [error, setError] = useState<string | null>(null);
 
   function reload() {
     void getCanonicalMap({ data: { documentId } }).then(setMap);
@@ -34,26 +47,30 @@ function DocumentPage() {
 
   if (isPending || !user) {
     return (
-      <main className="grid min-h-screen place-items-center bg-paper px-4">
+      <main className="grid min-h-screen place-items-center bg-paper px-5">
         <div className="text-center">
-          <p className="font-display text-3xl">Agmt</p>
-          <p className="mt-2 text-sm text-ink-muted">Opening the document.</p>
+          <p className="inline-block border-b-2 border-oxblood pb-1 font-display text-3xl font-semibold tracking-[-0.03em]">
+            Agmt
+          </p>
+          <p className="mt-4 text-sm text-stone">Opening the document.</p>
         </div>
         {!isPending && !user ? <RedirectToSignIn /> : null}
       </main>
     );
   }
+
   if (map === null) {
     return (
       <Shell>
-        <p className="text-sm text-ink-muted">Document not found.</p>
+        <p className="text-sm text-stone">Document not found.</p>
       </Shell>
     );
   }
+
   if (!map) {
     return (
       <Shell>
-        <div className="h-40 animate-pulse rounded-[24px] bg-rule/40" />
+        <div className="h-28 animate-pulse border-y border-rule bg-paper-sunk/50" />
       </Shell>
     );
   }
@@ -63,45 +80,52 @@ function DocumentPage() {
 
   return (
     <Shell>
-      <Link
-        to="/matters/$matterId"
-        params={{ matterId }}
-        className="text-sm text-ink-muted hover:text-ink"
-      >
-        Back to Matter
-      </Link>
-      <h1 className="mt-3 font-display text-3xl font-medium">{map.document.logicalName}</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        {map.document.detectedInstrument} · {map.version.pageCount} pages · {map.version.sourceQuality}
-        {map.version.structureConfidence != null
-          ? ` · structure ${Number(map.version.structureConfidence).toFixed(2)}`
-          : ""}
-      </p>
-      {map.document.detectedInstrument === "spa" ? (
-        <p className="mt-3 rounded-[12px] border border-warn/40 bg-paper-elevated px-3 py-2 text-sm text-warn">
-          SPA detected. Review is unsupported in v1. Proof remains available.
-        </p>
+      <div className="border-b border-rule pb-6">
+        <Link
+          to="/matters/$matterId"
+          params={{ matterId }}
+          className="text-xs tracking-[0.04em] text-stone hover:text-ink"
+        >
+          Matter
+        </Link>
+        <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <h1 className="font-display text-[28px] leading-[34px]">{map.document.logicalName}</h1>
+            <p className="mt-2 text-xs text-stone tabular-nums">
+              {map.document.detectedInstrument} · {map.version.pageCount} pages · {map.version.sourceQuality}
+            </p>
+          </div>
+          <div className="text-xs tracking-[0.04em] text-stone">
+            {confirmed ? "Proof" : "Map"}
+          </div>
+        </div>
+      </div>
+
+      {error ? (
+        <p className="mt-4 border-l-2 border-oxblood pl-3 text-sm text-oxblood">{error}</p>
       ) : null}
-      {err ? <p className="mt-3 text-sm text-danger">{err}</p> : null}
 
       {refused ? (
-        <Card className="mt-6">
-          <p className="font-medium text-danger">Refused</p>
-          <p className="mt-2 text-sm">{map.version.refusalCode}. The original is stored but not indexed.</p>
-        </Card>
+        <section className="mt-8 border-y border-rule py-6">
+          <p className="text-xs uppercase tracking-[0.14em] text-oxblood">Refused</p>
+          <h2 className="mt-2 text-xl">We could not safely inspect this file.</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-stone">
+            {map.version.refusalCode}. No quality conclusion has been made for this version.
+          </p>
+        </section>
       ) : confirmed && proof?.run ? (
-        <ProofPanel proof={proof} onVote={() => reload()} />
+        <ProofPanel proof={proof} onVote={reload} />
       ) : (
         <MapPanel
           map={map}
           onConfirm={async (decisions) => {
-            setErr(null);
+            setError(null);
             try {
-              const r = await confirmCanonicalMap({ data: { documentId, decisions } });
-              if (!r.ok) setErr(r.code);
+              const response = await confirmCanonicalMap({ data: { documentId, decisions } });
+              if (!response.ok) setError(response.code);
               reload();
-            } catch (e) {
-              setErr((e as Error).message);
+            } catch (cause) {
+              setError((cause as Error).message);
             }
           }}
         />
@@ -115,141 +139,169 @@ function MapPanel({
   onConfirm,
 }: {
   map: NonNullable<Awaited<ReturnType<typeof getCanonicalMap>>>;
-  onConfirm: (d: Record<string, { decision: UserDecision; replacement?: string }>) => Promise<void>;
+  onConfirm: (
+    decisions: Record<string, { decision: UserDecision; replacement?: string }>,
+  ) => Promise<void>;
 }) {
   const [decisions, setDecisions] = useState<
     Record<string, { decision: UserDecision; replacement?: string }>
   >({});
   const [busy, setBusy] = useState(false);
 
-  const identifiers = map.entries.filter((e) => e.kind === "identifier");
-  const names = map.entries.filter((e) => e.kind === "legal_name");
-  const identifierPending = identifiers.some((e) => !decisions[e.entryId]);
+  const identifiers = map.entries.filter((entry) => entry.kind === "identifier");
+  const names = map.entries.filter((entry) => entry.kind === "legal_name");
+  const identifierPending = identifiers.some((entry) => !decisions[entry.entryId]);
 
   return (
-    <div className="mt-6 space-y-6">
-      <Card>
-        <h2 className="font-display text-xl">Canonicalisation map</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          Confirm legal-name mappings and identifier removals. You cannot edit canonical text directly.
-          Defined terms stay visible. Amounts, dates, percentages, clause numbers and governing law are not masked.
+    <div className="mt-8">
+      <section className="border-b border-rule pb-6">
+        <p className="text-[11px] uppercase tracking-[0.14em] text-stone">Canonicalisation</p>
+        <h2 className="mt-2 text-2xl">Confirm what Proof may replace.</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-stone">
+          Proof is deterministic and makes no model calls. This map protects identifiers and keeps defined terms stable.
+          Review ambiguous detections before the final projection is created; amounts, dates, percentages and clause
+          numbers are left untouched.
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {Object.entries(map.identifierCounts).map(([k, n]) => (
-            <Badge key={k}>
-              {k} · {n}
-            </Badge>
-          ))}
-          {Object.keys(map.identifierCounts).length === 0 ? <Badge>No identifiers proposed</Badge> : null}
+      </section>
+
+      <section className="border-b border-rule py-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <h3 className="font-display text-lg">Legal names</h3>
+          <span className="text-xs text-stone tabular-nums">{names.length}</span>
         </div>
-      </Card>
-
-      <Card>
-        <h3 className="font-medium">Legal names → defined terms</h3>
         {names.length === 0 ? (
-          <p className="mt-2 text-sm text-ink-muted">No explicit defined-term mappings proposed.</p>
+          <p className="mt-3 text-sm text-stone">No explicit legal-name mappings proposed.</p>
         ) : (
-          <ul className="mt-3 space-y-3">
-            {names.map((e) => (
-              <li key={e.entryId} className="rounded-[12px] border border-rule p-3 text-sm">
-                <p>
-                  <span className="font-mono text-xs">{e.originalPreview}</span>
-                  <span className="mx-2 text-ink-subtle">→</span>
-                  <strong>{e.replacement}</strong>
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant={decisions[e.entryId]?.decision === "accept" || !decisions[e.entryId] ? "primary" : "secondary"}
-                    onClick={() => setDecisions((d) => ({ ...d, [e.entryId]: { decision: "accept" } }))}
-                  >
-                    Accept
-                  </Button>
-                  <label className="flex items-center gap-2 text-xs">
-                    Correct to
+          <div className="mt-3 border-t border-rule">
+            {names.map((entry) => {
+              const decision = decisions[entry.entryId];
+              return (
+                <div
+                  key={entry.entryId}
+                  className="grid gap-4 border-b border-rule py-4 md:grid-cols-[1fr_1fr_auto] md:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs text-stone">Detected</p>
+                    <p className="mt-1 truncate text-sm">{entry.originalPreview}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-stone">Canonical form</p>
                     <Input
-                      className="h-9 min-h-9 w-40"
-                      defaultValue={e.replacement}
-                      onBlur={(ev) =>
-                        setDecisions((d) => ({
-                          ...d,
-                          [e.entryId]: { decision: "correct", replacement: ev.target.value },
-                        }))
-                      }
+                      className="mt-1 h-10 min-h-10 rounded-[2px]"
+                      defaultValue={entry.replacement}
+                      onBlur={(event) => {
+                        const replacement = event.target.value.trim();
+                        setDecisions((current) => ({
+                          ...current,
+                          [entry.entryId]: replacement === entry.replacement
+                            ? { decision: "accept" }
+                            : { decision: "correct", replacement },
+                        }));
+                      }}
                     />
-                  </label>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card>
-        <h3 className="font-medium">Identifiers</h3>
-        <p className="mt-1 text-sm text-ink-muted">
-          Original values are not shown in full. Mark false matches “not an identifier”.
-        </p>
-        {identifiers.length === 0 ? (
-          <p className="mt-2 text-sm text-ink-muted">None detected.</p>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {identifiers.map((e) => (
-              <li key={e.entryId} className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-rule p-3 text-sm">
-                <span>
-                  {e.originalPreview} → <span className="font-mono">{e.replacement}</span>
-                </span>
-                <div className="flex gap-2">
+                  </div>
                   <Button
                     size="sm"
-                    variant={decisions[e.entryId]?.decision === "accept" ? "primary" : "secondary"}
-                    onClick={() => setDecisions((d) => ({ ...d, [e.entryId]: { decision: "accept" } }))}
-                  >
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={decisions[e.entryId]?.decision === "not_identifier" ? "primary" : "secondary"}
+                    variant={!decision || decision.decision === "accept" ? "primary" : "secondary"}
                     onClick={() =>
-                      setDecisions((d) => ({ ...d, [e.entryId]: { decision: "not_identifier" } }))
+                      setDecisions((current) => ({
+                        ...current,
+                        [entry.entryId]: { decision: "accept" },
+                      }))
                     }
                   >
-                    Not an identifier
+                    Accept
                   </Button>
                 </div>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         )}
-        {identifiers.length ? (
-          <Button
-            className="mt-3"
-            variant="secondary"
-            onClick={() => {
-              const next = { ...decisions };
-              for (const e of identifiers) next[e.entryId] = { decision: "accept" };
-              setDecisions(next);
-            }}
-          >
-            Accept all identifiers
-          </Button>
-        ) : null}
-      </Card>
+      </section>
 
-      <Button
-        disabled={busy || identifierPending}
-        onClick={() => {
-          setBusy(true);
-          const merged = { ...decisions };
-          for (const e of names) if (!merged[e.entryId]) merged[e.entryId] = { decision: "accept" };
-          void onConfirm(merged).finally(() => setBusy(false));
-        }}
-      >
-        {busy ? "Running Proof…" : "Confirm map and run Proof"}
-      </Button>
-      {identifierPending ? (
-        <p className="text-sm text-ink-muted">Review every identifier candidate before confirmation.</p>
-      ) : null}
+      <section className="border-b border-rule py-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <div>
+            <h3 className="font-display text-lg">Identifiers</h3>
+            <p className="mt-1 text-sm text-stone">
+              Each candidate requires an explicit decision. There is no bulk accept.
+            </p>
+          </div>
+          <span className="text-xs text-stone tabular-nums">{identifiers.length}</span>
+        </div>
+
+        {identifiers.length === 0 ? (
+          <p className="mt-3 text-sm text-stone">No identifier candidates detected.</p>
+        ) : (
+          <div className="mt-4 border-t border-rule">
+            {identifiers.map((entry) => {
+              const decision = decisions[entry.entryId]?.decision;
+              return (
+                <div
+                  key={entry.entryId}
+                  className="grid gap-3 border-b border-rule py-4 md:grid-cols-[1fr_auto] md:items-center"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone">
+                      <span>{entry.originalPreview}</span>
+                      <span>{entry.detector}</span>
+                      <span className="tabular-nums">{Math.round(Number(entry.confidence) * 100)}%</span>
+                    </div>
+                    <p className="mt-2 text-sm">
+                      Replace with <span className="font-medium">{entry.replacement}</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={decision === "accept" ? "primary" : "secondary"}
+                      onClick={() =>
+                        setDecisions((current) => ({
+                          ...current,
+                          [entry.entryId]: { decision: "accept" },
+                        }))
+                      }
+                    >
+                      Replace
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={decision === "not_identifier" ? "primary" : "secondary"}
+                      onClick={() =>
+                        setDecisions((current) => ({
+                          ...current,
+                          [entry.entryId]: { decision: "not_identifier" },
+                        }))
+                      }
+                    >
+                      Not an identifier
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="pt-6">
+        <Button
+          disabled={busy || identifierPending}
+          onClick={() => {
+            setBusy(true);
+            const merged = { ...decisions };
+            for (const entry of names) {
+              if (!merged[entry.entryId]) merged[entry.entryId] = { decision: "accept" };
+            }
+            void onConfirm(merged).finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "Running Proof…" : "Confirm map and run Proof"}
+        </Button>
+        {identifierPending ? (
+          <p className="mt-3 text-sm text-stone">Decide every identifier candidate before Proof can run.</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -261,275 +313,304 @@ function ProofPanel({
   proof: NonNullable<Awaited<ReturnType<typeof getProof>>>;
   onVote: () => void;
 }) {
-  const [tab, setTab] = useState<"hits" | "deal" | "outline" | "index" | "coverage">("hits");
-  const statusTone =
-    proof.run?.status === "complete" ? "ok" : proof.run?.status === "partial" ? "warn" : "danger";
-  const suppressed = proof.executions.filter((e) => e.status === "suppressed");
-  const q = proof.quality;
-  const qualityTone =
-    q?.sourceQuality === "high" ? "ok" : q?.sourceQuality === "unreadable" ? "danger" : "warn";
-  const gate = proof.reviewGate;
-  const unclassifiedShare =
-    q && q.classifiedShare != null ? Math.round((1 - q.classifiedShare) * 100) : null;
+  const suppressed = proof.executions.filter((execution) => execution.status === "suppressed");
+  const failed = proof.executions.filter((execution) => execution.status === "failed");
+  const invalidEvidence = proof.hits.filter((hit) => !hit.citationFaithful);
+  const incomplete =
+    proof.run?.status !== "complete" || suppressed.length > 0 || failed.length > 0 || invalidEvidence.length > 0;
 
-  const defsByScope = new Map<string, typeof proof.definitions>();
-  for (const d of proof.definitions) {
-    const key = `${d.scopeType} · ${d.scopeId}`;
-    const list = defsByScope.get(key) ?? [];
-    list.push(d);
-    defsByScope.set(key, list);
-  }
+  const visibleHits = proof.hits.filter((hit) => hit.citationFaithful);
+  const mustFix = visibleHits.filter(
+    (hit) => MUST_FIX.has(hit.checkId) || (hit.certainty === "exact" && hit.severity === "high"),
+  );
+  const consistency = visibleHits.filter((hit) => !mustFix.includes(hit));
+
+  const title = incomplete
+    ? "Proof finished with coverage gaps."
+    : visibleHits.length
+      ? "Proof found items to check."
+      : "No issues found by the checks listed below.";
+
+  const description = incomplete
+    ? "One or more checks did not complete, or evidence could not be verified. No clean-document conclusion is made."
+    : visibleHits.length
+      ? "All applicable checks completed for this version. Clear the findings below before relying on the document."
+      : "All applicable checks completed for this exact uploaded version. This is not a conclusion that the document is error-free or legally correct.";
+
+  const completed = proof.executions.filter((execution) => execution.status === "completed").length;
 
   return (
-    <div className="mt-6 space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={statusTone}>Proof {proof.run?.status}</Badge>
-        <Badge>LLM calls {proof.llmCalls}</Badge>
-        {q ? (
-          <Badge tone={qualityTone}>Source quality {q.sourceQuality}</Badge>
-        ) : proof.version.sourceQuality !== "high" ? (
-          <Badge tone="warn">Source quality {proof.version.sourceQuality}</Badge>
-        ) : null}
-        {q?.materialUnclassified ? <Badge tone="warn">incomplete source</Badge> : null}
-        {q && !q.usableOutline ? <Badge tone="danger">no usable outline</Badge> : null}
-      </div>
+    <div className="mt-8">
+      <section className="border-b border-rule pb-7">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-stone">
+          <span className={incomplete ? "text-oxblood" : "text-ink"}>
+            {incomplete ? "Incomplete" : visibleHits.length ? "Attention required" : "Clear for this version"}
+          </span>
+          <span className="tabular-nums">{visibleHits.length} findings</span>
+          <span className="tabular-nums">{completed}/{proof.executions.length} checks completed</span>
+          <span>LLM calls {proof.llmCalls}</span>
+        </div>
+        <h2 className="mt-3 max-w-3xl font-display text-[28px] leading-[36px]">{title}</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-stone">{description}</p>
+      </section>
 
-      {q ? (
-        <Card>
-          <p className="text-xs uppercase tracking-wider text-ink-subtle">Source quality</p>
-          <p className="mt-1 font-display text-xl">
-            {q.sourceQuality}
-            {q.structureConfidence != null ? (
-              <span className="ml-2 font-sans text-sm text-ink-muted">
-                structure {Number(q.structureConfidence).toFixed(2)} · {q.indexQualityVersion}
-              </span>
-            ) : null}
-          </p>
-          <p className="mt-2 text-sm text-ink-muted">
-            Classified coverage {Math.round((q.classifiedShare ?? 0) * 100)}%. Unclassified{" "}
-            {q.unclassifiedLeafCount} {q.unclassifiedLeafCount === 1 ? "leaf" : "leaves"},{" "}
-            {q.unclassifiedChars.toLocaleString()} characters
-            {unclassifiedShare != null ? ` (${unclassifiedShare}%)` : ""}.
-            {q.materialUnclassified
-              ? " Material unclassified text — Review would run with incomplete_source, not a refusal."
-              : q.usableOutline
-                ? " Outline is usable."
-                : " No usable outline — Review is blocked."}
-          </p>
-          {q.components && Object.keys(q.components).length > 0 ? (
-            <ul className="mt-3 grid gap-1 text-xs text-ink-muted sm:grid-cols-2">
-              {Object.entries(q.components).map(([k, n]) => (
-                <li key={k} className="flex justify-between gap-3 border-b border-rule/50 py-1">
-                  <span>{k}</span>
-                  <span className="font-mono">{Number(n).toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </Card>
-      ) : null}
+      <IssueSection title="Must fix" hits={mustFix} onVote={onVote} defaultOpen />
+      <IssueSection title="Consistency" hits={consistency} onVote={onVote} defaultOpen={mustFix.length === 0} />
 
-      <p className="text-xs text-ink-muted">
-        Source capability:{" "}
-        {proof.capabilities.length
-          ? proof.capabilities.map((c) => `${c.name} ${c.available ? "available" : "off"}`).join(" · ")
-          : "not recorded"}
-      </p>
-      {proof.run?.status === "partial" ? (
-        <p className="text-sm text-warn">
-          Partial. Suppressed checks: {suppressed.map((s) => s.checkId).join(", ") || "none listed"}. This is not a
-          clean result.
+      <section className="border-b border-rule py-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <h3 className="font-display text-lg">Language</h3>
+          <span className="text-xs text-stone">Not enabled in this ruleset</span>
+        </div>
+        <p className="mt-2 text-sm text-stone">
+          Legal-language and typography rules stay hidden until they meet their measured precision gate.
         </p>
-      ) : null}
+      </section>
 
-      <div className="flex flex-wrap gap-2">
-        {(["hits", "deal", "outline", "index", "coverage"] as const).map((t) => (
-          <Button key={t} size="sm" variant={tab === t ? "primary" : "secondary"} onClick={() => setTab(t)}>
-            {t === "hits"
-              ? "Hits"
-              : t === "deal"
-                ? "Deal map"
-                : t === "outline"
-                  ? "Outline"
-                  : t === "index"
-                    ? "Index"
-                    : "Coverage"}
-          </Button>
-        ))}
-      </div>
+      <section className="border-b border-rule py-6">
+        <div className="flex items-baseline justify-between gap-4">
+          <h3 className="font-display text-lg">Formatting</h3>
+          <span className="text-xs text-stone">Not enabled in this ruleset</span>
+        </div>
+        <p className="mt-2 text-sm text-stone">
+          Visual and layout checks require the isolated rendering path; Proof does not guess when that capability is absent.
+        </p>
+      </section>
 
-      {tab === "hits" ? (
-        <Card>
-          {proof.noHitsCopy ? (
-            <p>{proof.noHitsCopy}</p>
-          ) : proof.hits.length === 0 ? (
-            <p className="text-sm text-ink-muted">
-              No hits stored. {suppressed.length ? "Required checks were suppressed — not a clean pass." : ""}
-            </p>
-          ) : (
-            <ul className="space-y-4">
-              {proof.hits.map((h) => (
-                <li key={h.proofHitId} className="border-b border-rule pb-4 last:border-0 last:pb-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={h.severity === "high" ? "danger" : "neutral"}>
-                      {h.checkId} · v{h.checkVersion}
-                    </Badge>
-                    <Badge>{h.severity}</Badge>
-                    <Badge>{h.certainty}</Badge>
-                    <span className="text-xs text-ink-muted">{h.clause}</span>
-                    {!h.citationFaithful ? <Badge tone="danger">citation invalid</Badge> : null}
-                  </div>
-                  <blockquote className="mt-2 border-l-2 border-forest pl-3 font-mono text-xs leading-relaxed">
-                    {h.quote}
-                  </blockquote>
-                  <p className="mt-1 text-xs text-ink-subtle">
-                    {h.detailCode} · offsets {h.quoteStart}–{h.quoteEnd}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-1"
-                    onClick={() => {
-                      void voteNotADefect({ data: { proofHitId: h.proofHitId } }).then(onVote);
-                    }}
-                  >
-                    Not a defect
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      ) : null}
-
-      {tab === "deal" ? (
-        <Card>
-          <ul className="space-y-2 text-sm">
-            {proof.dealMap.map((e, i) => (
-              <li key={i} className="flex justify-between gap-4 border-b border-rule/70 py-2">
-                <span className="text-ink-muted">{e.category}</span>
-                <span className="text-right">{e.value ?? e.uncertainty ?? "absent"}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4">
-            <p className="text-xs uppercase tracking-wider text-ink-subtle">Signature inventory</p>
-            <p className="mt-2 text-sm">
-              Named parties: {proof.signatures?.namedParties.length ? proof.signatures.namedParties.join(", ") : "none"}
-            </p>
-            <ul className="mt-2 space-y-1 text-sm">
-              {(proof.signatures?.blocks ?? []).map((b) => (
-                <li key={b.provisionId} className="font-mono text-xs">
-                  {b.label}
-                </li>
-              ))}
-              {(proof.signatures?.blocks ?? []).length === 0 ? (
-                <li className="text-ink-muted">No signature blocks extracted.</li>
-              ) : null}
-            </ul>
-          </div>
-        </Card>
-      ) : null}
-
-      {tab === "outline" ? (
-        <Card>
-          <p className="text-xs uppercase tracking-wider text-ink-subtle">Provision tree</p>
-          <ul className="mt-2 space-y-1 font-mono text-xs">
-            {proof.outline.map((p) => {
-              const depth = p.parent && p.parent !== "p:root" ? 1 : 0;
-              const unclassified = p.nodeType === "unclassified";
-              return (
-                <li
-                  key={p.provisionId}
-                  className={unclassified ? "text-warn" : undefined}
-                >
-                  {depth ? <span className="inline-block w-3" /> : null}
-                  <span className="text-ink-subtle">{p.nodeType}</span>{" "}
-                  {p.number ? <strong>{p.number}</strong> : null} {p.heading || p.preview}
-                  {unclassified ? " · unclassified" : null}
-                  {!p.ownsText ? " · container" : null}
-                </li>
-              );
-            })}
-          </ul>
-          {q ? (
-            <p className="mt-3 text-xs text-ink-muted">
-              Unclassified volume: {q.unclassifiedLeafCount} leaves / {q.unclassifiedChars.toLocaleString()} characters.
-              Every non-blank line owns exactly one leaf.
-            </p>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {tab === "index" ? (
-        <Card>
-          <p className="text-xs uppercase tracking-wider text-ink-subtle">Namespaced definitions</p>
-          {defsByScope.size === 0 ? (
-            <p className="mt-2 text-sm text-ink-muted">No definitions stored.</p>
-          ) : (
-            [...defsByScope.entries()].map(([scope, list]) => (
-              <div key={scope} className="mt-3">
-                <p className="text-xs text-ink-muted">{scope}</p>
-                <ul className="mt-1 flex flex-wrap gap-2">
-                  {list.map((d, i) => (
-                    <Badge key={`${d.term}-${i}`}>
-                      {d.term}
-                      {d.kind === "defined_party" ? " · party" : ""}
-                    </Badge>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
-        </Card>
-      ) : null}
-
-      {tab === "coverage" ? (
-        <Card>
-          <p className="text-sm">Every required v1 check is completed or expressly suppressed.</p>
-          <ul className="mt-3 space-y-2 text-sm">
-            {proof.executions.map((e) => (
-              <li key={e.checkId} className="flex justify-between gap-3">
-                <span className="font-mono text-xs">
-                  {e.checkId} · v{e.checkVersion}
-                </span>
-                <span>
-                  {e.status}
-                  {e.hitCount ? ` · ${e.hitCount} hits` : ""}
-                  {Array.isArray(e.missing) && (e.missing as string[]).length
-                    ? ` · missing ${(e.missing as string[]).join(", ")}`
-                    : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4">
-            <p className="text-xs uppercase tracking-wider text-ink-subtle">Capabilities</p>
-            <ul className="mt-2 text-sm">
-              {proof.capabilities.map((c) => (
-                <li key={c.name}>
-                  {c.name}: {c.available ? "available" : `suppressed${c.reason ? ` — ${c.reason}` : ""}`}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-      ) : null}
-
-      <Card>
-        <p className="text-sm text-ink-muted">{gate?.reason ?? "Run Review is unavailable in this slice."}</p>
-        {gate?.coverage === "incomplete_source" ? (
-          <p className="mt-2 text-sm text-warn">Coverage flag: incomplete_source. This is not a clean Review path.</p>
-        ) : null}
-        <Button className="mt-3" disabled>
-          {gate?.code === "no_usable_outline" || gate?.code === "unreadable" || gate?.code === "refused"
-            ? "Run Review — blocked"
-            : gate?.coverage === "incomplete_source"
-              ? "Run Review — incomplete source"
-              : "Run Review — Slice 3"}
-        </Button>
-      </Card>
+      <CoverageSection proof={proof} />
     </div>
   );
 }
 
+function IssueSection({
+  title,
+  hits,
+  onVote,
+  defaultOpen,
+}: {
+  title: string;
+  hits: NonNullable<Awaited<ReturnType<typeof getProof>>>["hits"];
+  onVote: () => void;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className="border-b border-rule py-6">
+      <button
+        type="button"
+        className="flex w-full items-baseline justify-between gap-4 text-left"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <h3 className="font-display text-xl">{title}</h3>
+        <span className="text-xs text-stone tabular-nums">{hits.length} {open ? "−" : "+"}</span>
+      </button>
+
+      {open ? (
+        hits.length ? (
+          <div className="mt-4 border-t border-rule">
+            {hits.map((hit) => (
+              <FindingRow key={hit.proofHitId} hit={hit} onVote={onVote} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-stone">No active findings in this group.</p>
+        )
+      ) : null}
+    </section>
+  );
+}
+
+function FindingRow({
+  hit,
+  onVote,
+}: {
+  hit: NonNullable<Awaited<ReturnType<typeof getProof>>>["hits"][number];
+  onVote: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const copy = findingCopy(hit.checkId);
+
+  return (
+    <article className="border-b border-rule py-5 last:border-b-0">
+      <div className="grid gap-4 md:grid-cols-[120px_1fr_auto]">
+        <div className="text-xs text-stone">
+          <p className="tabular-nums">{hit.clause || "Document"}</p>
+          <p className="mt-1">{hit.severity}</p>
+        </div>
+        <div>
+          <p className="text-sm font-medium leading-5">{copy.title}</p>
+          <p className="mt-1 text-sm leading-6 text-stone">{copy.why}</p>
+          {hit.quote ? (
+            <blockquote className="mt-4 border-l-2 border-rule-strong pl-4 font-display text-[16px] italic leading-[26px] text-ink">
+              “{hit.quote}”
+            </blockquote>
+          ) : null}
+          {expanded ? (
+            <div className="mt-4 text-xs leading-5 text-stone">
+              <p>
+                Proof basis: {hit.checkId} · v{hit.checkVersion} · {hit.certainty}
+              </p>
+              <p className="mt-1 break-words">Observed: {JSON.stringify(hit.detailArgs)}</p>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex items-start gap-2 md:flex-col">
+          <Button size="sm" variant="secondary" onClick={() => setExpanded((value) => !value)}>
+            {expanded ? "Less" : "Evidence"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              void voteNotADefect({ data: { proofHitId: hit.proofHitId } }).then(onVote);
+            }}
+          >
+            Not a defect
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CoverageSection({
+  proof,
+}: {
+  proof: NonNullable<Awaited<ReturnType<typeof getProof>>>;
+}) {
+  const [open, setOpen] = useState(false);
+  const capabilityText = useMemo(
+    () =>
+      proof.capabilities.map((capability) => ({
+        name: capability.name,
+        state: capability.available ? "present" : "absent",
+      })),
+    [proof.capabilities],
+  );
+
+  return (
+    <section className="py-6">
+      <button
+        type="button"
+        className="flex w-full items-baseline justify-between gap-4 text-left"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-stone">Coverage</p>
+          <h3 className="mt-1 font-display text-xl">What Proof inspected</h3>
+        </div>
+        <span className="text-xs text-stone">{open ? "−" : "+"}</span>
+      </button>
+
+      {open ? (
+        <div className="mt-5 grid gap-8 lg:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.12em] text-stone">Rules</p>
+            <div className="mt-2 border-t border-rule">
+              {proof.executions.map((execution) => (
+                <div
+                  key={`${execution.checkId}:${execution.checkVersion}`}
+                  className="flex items-center justify-between gap-4 border-b border-rule py-2 text-xs"
+                >
+                  <span>{execution.checkId}</span>
+                  <span
+                    className={
+                      execution.status === "completed"
+                        ? "text-stone"
+                        : execution.status === "suppressed"
+                          ? "text-ink"
+                          : "text-oxblood"
+                    }
+                  >
+                    {execution.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.12em] text-stone">Source capabilities</p>
+            <div className="mt-2 border-t border-rule">
+              {capabilityText.map((capability) => (
+                <div
+                  key={capability.name}
+                  className="flex items-center justify-between gap-4 border-b border-rule py-2 text-xs"
+                >
+                  <span>{capability.name}</span>
+                  <span className="text-stone">{capability.state}</span>
+                </div>
+              ))}
+            </div>
+            {proof.quality ? (
+              <p className="mt-4 text-xs leading-5 text-stone">
+                Source quality {proof.quality.sourceQuality} · classified coverage{" "}
+                {Math.round((proof.quality.classifiedShare ?? 0) * 100)}% · structure{" "}
+                {Number(proof.quality.structureConfidence ?? 0).toFixed(2)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function findingCopy(checkId: string): { title: string; why: string } {
+  const copy: Record<string, { title: string; why: string }> = {
+    "defterm.undefined_candidate": {
+      title: "A capitalised term may be used without a definition.",
+      why: "The reader may not know whether the wording is intended to carry a defined meaning.",
+    },
+    "defterm.unused": {
+      title: "A defined term does not appear to be used.",
+      why: "Unused definitions often indicate stale drafting or a deleted operative reference.",
+    },
+    "structure.broken_xref": {
+      title: "An internal cross-reference does not resolve.",
+      why: "The reader cannot reliably reach the provision the document points to.",
+    },
+    "structure.numbering_gap": {
+      title: "The clause sequence contains a numbering gap.",
+      why: "A missing number can indicate an omitted clause or an unintended numbering change.",
+    },
+    "structure.duplicate_number": {
+      title: "The same clause number appears more than once.",
+      why: "Duplicate labels make internal references ambiguous.",
+    },
+    "exec.signature_block_mismatch": {
+      title: "The execution blocks do not match the detected parties.",
+      why: "A party may be missing from, or incorrectly carried into, the signature section.",
+    },
+    "exec.hidden_character": {
+      title: "Hidden or zero-width text is present.",
+      why: "Invisible characters can split words, defined terms and search results without being obvious in Word.",
+    },
+    "exec.suspicious_field": {
+      title: "A field may contain unresolved or external content.",
+      why: "Stale or linked Word fields can display content that does not match the document source.",
+    },
+    "exec.unfilled_placeholder": {
+      title: "An unfinished drafting placeholder remains.",
+      why: "The document may still contain text that was intended to be completed before circulation or signing.",
+    },
+    "exec.unresolved_comment": {
+      title: "An unresolved comment remains in the document.",
+      why: "Open drafting comments can expose internal discussion or leave an issue unresolved.",
+    },
+    "party.header_counterparty_mismatch": {
+      title: "A header or footer appears to contain an inconsistent party name.",
+      why: "This can be residue from another document or an earlier transaction version.",
+    },
+    "amount.table_prose_conflict": {
+      title: "An amount in a table conflicts with related prose.",
+      why: "Two expressions of the same labelled value should not disagree.",
+    },
+  };
+  return (
+    copy[checkId] ?? {
+      title: "Proof found a consistency issue.",
+      why: "Review the source evidence and decide whether the difference is intentional.",
+    }
+  );
+}

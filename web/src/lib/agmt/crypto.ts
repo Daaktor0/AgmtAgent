@@ -1,17 +1,36 @@
 /**
- * Authenticated envelope encryption (SPEC §10.3).
- * AES-256-GCM, unique random data key per Document Version, wrapped with a
- * master key held outside the row. Preview uses a process wrapping key derived
- * from a built-in label — production replaces this with KMS.
+ * Authenticated envelope encryption for document and workspace data.
  *
- * Ciphertext is stored as base64: iv || tag || ciphertext, plus wrapped data key.
+ * Every encrypted value gets a fresh AES-256-GCM data key. The data key is
+ * itself wrapped with a deployment secret derived for the Agmt envelope domain.
+ * Local development may use the historical preview key; deployed environments
+ * fail closed if neither AGMT_ENCRYPTION_KEY nor BETTER_AUTH_SECRET is present.
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
-const WRAP_LABEL = "agmt-wrap-v1-preview-not-for-production";
+const LOCAL_WRAP_LABEL = "agmt-wrap-v1-preview-not-for-production";
+const WRAP_DOMAIN = "agmt-envelope-wrap-v2\0";
+
+function env(key: string): string | undefined {
+  const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
+  return value ? value : undefined;
+}
+
+function isDeployed(): boolean {
+  return Boolean(env("VERCEL") || env("VERCEL_ENV"));
+}
 
 function wrappingKey(): Buffer {
-  return createHash("sha256").update(WRAP_LABEL).digest();
+  const deploymentSecret = env("AGMT_ENCRYPTION_KEY") ?? env("BETTER_AUTH_SECRET");
+  if (deploymentSecret) {
+    return createHash("sha256").update(WRAP_DOMAIN).update(deploymentSecret).digest();
+  }
+  if (isDeployed()) {
+    throw new Error(
+      "Agmt encryption is not configured. Set AGMT_ENCRYPTION_KEY (preferred) or BETTER_AUTH_SECRET before deploying.",
+    );
+  }
+  return createHash("sha256").update(LOCAL_WRAP_LABEL).digest();
 }
 
 export type Envelope = {
@@ -26,10 +45,12 @@ export function encryptBytes(plain: Buffer): Envelope {
   const cipher = createCipheriv("aes-256-gcm", dataKey, iv);
   const body = Buffer.concat([cipher.update(plain), cipher.final()]);
   const tag = cipher.getAuthTag();
+
   const wrapIv = randomBytes(12);
   const wrap = createCipheriv("aes-256-gcm", wrappingKey(), wrapIv);
   const wrapped = Buffer.concat([wrap.update(dataKey), wrap.final()]);
   const wrapTag = wrap.getAuthTag();
+
   return {
     wrappedDataKey: Buffer.concat([wrapIv, wrapTag, wrapped]).toString("base64"),
     cipherMetadata: {
@@ -42,20 +63,21 @@ export function encryptBytes(plain: Buffer): Envelope {
   };
 }
 
-export function decryptBytes(env: Envelope): Buffer {
-  const wrappedBuf = Buffer.from(env.wrappedDataKey, "base64");
-  const wrapIv = wrappedBuf.subarray(0, 12);
-  const wrapTag = wrappedBuf.subarray(12, 28);
-  const wrapped = wrappedBuf.subarray(28);
+export function decryptBytes(envelope: Envelope): Buffer {
+  const wrappedBuffer = Buffer.from(envelope.wrappedDataKey, "base64");
+  const wrapIv = wrappedBuffer.subarray(0, 12);
+  const wrapTag = wrappedBuffer.subarray(12, 28);
+  const wrapped = wrappedBuffer.subarray(28);
   const unwrap = createDecipheriv("aes-256-gcm", wrappingKey(), wrapIv);
   unwrap.setAuthTag(wrapTag);
   const dataKey = Buffer.concat([unwrap.update(wrapped), unwrap.final()]);
-  const iv = Buffer.from(env.cipherMetadata.iv, "base64");
-  const tag = Buffer.from(env.cipherMetadata.tag, "base64");
+
+  const iv = Buffer.from(envelope.cipherMetadata.iv, "base64");
+  const tag = Buffer.from(envelope.cipherMetadata.tag, "base64");
   const decipher = createDecipheriv("aes-256-gcm", dataKey, iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([
-    decipher.update(Buffer.from(env.ciphertext, "base64")),
+    decipher.update(Buffer.from(envelope.ciphertext, "base64")),
     decipher.final(),
   ]);
 }
@@ -64,18 +86,18 @@ export function encryptText(plain: string): Envelope {
   return encryptBytes(Buffer.from(plain, "utf8"));
 }
 
-export function decryptText(env: Envelope): string {
-  return decryptBytes(env).toString("utf8");
+export function decryptText(envelope: Envelope): string {
+  return decryptBytes(envelope).toString("utf8");
 }
 
-export function sha256Hex(buf: Buffer | string): string {
+export function sha256Hex(buffer: Buffer | string): string {
   return createHash("sha256")
-    .update(typeof buf === "string" ? Buffer.from(buf, "utf8") : buf)
+    .update(typeof buffer === "string" ? Buffer.from(buffer, "utf8") : buffer)
     .digest("hex");
 }
 
-export function sha256Bytes(buf: Buffer): Buffer {
-  return createHash("sha256").update(buf).digest();
+export function sha256Bytes(buffer: Buffer): Buffer {
+  return createHash("sha256").update(buffer).digest();
 }
 
 export function hashToken(raw: string): string {

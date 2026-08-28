@@ -70,7 +70,12 @@ export type ExtractedBlock = {
   text: string;
   xmlAnchor: { kind: "paragraph" | "cell" | "header" | "footer"; path: string };
   styleId: string | null;
+  /** Computed visible Word label, e.g. `1`, `1.2` or `(a)`. */
   numbering: string | null;
+  /** Native Word numbering instance and level, when the label came from numbering.xml. */
+  numberingNumId?: string | null;
+  numberingLevel?: number | null;
+  numberingFormat?: string | null;
   isTable: boolean;
   isHeaderFooter: boolean;
   pageBreakBefore: boolean;
@@ -78,9 +83,20 @@ export type ExtractedBlock = {
   sourceEnd: number;
 };
 
+export type CapabilityState =
+  | "evaluated_present"
+  | "evaluated_absent"
+  | "unavailable"
+  | "unsupported";
+
 export type SourceCapability = {
   name: string;
+  /**
+   * Legacy field retained while the extractor migrates. `false` does not by
+   * itself mean unavailable: a parser can successfully prove a feature absent.
+   */
   available: boolean;
+  state?: CapabilityState;
   detectorVersion: string;
   suppressionReason: string | null;
 };

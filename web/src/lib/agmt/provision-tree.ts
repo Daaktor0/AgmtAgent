@@ -9,15 +9,18 @@ function headingKind(word: string): NodeType {
   return "clause";
 }
 
+function nativeNumber(block: ExtractedBlock): string | null {
+  if (!block.numbering || block.numberingFormat === "bullet" || block.numberingFormat === "none") return null;
+  return block.numbering.trim().replace(/\.$/, "") || null;
+}
+
 function classifyBlock(
   b: ExtractedBlock,
   inSignature: boolean,
   currentScope: { type: string; id: string },
 ): { nodeType: NodeType; number: string | null; heading: string | null; confidence: number } {
   const text = b.text.trim();
-  if (!text) {
-    return { nodeType: "unclassified", number: null, heading: null, confidence: 1 };
-  }
+  if (!text) return { nodeType: "unclassified", number: null, heading: null, confidence: 1 };
   if (inSignature || RE_SIG_START.test(text) || /^signed\s+for\s+and\s+on\s+behalf/i.test(text)) {
     return { nodeType: "signature_block", number: null, heading: text.slice(0, 80), confidence: 0.9 };
   }
@@ -33,6 +36,18 @@ function classifyBlock(
       confidence: 0.95,
     };
   }
+
+  const resolvedNumber = nativeNumber(b);
+  if (resolvedNumber) {
+    const level = b.numberingLevel ?? 0;
+    return {
+      nodeType: currentScope.type === "definitions" && level > 0 ? "definition_entry" : level > 0 ? "subclause" : "clause",
+      number: resolvedNumber,
+      heading: text.length < 120 ? text : text.slice(0, 80),
+      confidence: 0.96,
+    };
+  }
+
   const d = text.match(RE_DECIMAL);
   if (d) {
     const rest = text.slice(d[0].length).trim();
@@ -152,24 +167,22 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
         currentScope = { type: "part", id: `part:${h[2]}` };
         inheritType = "part";
       } else {
-        if (!isScheduleScope(currentScope.type)) {
-          currentScope = { type: "main_body", id: "main" };
-        }
+        if (!isScheduleScope(currentScope.type)) currentScope = { type: "main_body", id: "main" };
         inRecitals = false;
         inheritType = "clause";
       }
     }
 
     const dec = trimmed.match(RE_DECIMAL);
-    if (dec && !dec[1].includes(".")) {
-      const rest = trimmed.slice(dec[0].length).trim();
+    const nativeTopLevel = Boolean(nativeNumber(b)) && (b.numberingLevel ?? 0) === 0 && !b.isHeaderFooter;
+    const typedTopLevel = Boolean(dec && !dec[1].includes("."));
+    if (nativeTopLevel || typedTopLevel) {
+      const rest = dec ? trimmed.slice(dec[0].length).trim() : trimmed;
       if (/^definitions?\b/i.test(rest) || /^interpretation\b/i.test(rest)) {
         inDefinitions = true;
         inRecitals = false;
         inheritType = "definition_entry";
-        if (!isScheduleScope(currentScope.type)) {
-          currentScope = { type: "definitions", id: "definitions" };
-        }
+        if (!isScheduleScope(currentScope.type)) currentScope = { type: "definitions", id: "definitions" };
       } else if (!inSignature) {
         inDefinitions = false;
         inRecitals = false;
@@ -180,12 +193,10 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
       }
     }
 
-    if ((/^definitions?\b/i.test(trimmed) || /^interpretation\b/i.test(trimmed)) && !dec && !h) {
+    if ((/^definitions?\b/i.test(trimmed) || /^interpretation\b/i.test(trimmed)) && !dec && !h && !nativeTopLevel) {
       inDefinitions = true;
       inheritType = "definition_entry";
-      if (!isScheduleScope(currentScope.type)) {
-        currentScope = { type: "definitions", id: "definitions" };
-      }
+      if (!isScheduleScope(currentScope.type)) currentScope = { type: "definitions", id: "definitions" };
     }
 
     const classifyScope = inDefinitions
@@ -205,8 +216,11 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
       cls.confidence = Math.max(cls.confidence, 0.7);
     }
 
-    const isStructural =
-      Boolean(h) || (cls.nodeType === "clause" && cls.number && !cls.number.includes("."));
+    const topLevelClause =
+      cls.nodeType === "clause" &&
+      Boolean(cls.number) &&
+      (b.numberingLevel != null ? b.numberingLevel === 0 : !String(cls.number).includes("."));
+    const isStructural = Boolean(h) || topLevelClause;
 
     if (isStructural && (cls.nodeType === "schedule" || cls.nodeType === "annex" || cls.nodeType === "part")) {
       const containerId = `p:c:${b.index}`;
@@ -233,7 +247,7 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
         blockIndex: null,
       });
       currentParent = containerId;
-    } else if (isStructural && cls.nodeType === "clause" && cls.number && !String(cls.number).includes(".")) {
+    } else if (isStructural && topLevelClause) {
       currentParent = isScheduleScope(currentScope.type) ? currentParent : rootId;
     }
 
@@ -278,9 +292,8 @@ export function assertLineOwnership(provisions: Provision[], blocks: ExtractedBl
       if (!line.trim()) return;
       const key = `${b.index}:${i}`;
       const owners = leaves.filter((p) => p.blockIndex === b.index);
-      if (owners.length !== 1) {
-        errors.push(`line ${key} owners=${owners.length}`);
-      } else {
+      if (owners.length !== 1) errors.push(`line ${key} owners=${owners.length}`);
+      else {
         if (owned.has(key)) errors.push(`overlap ${key}`);
         owned.add(key);
       }

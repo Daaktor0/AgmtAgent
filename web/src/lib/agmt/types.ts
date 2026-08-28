@@ -78,9 +78,20 @@ export type ExtractedBlock = {
   sourceEnd: number;
 };
 
+export type CapabilityState =
+  | "evaluated_present"
+  | "evaluated_absent"
+  | "unavailable"
+  | "unsupported";
+
 export type SourceCapability = {
   name: string;
+  /**
+   * Legacy field retained while the extractor migrates. `false` does not by
+   * itself mean unavailable: a parser can successfully prove a feature absent.
+   */
   available: boolean;
+  state?: CapabilityState;
   detectorVersion: string;
   suppressionReason: string | null;
 };

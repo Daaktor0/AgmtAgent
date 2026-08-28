@@ -1,4 +1,4 @@
-import { extractDocx } from "./docx.ts";
+import { extractDocx } from "./docx-v2.ts";
 import { buildProvisionTree } from "./provision-tree.ts";
 import { extractDefinitions } from "./definitions.ts";
 import { proposeCanonicalisation, mapSha } from "./canonicalise.ts";
@@ -53,11 +53,17 @@ export async function ingestBuffer(bytes: Buffer): Promise<IngestOk | IngestRefu
       encrypted: "The file is encrypted or password-protected. Upload an unencrypted native Word (.docx) file.",
       corrupt: "The file could not be read. Upload the native Word (.docx) file.",
       macro: "Macro-enabled files are refused.",
+      package_too_complex: "The Word package contains too many internal parts to inspect safely.",
+      unsafe_package_path: "The Word package contains an unsafe internal path.",
+      package_entry_too_large: "The Word package contains an internal part that exceeds the safe inspection limit.",
+      package_expanded_too_large: "The Word package expands beyond the safe inspection limit.",
+      suspicious_compression_ratio: "The Word package has an unsafe compression ratio.",
+      unsupported_embedded_content: "The Word file contains embedded or ActiveX content that Proof does not inspect safely yet.",
     };
     return {
       refused: true,
       code,
-      message: messages[code] ?? "Upload the native Word (.docx) file.",
+      message: messages[code] ?? "We could not safely inspect this Word file.",
       byteSize: bytes.byteLength,
     };
   }

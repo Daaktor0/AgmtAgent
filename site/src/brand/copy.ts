@@ -1,126 +1,165 @@
 /**
- * Product claims used by the marketing site.
+ * Public claims for the Agmt launch site.
  *
- * Keep this file factual. Do not add customer names, metrics, certifications,
- * pricing amounts, model/provider claims, or promises about document handling.
+ * Keep this file factual and visitor-relevant. Do not add customer names,
+ * invented metrics, model/provider claims, document-handling promises, or
+ * internal beta-allocation mechanics.
  */
 
-export const FOOTER = "Agmt · Software for Indian transactional lawyers · India";
-export const APP_URL = "https://agmt-web.vercel.app";
+export const FOOTER =
+  "Agmt · Free agreement proofing for Indian transaction teams · Launching soon";
 
 export const PRODUCT = {
-  eyebrow: "Built for Indian transaction teams",
-  tagline: "Proof the artefact. Review the deal.",
-  heading: "Your deal pack, under control.",
-  lede: "Upload the documents. Catch what breaks. Work the issues. Download the redline.",
+  eyebrow: "The last pass should not take all night",
+  tagline: "Find what changed. Catch what broke.",
+  heading: "Proofing should not take another evening.",
+  lede:
+    "Agreements collect broken references, drifting defined terms, numbering gaps and leftover blanks one edit at a time. Agmt checks the document in one pass. Free.",
   scope:
-    "Proof starts with SHA, SSA, SPA and disclosure letters. Review launches first for company-side SHA at signing.",
+    "Built first for Indian transactional counsel working on shareholder agreements.",
   matter:
-    "Agmt is organised around a Matter: one deal pack, its documents, versions and the calls you make along the way.",
-  seats: "The first beta is limited to 50 seats: 30 first-come and 20 allotted.",
+    "After the check, Agmt keeps the agreement, its findings, review issues, your decisions, the redline and the email that follows together in one Matter.",
+  seats: "Launching soon. The first beta is capped at 50 seats.",
+  free: "Free to use when the beta opens.",
+} as const;
+
+export const PROBLEM = {
+  eyebrow: "The work nobody sees",
+  heading: "One agreement. Hundreds of small things to verify.",
+  lede:
+    "The document has already been drafted, negotiated, copied, renumbered and turned again. The legal judgment gets the attention. The mechanical sweep gets whatever time remains.",
+  checks: [
+    {
+      label: "Definitions",
+      title: "A term drifts.",
+      body: "Used but never defined. Defined twice. Capitalised differently in one clause.",
+    },
+    {
+      label: "References",
+      title: "A clause moves.",
+      body: "The numbering changes. The pointer to the old section stays behind.",
+    },
+    {
+      label: "Structure",
+      title: "A list breaks.",
+      body: "A skipped limb, duplicated number or bracketed blank survives the final round.",
+    },
+    {
+      label: "Parties & figures",
+      title: "One detail disagrees.",
+      body: "A name, date, amount, percentage or signature block stops matching the rest.",
+    },
+  ],
 } as const;
 
 export const PROOF = {
   label: "Proof",
-  price: "Free mode",
-  heading: "Catch what breaks before it travels.",
+  price: "Free",
+  heading: "A reliable first check, available to everyone.",
   lede:
-    "Upload a native Word file and run a fast integrity pass before the document moves to the next reviewer.",
+    "Run a structured integrity pass over a native Word agreement before it reaches the next reviewer.",
   does: [
-    "Undefined and unused definitions",
-    "Broken cross-references and numbering",
-    "Placeholders and hidden characters",
-    "Words-versus-figures conflicts",
-    "Party and signature-block mismatches",
-    "A deal map and document outline",
+    "Undefined, unused and inconsistent defined terms",
+    "Broken cross-references, numbering and list sequence",
+    "Placeholders, hidden characters and unfinished drafting marks",
+    "Words-versus-figures conflicts and repeated values",
+    "Party names, dates, percentages and signature blocks",
+    "A document outline and deal map for the review ahead",
   ],
-  refusesTitle: "Proof stays in its lane",
-  refuses: ["It does not decide the legal position", "It does not call a clause “market”"],
-  aside: "A clean result is shown only when every required check completed.",
+  refusesTitle: "Evidence, not a vague score",
+  refuses: [
+    "Each finding points to the exact place in the document",
+    "A clean result appears only when the required checks complete",
+  ],
+  aside:
+    "The point is not novelty. It is to make the careful final sweep repeatable, reliable and free.",
 } as const;
 
 export const REVIEW = {
   label: "Review",
-  price: "Paid mode",
-  heading: "Turn the review into a list you can work.",
+  price: "Structured review",
+  heading: "Then spend the lawyer time on the legal call.",
   lede:
-    "Set who you act for, the stage and what must be protected. Agmt reads the named provisions and builds a Key Issues List.",
+    "Proof asks whether the document holds together. Review asks whether the named provisions work for the mandate: who you act for, the deal stage and what must be protected.",
   does: [
-    "Severity, topic and clause",
-    "The exact document wording",
-    "Why it matters for the mandate",
+    "A Key Issues List organised by severity, topic and clause",
+    "The exact document wording beside every issue",
+    "Why the point matters for this mandate",
     "A clear ask and reviewer stamp",
-    "Accept, edit, reject or park",
-    "Accepted edits in a tracked-change DOCX",
+    "Accept, edit, reject or park each issue",
+    "Eligible accepted edits carried into a tracked-change DOCX",
   ],
-  refusesTitle: "The working object",
-  refuses: ["A structured list, not a disappearing memo", "A lawyer makes every final call"],
+  refusesTitle: "A review you can keep working",
+  refuses: [
+    "The issue stays attached to its wording and rationale",
+    "The lawyer makes every final call",
+  ],
   survives:
-    "The list stays with the Matter, so the document and your decisions remain connected.",
-  aside: "Work the issue. Record the call. Carry it into the next document round.",
+    "Your decisions remain with the Matter, ready for the next document turn and the email that follows.",
+  aside: "Proof the document. Review the deal. Keep the two kinds of work distinct.",
 } as const;
 
-export const IS_NOT = [
-  "Not a Word add-in at launch. Agmt is a web app and returns a tracked-change DOCX that opens in Word.",
-  "Not CLM, a document repository, e-signature or obligation management.",
-  "Not legal research, litigation software or a general legal chatbot.",
-  "Not an in-browser replacement for Word.",
-  "Not legal advice. The lawyer decides what is accepted, shared and signed.",
-] as const;
+export const MAIL = {
+  label: "The work after review",
+  heading: "Draft the email from decisions already made.",
+  lede:
+    "Turn the current Matter into a partner brief, client update or team note. Edit it, copy it or download it for the channel you already use.",
+} as const;
 
 export const WHO = {
-  is: "Indian transactional associates and partners working on SHA, SSA, SPA and disclosure-letter deal packs.",
-  isNot: "Agmt is not designed as a general contract tool for every document or every legal workflow.",
+  is: "Built first for Indian transactional associates and partners working on shareholder agreements.",
+  isNot:
+    "The first route is deliberately focused so the proof and review can be checked against a clear standard.",
 } as const;
 
 export const HOW = [
   {
-    heading: "Create the Matter",
-    body: "Name the deal pack and set the mandate: who you act for, the instrument, the stage and what must be protected.",
+    heading: "Bring the agreement into a Matter",
+    body: "Keep the document, its versions and the mandate together as the working record for the deal.",
   },
   {
-    heading: "Upload the native DOCX",
-    body: "Add the agreement to the Matter. Agmt builds the document outline, definition graph and proposed canonicalisation map.",
+    heading: "Run the free Proof pass",
+    body: "Check definitions, cross-references, numbering, blanks, figures, parties and structural consistency in one sweep.",
   },
   {
-    heading: "Confirm the map",
-    body: "Review legal-name mappings and identifier candidates before the document moves into Proof or Review.",
+    heading: "Inspect the evidence",
+    body: "Open each finding at the exact document location. Incomplete checks remain visible.",
   },
   {
-    heading: "Run Proof",
-    body: "Inspect mechanical hits, the deal map, source quality and any check that could not complete. Proof remains useful on its own.",
+    heading: "Move into Review",
+    body: "Work the named legal provisions against the party, stage and protections that matter for the mandate.",
   },
   {
-    heading: "Work the Review list",
-    body: "Open each issue with its clause, exact wording, mandate-specific reason and ask. Accept, edit, reject or park it.",
+    heading: "Make the call",
+    body: "Accept, edit, reject or park each issue. Your decision stays connected to its wording and rationale.",
   },
   {
-    heading: "Download the work",
-    body: "Export the current list or download eligible accepted edits in a tracked-change DOCX for Word.",
+    heading: "Take the work forward",
+    body: "Download eligible accepted edits in a tracked-change Word file and draft the email that follows.",
   },
 ] as const;
 
 export const BETA = {
-  rule: [
-    "Fifty seats in the first beta.",
-    "Thirty are first-come. Submit while one is available and the seat is held.",
-    "Twenty are allotted by hand for a balanced testing group.",
-  ],
-  aside: "Join for Proof, Review or both. The form tells you exactly what your submission secured.",
-  emailHelper: "Use the address where you want the beta invitation.",
-  reminderNote: "Email only. No beta seat is claimed.",
+  headline: "Book your place before Agmt opens.",
+  capacity: "50 seats. One focused first cohort.",
+  body:
+    "Agmt is launching soon. Book a beta seat to be considered for the first cohort, or set a reminder if you only want the launch note.",
+  aside:
+    "Choose Proof, Review or both. We will write to the address you give us before access opens.",
+  emailHelper: "Use the address where you want the beta note.",
+  reminderNote: "A reminder does not book a beta seat.",
 } as const;
 
 export const LEGAL = [
   "Agmt is software for legal professionals. It does not replace professional judgment or provide legal advice.",
-  "The product accepts documents after you sign in.",
-  "You decide what you submit to Agmt and what output you accept, share or sign.",
+  "Agmt is launching soon. The first beta is capped at 50 seats.",
+  "You decide what you submit, what changes you accept and what you share or sign.",
 ] as const;
 
 export const FLOW = [
-  { step: "Matter", note: "Set the deal and mandate" },
-  { step: "Upload", note: "Add native DOCX files" },
-  { step: "Proof", note: "Catch artefact defects" },
-  { step: "Review", note: "Work the Key Issues List" },
-  { step: "Download", note: "Take the list or redline" },
+  { step: "Draft", note: "The agreement takes shape" },
+  { step: "Turn", note: "Edits and numbering move" },
+  { step: "Proof", note: "Mechanical defects surface" },
+  { step: "Review", note: "Legal issues become decisions" },
+  { step: "Forward", note: "Redline and email follow" },
 ] as const;

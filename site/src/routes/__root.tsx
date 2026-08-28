@@ -5,7 +5,21 @@ import appCss from "../styles.css?url";
 
 const NAME = "Agmt";
 const DESCRIPTION =
-  "Proof the artefact. Review the deal. A web workflow for Indian transactional lawyers working on SHA, SSA, SPA and disclosure-letter deal packs.";
+  "Free agreement proofing for Indian transaction teams. Catch broken references, drifting defined terms, numbering gaps and leftover blanks before the next review.";
+
+const THEME_SCRIPT = `
+  (() => {
+    try {
+      const saved = localStorage.getItem("agmt-color-theme");
+      const systemNight = matchMedia("(prefers-color-scheme: dark)").matches;
+      const theme = saved === "day" || saved === "night" ? saved : systemNight ? "night" : "day";
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme === "night" ? "dark" : "light";
+    } catch {
+      document.documentElement.dataset.theme = "day";
+    }
+  })();
+`;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -14,14 +28,15 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: NAME },
       { name: "description", content: DESCRIPTION },
-      { name: "theme-color", content: "#0b0d0f" },
+      { name: "theme-color", content: "#101419" },
+      { name: "color-scheme", content: "light dark" },
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: NAME },
-      { property: "og:title", content: "Agmt — Proof the artefact. Review the deal." },
+      { property: "og:title", content: "Agmt — Proofing should not take another evening." },
       { property: "og:description", content: DESCRIPTION },
-      { property: "og:image", content: "/og.png" },
+      { property: "og:image", content: "/og.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "/og.png" },
+      { name: "twitter:image", content: "/og.jpg" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
@@ -48,9 +63,10 @@ export const Route = createRootRoute({
   component: () => (
     <html lang="en-IN" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className="bg-ink font-sans text-ink">
+      <body className="bg-paper font-sans text-ink">
         <PreviewHostBridge />
         <AuthProvider>
           <Outlet />

@@ -1,7 +1,7 @@
-import { Download, FileText, ListChecks, Search, Upload } from "lucide-react";
+import { ArrowRight, FileCheck2, FileText, ListChecks, PenLine } from "lucide-react";
 import { FLOW } from "@/brand/copy";
 
-const ICONS = [FileText, Upload, Search, ListChecks, Download] as const;
+const ICONS = [FileText, PenLine, FileCheck2, ListChecks, ArrowRight] as const;
 
 export function FlowDiagram() {
   return (
@@ -27,7 +27,7 @@ export function FlowDiagram() {
         })}
       </ol>
       <figcaption className="mt-3 text-sm text-faint">
-        The working path from Matter to downloadable output.
+        The document moves quickly. The proof still has to be exact.
       </figcaption>
     </figure>
   );

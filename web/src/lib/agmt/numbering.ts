@@ -1,4 +1,6 @@
+import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
+import type { ExtractedDocument, SourceCapability } from "./types.ts";
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -217,7 +219,7 @@ export function createNumberingResolver(
   function resolve(request: NumberingRequest): NumberingResolution | null {
     const style = request.styleId ? styles.get(request.styleId) : undefined;
     const numId = request.numId ?? style?.numId ?? null;
-    const level = request.level ?? style?.level ?? null;
+    const level = request.level ?? style?.level ?? (numId != null ? 0 : null);
     if (numId == null || level == null) return null;
 
     const num = nums.get(numId);
@@ -269,5 +271,99 @@ export function createNumberingResolver(
     resolve,
     hasNativeNumbering: nums.size > 0,
     unsupportedFormats,
+  };
+}
+
+function rawNumbering(numbering: string | null): { numId: string | null; level: number | null } {
+  if (!numbering) return { numId: null, level: null };
+  const [rawNumId = "", rawLevel = ""] = numbering.split(":", 2);
+  const level = rawLevel === "" ? null : Number.parseInt(rawLevel, 10);
+  return {
+    numId: rawNumId || null,
+    level: level != null && Number.isFinite(level) ? level : null,
+  };
+}
+
+/**
+ * Resolve Word-generated labels after OOXML extraction. The extractor keeps the
+ * raw `numId:ilvl` tuple in `block.numbering`; this pass replaces it with the
+ * visible label Word presents while retaining provenance in dedicated fields.
+ */
+export async function resolveExtractedNumbering(
+  bytes: Buffer,
+  document: ExtractedDocument,
+): Promise<ExtractedDocument> {
+  const zip = await JSZip.loadAsync(bytes, { checkCRC32: true });
+  const numberingFile = zip.file("word/numbering.xml");
+  const stylesFile = zip.file("word/styles.xml");
+  const numberingXml = numberingFile ? await numberingFile.async("string") : null;
+  const stylesXml = stylesFile ? await stylesFile.async("string") : null;
+  const resolver = createNumberingResolver(numberingXml, stylesXml);
+  let resolvedCount = 0;
+  let unresolvedNativeCount = 0;
+
+  const blocks = document.blocks.map((block) => {
+    if (block.isHeaderFooter) return block;
+    const raw = rawNumbering(block.numbering);
+    const resolution = resolver.resolve({
+      numId: raw.numId,
+      level: raw.level,
+      styleId: block.styleId,
+    });
+    if (!resolution) {
+      if (raw.numId != null) unresolvedNativeCount += 1;
+      return { ...block, numbering: null };
+    }
+    resolvedCount += 1;
+    return {
+      ...block,
+      numbering: resolution.label,
+      numberingNumId: resolution.numId,
+      numberingLevel: resolution.level,
+      numberingFormat: resolution.format,
+    };
+  });
+
+  let numberingCapability: SourceCapability;
+  if (!resolver.hasNativeNumbering) {
+    numberingCapability = {
+      name: "numbering",
+      available: false,
+      state: "evaluated_absent",
+      detectorVersion: "word-numbering-v1",
+      suppressionReason: null,
+    };
+  } else if (unresolvedNativeCount > 0 || resolver.unsupportedFormats.size > 0) {
+    numberingCapability = {
+      name: "numbering",
+      available: true,
+      state: "unsupported",
+      detectorVersion: "word-numbering-v1",
+      suppressionReason: [
+        unresolvedNativeCount ? `${unresolvedNativeCount} numbered paragraphs could not be resolved` : null,
+        resolver.unsupportedFormats.size
+          ? `Unsupported formats: ${Array.from(resolver.unsupportedFormats).sort().join(", ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("; "),
+    };
+  } else {
+    numberingCapability = {
+      name: "numbering",
+      available: resolvedCount > 0,
+      state: resolvedCount > 0 ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "word-numbering-v1",
+      suppressionReason: null,
+    };
+  }
+
+  return {
+    ...document,
+    blocks,
+    capabilities: [
+      ...document.capabilities.filter((capability) => capability.name !== "numbering"),
+      numberingCapability,
+    ],
   };
 }

@@ -8,11 +8,15 @@ import {
   USABLE_OUTLINE_CLASSIFIED_SHARE,
   USABLE_OUTLINE_NUMBERED_MIN,
 } from "./config.ts";
-import type { ExtractedDocument, IndexQuality, Provision, SourceQuality } from "./types.ts";
+import type { Definition, DefinitionUse, ExtractedDocument, IndexQuality, Provision, SourceQuality } from "./types.ts";
 
 export { INDEX_QUALITY_VERSION };
 
-export function scoreIndex(provisions: Provision[], doc: ExtractedDocument): IndexQuality {
+export function scoreIndex(
+  provisions: Provision[],
+  doc: ExtractedDocument,
+  graph?: { definitions: Definition[]; uses: DefinitionUse[] },
+): IndexQuality {
   const leaves = provisions.filter((p) => p.ownsText);
   const nonBlankChars = leaves.reduce((n, p) => n + p.canonicalText.replace(/\s+/g, "").length, 0) || 1;
   const unclassified = leaves.filter((p) => p.nodeType === "unclassified");
@@ -45,8 +49,14 @@ export function scoreIndex(provisions: Provision[], doc: ExtractedDocument): Ind
     outlineContinuity = Math.max(0, 1 - gaps / ints.length);
   } else if (topLevel.length) outlineContinuity = 0.7;
 
-  const defLeaves = leaves.filter((p) => p.nodeType === "definition_entry");
-  const definitionMapping = defLeaves.length ? Math.min(1, defLeaves.length / 3) : 0.4;
+  let definitionMapping = 0.4;
+  if (graph && graph.definitions.length) {
+    const used = new Set(graph.uses.map((u) => u.definitionId));
+    definitionMapping = used.size / graph.definitions.length;
+  } else {
+    const defLeaves = leaves.filter((p) => p.nodeType === "definition_entry");
+    definitionMapping = defLeaves.length ? Math.min(1, defLeaves.length / 3) : 0.4;
+  }
 
   const tableBlocks = doc.blocks.filter((b) => b.isTable && b.text.trim());
   const tableCompleteness = tableBlocks.length
@@ -79,6 +89,9 @@ export function scoreIndex(provisions: Provision[], doc: ExtractedDocument): Ind
     classifiedShare: Math.round(classifiedShare * 1000) / 1000,
     materialUnclassified,
     usableOutline,
+    unclassifiedChars,
+    unclassifiedLeafCount: unclassified.length,
+    indexQualityVersion: INDEX_QUALITY_VERSION,
     components,
   };
 }

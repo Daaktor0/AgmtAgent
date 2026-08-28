@@ -1,4 +1,3 @@
-import { newId } from "./ids.ts";
 import { RE_DECIMAL, RE_DEF_PLAIN, RE_DEF_QUOTED, RE_HEADING, RE_LIMB, RE_SIG_START } from "./patterns.ts";
 import type { ExtractedBlock, ExtractedDocument, NodeType, Provision } from "./types.ts";
 
@@ -57,9 +56,8 @@ function classifyBlock(
   return { nodeType: "unclassified", number: null, heading: null, confidence: 0.4 };
 }
 
-function lineCount(text: string): { start: number; end: number; nonBlank: number } {
-  const lines = text.split("\n");
-  return { start: 0, end: Math.max(0, lines.length - 1), nonBlank: lines.filter((l) => l.trim()).length };
+function isScheduleScope(type: string): boolean {
+  return type === "schedule" || type === "annex";
 }
 
 /**
@@ -97,6 +95,7 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
   let inSignature = false;
   let inDefinitions = false;
   let inRecitals = false;
+  let inheritType: NodeType | null = null;
   let order = 0;
   let globalLine = 1;
   const childCount = new Map<string, number>([[rootId, 0]]);
@@ -113,39 +112,98 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
       globalLine += raw.split("\n").length;
       continue;
     }
-    if (RE_SIG_START.test(raw) || /^signature\s+page\b/i.test(raw.trim())) inSignature = true;
-    if (/^definitions?\b/i.test(raw.trim()) || /interpretation/i.test(raw.trim().slice(0, 40))) {
-      inDefinitions = true;
-      currentScope = { type: "definitions", id: "definitions" };
+    const trimmed = raw.trim();
+
+    if (RE_SIG_START.test(raw) || /^signature\s+page\b/i.test(trimmed)) {
+      inSignature = true;
+      inDefinitions = false;
+      inRecitals = false;
+      inheritType = "signature_block";
     }
-    if (/^whereas\b/i.test(raw.trim()) || /^recitals?\b/i.test(raw.trim())) {
+
+    if (
+      /^between\b/i.test(trimmed) ||
+      /^this\s+(shareholders|share\s+subscription|share\s+purchase)\s+agreement\b/i.test(trimmed)
+    ) {
+      if (!inSignature && !isScheduleScope(currentScope.type)) {
+        inRecitals = true;
+        inheritType = "recital";
+        currentScope = { type: "recitals", id: "recitals" };
+      }
+    }
+
+    if (/^whereas\b/i.test(trimmed) || /^recitals?\b/i.test(trimmed)) {
       inRecitals = true;
-      currentScope = { type: "recitals", id: "recitals" };
+      inDefinitions = false;
+      inheritType = "recital";
+      if (!isScheduleScope(currentScope.type)) currentScope = { type: "recitals", id: "recitals" };
     }
-    const h = raw.trim().match(RE_HEADING);
+
+    const h = trimmed.match(RE_HEADING);
     if (h) {
       const kind = headingKind(h[1]);
       if (kind === "schedule" || kind === "annex") {
         currentScope = { type: kind, id: `${kind}:${h[2]}` };
         inDefinitions = false;
         inRecitals = false;
+        inSignature = false;
+        inheritType = kind;
       } else if (kind === "part") {
         currentScope = { type: "part", id: `part:${h[2]}` };
+        inheritType = "part";
       } else {
-        currentScope = { type: "main_body", id: "main" };
+        if (!isScheduleScope(currentScope.type)) {
+          currentScope = { type: "main_body", id: "main" };
+        }
         inRecitals = false;
+        inheritType = "clause";
       }
     }
 
-    const cls = classifyBlock(
-      b,
-      inSignature,
-      inDefinitions
-        ? { type: "definitions", id: currentScope.id }
-        : inRecitals
-          ? { type: "recitals", id: currentScope.id }
-          : currentScope,
-    );
+    const dec = trimmed.match(RE_DECIMAL);
+    if (dec && !dec[1].includes(".")) {
+      const rest = trimmed.slice(dec[0].length).trim();
+      if (/^definitions?\b/i.test(rest) || /^interpretation\b/i.test(rest)) {
+        inDefinitions = true;
+        inRecitals = false;
+        inheritType = "definition_entry";
+        if (!isScheduleScope(currentScope.type)) {
+          currentScope = { type: "definitions", id: "definitions" };
+        }
+      } else if (!inSignature) {
+        inDefinitions = false;
+        inRecitals = false;
+        inheritType = "clause";
+        if (currentScope.type === "definitions" || currentScope.type === "recitals") {
+          currentScope = { type: "main_body", id: "main" };
+        }
+      }
+    }
+
+    if ((/^definitions?\b/i.test(trimmed) || /^interpretation\b/i.test(trimmed)) && !dec && !h) {
+      inDefinitions = true;
+      inheritType = "definition_entry";
+      if (!isScheduleScope(currentScope.type)) {
+        currentScope = { type: "definitions", id: "definitions" };
+      }
+    }
+
+    const classifyScope = inDefinitions
+      ? { type: isScheduleScope(currentScope.type) ? currentScope.type : "definitions", id: currentScope.id }
+      : inRecitals
+        ? { type: "recitals", id: currentScope.id }
+        : currentScope;
+
+    const cls = classifyBlock(b, inSignature && !b.isHeaderFooter, classifyScope);
+
+    if (cls.nodeType === "unclassified" && inheritType && !b.isHeaderFooter) {
+      if (inSignature) cls.nodeType = "signature_block";
+      else if (inRecitals) cls.nodeType = "recital";
+      else if (inDefinitions) cls.nodeType = "definition_entry";
+      else if (inheritType === "schedule" || inheritType === "annex") cls.nodeType = inheritType;
+      else cls.nodeType = inheritType === "part" ? "clause" : inheritType;
+      cls.confidence = Math.max(cls.confidence, 0.7);
+    }
 
     const isStructural =
       Boolean(h) || (cls.nodeType === "clause" && cls.number && !cls.number.includes("."));
@@ -170,18 +228,17 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
         sourceEnd: b.sourceEnd,
         structuralPath: ["document", cls.nodeType, cls.number],
         classificationConfidence: cls.confidence,
-        lineStart: 0,
-        lineEnd: 0,
+        lineStart: globalLine,
+        lineEnd: globalLine,
         blockIndex: null,
       });
       currentParent = containerId;
     } else if (isStructural && cls.nodeType === "clause" && cls.number && !String(cls.number).includes(".")) {
-      currentParent = rootId;
+      currentParent = isScheduleScope(currentScope.type) ? currentParent : rootId;
     }
 
     const parent = currentParent;
     const oc = childCount.get(parent) ?? 0;
-    const lines = lineCount(raw);
     const leafId = `p:${b.index}`;
     push({
       provisionId: leafId,
@@ -206,7 +263,6 @@ export function buildProvisionTree(doc: ExtractedDocument): Provision[] {
     });
     order += 1;
     globalLine += raw.split("\n").length;
-    void lines;
   }
 
   return provisions;

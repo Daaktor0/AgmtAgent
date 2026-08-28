@@ -5,10 +5,15 @@
  * 3. Run Indian identifier recognisers.
  * 4. Replace confirmed identifiers with version-scoped placeholders.
  * 5. Do not mask amounts, dates, percentages, clause numbers, governing law, or defined terms.
+ *
+ * Source offsets always refer to the immutable source provision. Any user decision
+ * rebuilds both the canonical projection and the bidirectional span segments from
+ * that source; stale proposal segments must never survive a confirmed map.
  */
 import { newId } from "./ids.ts";
 import { detectIdentifiers } from "./identifiers.ts";
 import { RECOGNISER_VERSION } from "./config.ts";
+import { sha256Hex } from "./crypto.ts";
 import type { Definition, ProposedEntry, Provision, SpanSegment } from "./types.ts";
 
 export type CanonicalResult = {
@@ -18,24 +23,148 @@ export type CanonicalResult = {
   placeholderIndex: Record<string, string>;
 };
 
+type Piece = {
+  start: number;
+  end: number;
+  replacement: string;
+  entryId: string;
+};
+
+function overlaps(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
+  return a.start < b.end && a.end > b.start;
+}
+
+function projectProvision(
+  provision: Provision,
+  original: string,
+  entries: ProposedEntry[],
+): { provision: Provision; segments: SpanSegment[] } {
+  if (!provision.ownsText) return { provision: { ...provision }, segments: [] };
+
+  const active = entries
+    .filter((e) => e.userDecision !== "not_identifier")
+    .slice()
+    .sort((a, b) => a.sourceStart - b.sourceStart || a.sourceEnd - b.sourceEnd);
+
+  let sourceCursor = 0;
+  let canonical = "";
+  const segments: SpanSegment[] = [];
+
+  const pushSegment = (
+    sourceStart: number,
+    sourceEnd: number,
+    canonicalStart: number,
+    canonicalEnd: number,
+    replacementEntryId: string | null,
+  ) => {
+    segments.push({
+      segmentId: newId(),
+      provisionId: provision.provisionId,
+      canonicalStart,
+      canonicalEnd,
+      sourceStart,
+      sourceEnd,
+      replacementEntryId,
+    });
+  };
+
+  for (const entry of active) {
+    if (
+      entry.sourceStart < sourceCursor ||
+      entry.sourceStart < 0 ||
+      entry.sourceEnd < entry.sourceStart ||
+      entry.sourceEnd > original.length
+    ) {
+      throw Object.assign(new Error("canonicalisation_overlap_or_bounds"), {
+        code: "canonicalisation_overlap_or_bounds",
+        entryId: entry.entryId,
+      });
+    }
+    if (original.slice(entry.sourceStart, entry.sourceEnd) !== entry.originalValue) {
+      throw Object.assign(new Error("canonicalisation_source_mismatch"), {
+        code: "canonicalisation_source_mismatch",
+        entryId: entry.entryId,
+      });
+    }
+
+    if (entry.sourceStart > sourceCursor) {
+      const untouched = original.slice(sourceCursor, entry.sourceStart);
+      const start = canonical.length;
+      canonical += untouched;
+      pushSegment(sourceCursor, entry.sourceStart, start, canonical.length, null);
+    }
+
+    const start = canonical.length;
+    canonical += entry.replacement;
+    pushSegment(
+      entry.sourceStart,
+      entry.sourceEnd,
+      start,
+      canonical.length,
+      entry.entryId,
+    );
+    sourceCursor = entry.sourceEnd;
+  }
+
+  if (sourceCursor < original.length) {
+    const untouched = original.slice(sourceCursor);
+    const start = canonical.length;
+    canonical += untouched;
+    pushSegment(sourceCursor, original.length, start, canonical.length, null);
+  }
+
+  if (!active.length) {
+    canonical = original;
+    if (original.length) pushSegment(0, original.length, 0, original.length, null);
+  }
+
+  return {
+    provision: { ...provision, canonicalText: canonical, canonicalLength: canonical.length },
+    segments,
+  };
+}
+
+function reconstructSource(base: CanonicalResult, provision: Provision): string {
+  if (!provision.ownsText) return provision.canonicalText;
+  const segments = base.segments
+    .filter((s) => s.provisionId === provision.provisionId)
+    .slice()
+    .sort((a, b) => a.canonicalStart - b.canonicalStart);
+  if (!segments.length) return provision.canonicalText;
+
+  const byEntry = new Map(base.entries.map((e) => [e.entryId, e]));
+  let original = "";
+  for (const segment of segments) {
+    if (segment.replacementEntryId) {
+      const entry = byEntry.get(segment.replacementEntryId);
+      if (!entry) {
+        throw Object.assign(new Error("canonicalisation_segment_entry_missing"), {
+          code: "canonicalisation_segment_entry_missing",
+          entryId: segment.replacementEntryId,
+        });
+      }
+      original += entry.originalValue;
+    } else {
+      original += provision.canonicalText.slice(segment.canonicalStart, segment.canonicalEnd);
+    }
+  }
+  return original;
+}
+
 export function proposeCanonicalisation(
   provisions: Provision[],
   definitions: Definition[],
 ): CanonicalResult {
   const entries: ProposedEntry[] = [];
-  const segments: SpanSegment[] = [];
   const placeholderIndex: Record<string, string> = {};
-  let placeholderSeq: Record<string, number> = {};
-
+  const placeholderSeq: Record<string, number> = {};
   const nameDefs = definitions.filter((d) => d.legalName);
 
-  const outProvisions: Provision[] = provisions.map((p) => {
-    if (!p.ownsText) return { ...p };
+  for (const p of provisions) {
+    if (!p.ownsText) continue;
     const original = p.canonicalText;
-    type Piece = { start: number; end: number; replacement: string; entryId: string | null };
     const pieces: Piece[] = [];
 
-    // Protect defined-term tokens so identifier detection skips them.
     const protectedSpans: [number, number][] = [];
     for (const d of definitions) {
       if (d.scopeId !== p.scopeId && !(d.scopeType === "main_body" && p.scopeType === "main_body")) {
@@ -43,9 +172,7 @@ export function proposeCanonicalisation(
       }
       const rx = new RegExp(`\\b${escapeRe(d.term)}\\b`, "g");
       let m: RegExpExecArray | null;
-      while ((m = rx.exec(original))) {
-        protectedSpans.push([m.index, m.index + m[0].length]);
-      }
+      while ((m = rx.exec(original))) protectedSpans.push([m.index, m.index + m[0].length]);
     }
 
     for (const d of nameDefs) {
@@ -54,14 +181,16 @@ export function proposeCanonicalisation(
       const rx = new RegExp(escapeRe(d.legalName!), "g");
       let m: RegExpExecArray | null;
       while ((m = rx.exec(original))) {
+        const candidate = { start: m.index, end: m.index + m[0].length };
+        if (pieces.some((piece) => overlaps(candidate, piece))) continue;
         const entryId = newId();
         entries.push({
           entryId,
           kind: "legal_name",
           identifierType: null,
           sourceProvisionId: p.provisionId,
-          sourceStart: m.index,
-          sourceEnd: m.index + m[0].length,
+          sourceStart: candidate.start,
+          sourceEnd: candidate.end,
           originalValue: m[0],
           replacement: d.term,
           definedTermId: d.definitionId,
@@ -69,18 +198,12 @@ export function proposeCanonicalisation(
           confidence: 0.95,
           userDecision: "accept",
         });
-        pieces.push({
-          start: m.index,
-          end: m.index + m[0].length,
-          replacement: d.term,
-          entryId,
-        });
+        pieces.push({ ...candidate, replacement: d.term, entryId });
       }
     }
 
-    const ids = detectIdentifiers(original, protectedSpans);
-    for (const hit of ids) {
-      if (pieces.some((x) => hit.start < x.end && hit.end > x.start)) continue;
+    for (const hit of detectIdentifiers(original, protectedSpans)) {
+      if (pieces.some((piece) => overlaps({ start: hit.start, end: hit.end }, piece))) continue;
       const key = `${hit.type}:${hit.value}`;
       if (!placeholderIndex[key]) {
         placeholderSeq[hit.type] = (placeholderSeq[hit.type] ?? 0) + 1;
@@ -108,52 +231,26 @@ export function proposeCanonicalisation(
         entryId,
       });
     }
+  }
 
-    pieces.sort((a, b) => a.start - b.start);
-    let cursor = 0;
-    let canonical = "";
-    const segs: SpanSegment[] = [];
-    const pushSeg = (
-      srcStart: number,
-      srcEnd: number,
-      canStart: number,
-      canEnd: number,
-      entryId: string | null,
-    ) => {
-      if (srcEnd < srcStart || canEnd < canStart) return;
-      segs.push({
-        segmentId: newId(),
-        provisionId: p.provisionId,
-        canonicalStart: canStart,
-        canonicalEnd: canEnd,
-        sourceStart: srcStart,
-        sourceEnd: srcEnd,
-        replacementEntryId: entryId,
-      });
-    };
+  const byProvision = new Map<string, ProposedEntry[]>();
+  for (const entry of entries) {
+    const list = byProvision.get(entry.sourceProvisionId) ?? [];
+    list.push(entry);
+    byProvision.set(entry.sourceProvisionId, list);
+  }
 
-    for (const piece of pieces) {
-      if (piece.start > cursor) {
-        const chunk = original.slice(cursor, piece.start);
-        pushSeg(cursor, piece.start, canonical.length, canonical.length + chunk.length, null);
-        canonical += chunk;
-      }
-      pushSeg(piece.start, piece.end, canonical.length, canonical.length + piece.replacement.length, piece.entryId);
-      canonical += piece.replacement;
-      cursor = piece.end;
-    }
-    if (cursor < original.length) {
-      const chunk = original.slice(cursor);
-      pushSeg(cursor, original.length, canonical.length, canonical.length + chunk.length, null);
-      canonical += chunk;
-    }
-    if (!pieces.length) {
-      pushSeg(0, original.length, 0, original.length, null);
-      canonical = original;
-    }
-    segments.push(...segs);
-    return { ...p, canonicalText: canonical, canonicalLength: canonical.length };
-  });
+  const outProvisions: Provision[] = [];
+  const segments: SpanSegment[] = [];
+  for (const provision of provisions) {
+    const projected = projectProvision(
+      provision,
+      provision.canonicalText,
+      byProvision.get(provision.provisionId) ?? [],
+    );
+    outProvisions.push(projected.provision);
+    segments.push(...projected.segments);
+  }
 
   void RECOGNISER_VERSION;
   return { provisions: outProvisions, entries, segments, placeholderIndex };
@@ -163,36 +260,50 @@ export function applyDecisions(
   base: CanonicalResult,
   decisions: Record<string, { decision: "accept" | "correct" | "not_identifier"; replacement?: string }>,
 ): CanonicalResult {
-  const entries = base.entries.map((e) => {
-    const d = decisions[e.entryId];
-    if (!d) return e;
-    if (d.decision === "not_identifier") {
-      return { ...e, userDecision: d.decision, replacement: e.originalValue };
+  const sourceByProvision = new Map(
+    base.provisions.map((provision) => [provision.provisionId, reconstructSource(base, provision)]),
+  );
+
+  const entries = base.entries.map((entry) => {
+    const decision = decisions[entry.entryId];
+    if (!decision) return entry;
+    if (decision.decision === "not_identifier") {
+      return { ...entry, userDecision: decision.decision, replacement: entry.originalValue };
     }
-    if (d.decision === "correct" && d.replacement) {
-      return { ...e, userDecision: d.decision, replacement: d.replacement };
+    if (decision.decision === "correct") {
+      const replacement = decision.replacement?.trim();
+      if (!replacement) {
+        throw Object.assign(new Error("canonicalisation_correction_required"), {
+          code: "canonicalisation_correction_required",
+          entryId: entry.entryId,
+        });
+      }
+      return { ...entry, userDecision: decision.decision, replacement };
     }
-    return { ...e, userDecision: d.decision };
+    return { ...entry, userDecision: decision.decision };
   });
-  // Re-apply replacements from original source text stored on entries.
-  const byProv = new Map<string, typeof entries>();
-  for (const e of entries) {
-    const list = byProv.get(e.sourceProvisionId) ?? [];
-    list.push(e);
-    byProv.set(e.sourceProvisionId, list);
+
+  const byProvision = new Map<string, ProposedEntry[]>();
+  for (const entry of entries) {
+    const list = byProvision.get(entry.sourceProvisionId) ?? [];
+    list.push(entry);
+    byProvision.set(entry.sourceProvisionId, list);
   }
-  const provisions = base.provisions.map((p) => {
-    if (!p.ownsText) return p;
-    // Reconstruct from original by inverting current canonical using segments is
-    // lossy after prior apply. Slice 0 reapplies on the last proposed original
-    // values against the current canonical only for identifier skip.
-    const list = (byProv.get(p.provisionId) ?? []).slice().sort((a, b) => a.sourceStart - b.sourceStart);
-    if (!list.length) return p;
-    // Use source offsets against a reconstructed original if the first proposal
-    // still matches; otherwise leave text (user cannot free-edit canonical).
-    return p;
-  });
-  return { ...base, entries, provisions };
+
+  const provisions: Provision[] = [];
+  const segments: SpanSegment[] = [];
+  for (const provision of base.provisions) {
+    const source = sourceByProvision.get(provision.provisionId) ?? provision.canonicalText;
+    const projected = projectProvision(
+      provision,
+      source,
+      byProvision.get(provision.provisionId) ?? [],
+    );
+    provisions.push(projected.provision);
+    segments.push(...projected.segments);
+  }
+
+  return { ...base, entries, provisions, segments };
 }
 
 function escapeRe(s: string): string {
@@ -201,9 +312,22 @@ function escapeRe(s: string): string {
 
 export function mapSha(entries: ProposedEntry[]): string {
   const payload = entries
-    .map((e) => `${e.kind}|${e.identifierType ?? ""}|${e.replacement}|${e.userDecision}|${e.sourceStart}|${e.sourceEnd}`)
-    .join("\n");
-  let h = 0;
-  for (let i = 0; i < payload.length; i++) h = (h * 31 + payload.charCodeAt(i)) >>> 0;
-  return h.toString(16).padStart(8, "0") + payload.length.toString(16);
+    .slice()
+    .sort(
+      (a, b) =>
+        a.sourceProvisionId.localeCompare(b.sourceProvisionId) ||
+        a.sourceStart - b.sourceStart ||
+        a.sourceEnd - b.sourceEnd ||
+        a.kind.localeCompare(b.kind),
+    )
+    .map((entry) => ({
+      kind: entry.kind,
+      identifierType: entry.identifierType,
+      sourceProvisionId: entry.sourceProvisionId,
+      sourceStart: entry.sourceStart,
+      sourceEnd: entry.sourceEnd,
+      replacement: entry.replacement,
+      decision: entry.userDecision,
+    }));
+  return sha256Hex(JSON.stringify(payload));
 }

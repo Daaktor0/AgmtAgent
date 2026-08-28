@@ -6,6 +6,7 @@
  */
 
 export const FOOTER = "Agmt · Software for Indian transactional lawyers · India";
+export const APP_URL = "https://agmt-web.vercel.app";
 
 export const PRODUCT = {
   eyebrow: "Built for Indian transaction teams",
@@ -112,7 +113,7 @@ export const BETA = {
 
 export const LEGAL = [
   "Agmt is software for legal professionals. It does not replace professional judgment or provide legal advice.",
-  "The marketing site accepts beta sign-ups. The product accepts documents when product access is available.",
+  "The product accepts documents after you sign in.",
   "You decide what you submit to Agmt and what output you accept, share or sign.",
 ] as const;
 

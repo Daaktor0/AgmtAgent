@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { IS_NOT, PRODUCT, PROOF, REVIEW, WHO } from "@/brand/copy";
+import { APP_URL, IS_NOT, PRODUCT, PROOF, REVIEW, WHO } from "@/brand/copy";
 import { Clause, Page, Prose, SiteFrame } from "@/components/site/frame";
 
 export const Route = createFileRoute("/what")({
@@ -71,9 +71,9 @@ function WhatPage() {
             workflow
           </Link>{" "}
           or{" "}
-          <Link to="/beta" className="text-accent underline underline-offset-4">
-            join the beta
-          </Link>
+          <a href={APP_URL} className="text-accent underline underline-offset-4">
+            open Agmt
+          </a>
           .
         </p>
       </Page>

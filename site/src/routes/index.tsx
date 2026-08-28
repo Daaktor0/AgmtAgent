@@ -11,21 +11,15 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { PRODUCT, PROOF, REVIEW, BETA } from "@/brand/copy";
-import { Aside, SiteFrame } from "@/components/site/frame";
+import { APP_URL, PRODUCT, PROOF, REVIEW } from "@/brand/copy";
+import { SiteFrame } from "@/components/site/frame";
 import { FlowDiagram } from "@/components/site/flow-diagram";
-import { SeatForm } from "@/components/site/seat-form";
-import { getSeatCounts } from "@/lib/waitlist";
 
 export const Route = createFileRoute("/")({
-  loader: () => getSeatCounts(),
   component: Home,
 });
 
 function Home() {
-  const counts = Route.useLoaderData();
-  const seatsOpen = counts.openRemaining > 0;
-
   return (
     <SiteFrame>
       <section className="hero-grid relative isolate overflow-hidden bg-ink text-paper">
@@ -45,10 +39,10 @@ function Home() {
             <p className="mt-4 max-w-xl text-lg leading-relaxed text-paper/65">{PRODUCT.lede}</p>
             <div className="mt-9 flex flex-wrap gap-3">
               <a
-                href="#beta"
+                href={APP_URL}
                 className="group inline-flex min-h-12 items-center gap-2 bg-accent px-5 font-medium text-accent-ink no-underline transition-colors hover:bg-accent-hover"
               >
-                {seatsOpen ? "Join the beta" : "Join the waitlist"}
+                Open Agmt
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
               </a>
               <a
@@ -218,25 +212,29 @@ function Home() {
         </div>
       </section>
 
-      <section id="beta" className="scroll-mt-20 border-t border-rule bg-paper py-20 sm:py-28">
-        <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
-          <div className="lg:sticky lg:top-28">
-            <p className="label text-accent">Private beta</p>
-            <h2 className="mt-4 text-[2.7rem] leading-[1.02] text-ink sm:text-[4rem]">
-              Put Agmt on your next deal pack.
-            </h2>
-            <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-2">{PRODUCT.seats}</p>
-            <div className="mt-6">
-              <Aside>{BETA.aside}</Aside>
-            </div>
-            <div className="mt-8 flex items-center gap-3 text-sm text-muted">
-              <span className="inline-flex size-9 items-center justify-center rounded-full border border-rule bg-card font-mono text-xs text-accent">
-                {counts.openRemaining}
-              </span>
-              open first-come seats remaining
+      <section id="start" className="scroll-mt-20 border-t border-rule bg-paper py-20 sm:py-28">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          <div className="overflow-hidden bg-accent px-6 py-10 text-accent-ink sm:px-10 sm:py-14 lg:px-14">
+            <p className="label text-accent-ink/60">Open Agmt</p>
+            <div className="mt-5 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+              <h2 className="max-w-3xl text-[2.8rem] leading-[1.01] text-accent-ink sm:text-[4.2rem]">
+                Put the deal pack in front of you to work.
+              </h2>
+              <div>
+                <p className="max-w-xl text-lg leading-relaxed text-accent-ink/78">
+                  Sign in with Google or a single-use email link. Create a Matter, upload a native DOCX and run Proof.
+                </p>
+                <a
+                  href={APP_URL}
+                  className="group mt-7 inline-flex min-h-12 items-center gap-2 bg-ink px-5 font-medium text-paper no-underline transition-colors hover:bg-ink-2"
+                >
+                  Open Agmt
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                </a>
+                <p className="mt-5 text-sm leading-relaxed text-accent-ink/58">{PRODUCT.scope}</p>
+              </div>
             </div>
           </div>
-          <SeatForm counts={counts} />
         </div>
       </section>
     </SiteFrame>

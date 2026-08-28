@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { HOW } from "@/brand/copy";
+import { createFileRoute } from "@tanstack/react-router";
+import { APP_URL, HOW } from "@/brand/copy";
 import { Clause, Page, Prose, SiteFrame } from "@/components/site/frame";
 import { FlowDiagram } from "@/components/site/flow-diagram";
 
@@ -36,10 +36,10 @@ function HowPage() {
         </section>
 
         <p className="mt-12 border-t border-rule pt-6 text-[0.9375rem] text-muted">
-          Agmt is entering private beta.{" "}
-          <Link to="/beta" className="text-accent underline underline-offset-4">
-            Request a seat
-          </Link>
+          Agmt is ready to open.{" "}
+          <a href={APP_URL} className="text-accent underline underline-offset-4">
+            Start a Matter
+          </a>
           .
         </p>
       </Page>

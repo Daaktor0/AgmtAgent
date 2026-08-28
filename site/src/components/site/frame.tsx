@@ -2,14 +2,13 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { Wordmark } from "@/brand/wordmark";
-import { FOOTER } from "@/brand/copy";
+import { APP_URL, FOOTER } from "@/brand/copy";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/#product", label: "Product" },
   { href: "/#workflow", label: "Workflow" },
   { href: "/#modes", label: "Proof & Review" },
-  { href: "/#beta", label: "Beta" },
 ] as const;
 
 export function SiteFrame({
@@ -42,10 +41,10 @@ export function SiteFrame({
             ))}
           </nav>
           <a
-            href="/#beta"
+            href={APP_URL}
             className="group inline-flex min-h-10 items-center gap-2 border border-accent bg-accent px-4 text-sm font-medium text-accent-ink no-underline transition-colors hover:bg-accent-hover"
           >
-            Join the beta
+            Open Agmt
             <ArrowUpRight className="size-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </a>
         </div>
@@ -68,9 +67,9 @@ export function SiteFrame({
             <Link to="/how" className="no-underline hover:text-paper">
               How
             </Link>
-            <Link to="/beta" className="no-underline hover:text-paper">
-              Beta
-            </Link>
+            <a href={APP_URL} className="no-underline hover:text-paper">
+              Open Agmt
+            </a>
             <Link to="/legal" className="no-underline hover:text-paper">
               Legal
             </Link>

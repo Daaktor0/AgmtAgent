@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { auth, SESSION_TOKEN_COOKIE } from "@/lib/auth/server";
 
 async function signSessionToken(token: string, secret: string): Promise<string> {
@@ -15,6 +16,21 @@ async function signSessionToken(token: string, secret: string): Promise<string> 
   );
   const signature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
   return `${token}.${signature}`;
+}
+
+async function setSessionCookie(signed: string): Promise<void> {
+  try {
+    const { setCookie } = await import("@tanstack/react-start/server");
+    setCookie(SESSION_TOKEN_COOKIE, signed, {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+    });
+  } catch {
+    /* no request context (tests) */
+  }
 }
 
 /**
@@ -58,19 +74,39 @@ export async function openVerifiedEmailSession(
   const session = await context.internalAdapter.createSession(userId);
   if (!session?.token) throw new Error("Could not open a session.");
   const signed = await signSessionToken(session.token, context.secret);
-
-  try {
-    const { setCookie } = await import("@tanstack/react-start/server");
-    setCookie(SESSION_TOKEN_COOKIE, signed, {
-      path: "/",
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60,
-    });
-  } catch {
-    /* no request context (tests) */
-  }
+  await setSessionCookie(signed);
 
   return { userId, sessionToken: signed };
+}
+
+/**
+ * Temporary open-access mode used only while Agmt is being product-tested.
+ *
+ * There is deliberately no shared "dev-user" on the production database. Each
+ * browser receives a fresh Better Auth identity and HttpOnly session, so its
+ * Matters and documents remain isolated by owner_user_id even though there is
+ * no interactive login step. Remove this helper when normal sign-in is restored.
+ */
+export async function openAnonymousTestSession(): Promise<{ userId: string }> {
+  const context = await auth.$context;
+  const nonce = randomUUID();
+  const email = `tester-${nonce}@test.agmt.local`;
+  const user = await context.internalAdapter.createUser({
+    email,
+    name: "Test workspace",
+    emailVerified: true,
+  });
+  if (!user?.id) throw new Error("Could not create a test workspace.");
+
+  await context.internalAdapter.createAccount({
+    userId: user.id,
+    accountId: nonce,
+    providerId: "temporary_test_access",
+  });
+
+  const session = await context.internalAdapter.createSession(user.id);
+  if (!session?.token) throw new Error("Could not open a test workspace session.");
+  const signed = await signSessionToken(session.token, context.secret);
+  await setSessionCookie(signed);
+  return { userId: user.id };
 }

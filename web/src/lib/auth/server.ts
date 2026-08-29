@@ -3,7 +3,7 @@ import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
@@ -41,15 +41,24 @@ function previewAuthSecret(): string {
   return globalAuthRef.__grokAuthPreviewSecret__;
 }
 
+/**
+ * Production should ultimately use BETTER_AUTH_SECRET. During temporary
+ * open-access product testing, derive a stable, domain-separated signing secret
+ * from the already-private database credential so serverless instances agree on
+ * session signatures. This avoids a source-visible or per-process secret while
+ * keeping the bypass reversible once normal login is restored.
+ */
 const configuredAuthSecret = env("BETTER_AUTH_SECRET");
-if (deployed && !configuredAuthSecret) {
-  throw new Error("BETTER_AUTH_SECRET is required for deployed Agmt sessions.");
-}
-const authSecret = configuredAuthSecret ?? previewAuthSecret();
+const temporaryDerivedSecret =
+  deployed && !configuredAuthSecret && databaseUrl
+    ? createHash("sha256")
+        .update(`agmt-temporary-test-auth-v1\0${databaseUrl}`)
+        .digest("hex")
+    : undefined;
+const authSecret = configuredAuthSecret ?? temporaryDerivedSecret ?? previewAuthSecret();
 
 const authDisabled = env("VITE_AUTH_ENABLED") === "false";
 const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
-// The shared preview OAuth client is intentionally never used in production.
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? (!deployed ? PREVIEW_CLIENT_ID : undefined);
 const grokClientSecret =
   env("GROK_AUTH_CLIENT_SECRET") ?? (!deployed ? PREVIEW_CLIENT_SECRET : undefined);
@@ -79,19 +88,22 @@ const vercelHosts = [
   hostOnly(env("VERCEL_URL")),
 ].filter((value): value is string => Boolean(value));
 const explicitHost = hostOnly(explicitBaseURL);
+
+// Public production alias for the app. Keep this exact rather than trusting a
+// wildcard such as *.vercel.app, which would weaken sibling-app isolation.
+const AGMT_PRODUCTION_HOSTS = ["agmt-web.vercel.app"];
+
 const deployedAllowedHosts = [...new Set([
   ...vercelHosts,
+  ...AGMT_PRODUCTION_HOSTS,
   ...(explicitHost ? [explicitHost] : []),
 ])];
 
-// Better Auth validates the host before constructing callbacks. On Vercel use
-// exact project/deployment hosts from Vercel's own environment rather than an
-// open Host-header wildcard. This fixes the production "Invalid origin" error.
 const baseURL = deployed
   ? {
       allowedHosts: deployedAllowedHosts,
       protocol: "https" as const,
-      ...(explicitBaseURL ? { fallback: explicitBaseURL } : {}),
+      fallback: explicitBaseURL ?? "https://agmt-web.vercel.app",
     }
   : explicitBaseURL ?? {
       allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],

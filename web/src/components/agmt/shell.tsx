@@ -1,32 +1,58 @@
 import { Link } from "@tanstack/react-router";
-import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { user, isPending } = useCurrentUserState();
+
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <header className="border-b border-rule">
-        <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between px-5 sm:px-8">
-          <div className="flex items-center gap-6">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-ink text-paper shadow-[0_1px_0_rgba(0,0,0,0.18)]">
+        <div className="mx-auto flex h-[68px] max-w-[1500px] items-center justify-between gap-6 px-6 sm:px-9 lg:px-12">
+          <div className="flex min-w-0 items-center gap-8 lg:gap-12">
             <Link
               to="/"
-              className="border-b-2 border-oxblood pb-0.5 font-display text-[22px] font-semibold leading-none tracking-[-0.03em] text-ink"
+              aria-label="Agmt — Matters"
+              className="group inline-flex shrink-0 items-start gap-1.5 no-underline"
             >
-              Agmt
+              <span className="font-display text-[28px] font-semibold leading-none tracking-[-0.045em] text-paper">
+                Agmt
+              </span>
+              <span className="mt-0.5 size-1.5 bg-oxblood transition-transform group-hover:scale-125" aria-hidden="true" />
             </Link>
-            <span className="hidden text-xs tracking-[0.04em] text-stone sm:inline">Proof</span>
+
+            <nav className="hidden items-center gap-1 sm:flex" aria-label="Workspace">
+              <Link
+                to="/"
+                className="border-b-2 border-oxblood px-3 py-[22px] text-[13px] font-medium text-paper no-underline"
+              >
+                Matters
+              </Link>
+              <span className="px-3 py-[22px] text-[13px] text-white/55">Proof</span>
+              <span className="inline-flex items-center gap-2 px-3 py-[22px] text-[13px] text-white/45">
+                Review
+                <span className="border border-white/15 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-white/45">
+                  soon
+                </span>
+              </span>
+            </nav>
           </div>
-          <div className="flex items-center gap-4 text-sm text-stone">
+
+          <div className="flex shrink-0 items-center gap-3">
             {isPending ? (
-              <div className="h-8 w-28 animate-pulse rounded-[2px] bg-paper-sunk" />
+              <div className="h-8 w-32 animate-pulse bg-white/5" />
             ) : user ? (
-              <UserButton />
+              <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-white/50 sm:flex">
+                <span className="size-1.5 bg-white/35" aria-hidden="true" />
+                Private test workspace
+              </div>
             ) : null}
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1280px] px-5 py-8 sm:px-8 sm:py-10">{children}</main>
+
+      <main className="mx-auto max-w-[1500px] px-6 py-10 sm:px-9 sm:py-12 lg:px-12 lg:py-14">
+        {children}
+      </main>
     </div>
   );
 }

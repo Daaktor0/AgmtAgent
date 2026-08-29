@@ -5,34 +5,28 @@ import { auth, authConfigured } from "./server";
 /**
  * Server-side session resolution (server-only).
  *
- * Because this app runs its OWN Better Auth at same-origin `/api/auth/*`, the
- * session cookie is sent with every request to this app — server functions AND
- * SSR loaders included. So we resolve the user straight from the request cookies
- * via `auth.api.getSession` (no client-minted JWT needed). Never trust a
- * client-supplied user id — only the result of this verification.
+ * Agmt runs Better Auth at same-origin `/api/auth/*`. A valid Better Auth
+ * session is authoritative regardless of how it was opened: Google, delivered
+ * magic link, gate identity, or the temporary isolated product-testing flow.
+ * Never trust a client-supplied user id — only Better Auth's verified session.
  */
 
 /** True when a real database is configured server-side. */
-const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
+const databaseConfigured = Boolean(
+  process.env.DATABASE_URL?.trim() ||
+    process.env.POSTGRES_URL?.trim() ||
+    process.env.POSTGRES_PRISMA_URL?.trim(),
+);
 
 /** Re-export so callers can branch on it without importing `server.ts`. */
 export { authConfigured };
 
-if (databaseConfigured && !authConfigured) {
-  console.error(
-    "[auth] DATABASE_URL is set but auth is disabled (VITE_AUTH_ENABLED=false) " +
-      "— requireUserId() will reject every request (fail closed) rather than " +
-      "share one dev user on a real database.",
-  );
-}
-
-/** Dev fallback user id, used only when auth is disabled (VITE_AUTH_ENABLED=false). */
+/** Dev fallback user id, used only for local development with no persistent DB. */
 export const DEV_USER_ID = "dev-user";
 
 /**
  * Thrown by `requireUserId` when the caller has no valid session. Carries
- * `status: 401`; the message is a stable contract — match
- * `err.message === "Unauthorized"` client-side to send the visitor to sign-in.
+ * `status: 401`; the message is a stable contract for route guards.
  */
 export class UnauthorizedError extends Error {
   readonly status = 401;
@@ -45,19 +39,17 @@ export class UnauthorizedError extends Error {
 export type VerifiedUser = { id: string; email: string | null };
 
 /**
- * Resolve the signed-in user from the current request, or `null` when auth isn't
- * configured / nobody is signed in. Safe to call from server functions and SSR
- * loaders.
+ * Resolve a real Better Auth session from the current request.
  *
- * `bearerToken` is for the LIVE PREVIEW: the app runs in a partitioned iframe
- * whose cookies don't reach the server, so `authMiddleware` forwards the session
- * as a bearer token, which we present as `Authorization: Bearer …` (the `bearer`
- * plugin resolves it). When deployed no token is passed and the cookie is used.
+ * Do this BEFORE considering whether an interactive provider is configured.
+ * The temporary product-testing entrypoint deliberately creates a real Better
+ * Auth user/session even while Google/email login is bypassed. Rejecting that
+ * session merely because an OAuth provider is absent would collapse the test
+ * workspace back onto the unsafe shared-dev-user path.
  */
 export async function getSessionUser(
   bearerToken?: string,
 ): Promise<VerifiedUser | null> {
-  if (!authConfigured && !gateIdentityEnabled()) return null;
   const request = getRequest();
   if (!request) return null;
   let headers = request.headers;
@@ -65,33 +57,36 @@ export async function getSessionUser(
     headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${bearerToken}`);
   }
-  const session = await auth.api.getSession({ headers });
-  if (!session?.user) return null;
-  return { id: session.user.id, email: session.user.email ?? null };
+  try {
+    const session = await auth.api.getSession({ headers });
+    if (!session?.user) return null;
+    return { id: session.user.id, email: session.user.email ?? null };
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Resolve the current user id for a server function, or throw when unauthorized.
- * Prefer `authMiddleware` (`./middleware`), which calls this for you.
- * - Auth enabled -> the verified session user id; throws
- *   `UnauthorizedError` when signed out. Works in the sandbox preview too (real
- *   sign-in via the baked preview client).
- * - Auth disabled (`VITE_AUTH_ENABLED=false`) + `DATABASE_URL` set -> throw (fail
- *   closed): one shared dev user on a real database would let every visitor
- *   read/write everyone's rows.
- * - Auth disabled + no database -> the shared dev user id.
+ * Resolve the current user id for a server function.
+ *
+ * 1. Any valid Better Auth session wins. This includes the temporary isolated
+ *    test workspace currently used on production.
+ * 2. If there is no session and interactive auth/gate identity is configured,
+ *    fail unauthorized.
+ * 3. Only local development without a persistent database may use DEV_USER_ID.
+ *    A deployed/persistent database never falls back to a shared user.
  */
 export async function requireUserId(bearerToken?: string): Promise<string> {
-  if (!authConfigured && !gateIdentityEnabled()) {
-    if (databaseConfigured) {
-      throw new Error(
-        "Auth is disabled (VITE_AUTH_ENABLED=false) but DATABASE_URL is set — " +
-          "refusing to fall back to the shared dev user against a real database.",
-      );
-    }
-    return DEV_USER_ID;
-  }
   const user = await getSessionUser(bearerToken);
-  if (!user) throw new UnauthorizedError();
-  return user.id;
+  if (user) return user.id;
+
+  if (authConfigured || gateIdentityEnabled()) {
+    throw new UnauthorizedError();
+  }
+
+  if (databaseConfigured) {
+    throw new UnauthorizedError();
+  }
+
+  return DEV_USER_ID;
 }

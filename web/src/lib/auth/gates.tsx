@@ -1,31 +1,22 @@
-import { useState, type ReactNode } from "react";
-import { Navigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { authEnabled, signOut } from "./client";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
+import { openTestWorkspace } from "@/lib/fn/test-access";
 
 /**
- * Auth state components — plain wrappers around `useCurrentUserState()`.
- *
- * With auth on, visitors are signed out until they authenticate — in the sandbox
- * live preview too, which does real sign-in. The shared dev user appears only
- * when auth is disabled (`VITE_AUTH_ENABLED=false`, the shipped default).
- * While the session is still resolving, gates that care about signed-out state
- * render nothing so there's no signed-out flash on hard reload.
+ * Auth state components. During the current product-testing period, signed-out
+ * visitors are provisioned an isolated temporary workspace instead of being sent
+ * through interactive login. Each workspace still uses a real Better Auth
+ * session and owner_user_id boundary.
  */
 
-/** Where `RedirectToSignIn` sends signed-out visitors. Create this route. */
 export const SIGN_IN_PATH = "/login";
 
-/** Render children only when a user is present (real session, or the disabled-auth dev user). */
 export function SignedIn({ children }: { children: ReactNode }) {
   const { user } = useCurrentUserState();
   return user ? <>{children}</> : null;
 }
 
-/**
- * Render children only once we KNOW the visitor is signed out (`isPending` has
- * cleared and there is no user). Hidden while the session is still loading.
- */
 export function SignedOut({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   if (isPending || user) return null;
@@ -33,26 +24,29 @@ export function SignedOut({ children }: { children: ReactNode }) {
 }
 
 /**
- * Client-side redirect to the sign-in route (TanStack `<Navigate>` — NOT a full
- * `window.location` reload). A hard navigation re-bootstraps the SPA and re-runs
- * session loading, which feels like a second "Loading…" on /login.
- *
- * Guard routes by waiting out `isPending` first (see `use-current-user`), then
- * render this.
+ * Temporary open-access gate: create one browser-bound test identity and reload
+ * the current route. No shared production dev user is used.
  */
-export function RedirectToSignIn({ to = SIGN_IN_PATH }: { to?: string }) {
-  return <Navigate to={to} />;
+export function RedirectToSignIn() {
+  const started = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    void openTestWorkspace()
+      .then(() => window.location.reload())
+      .catch((err: Error) => setError(err.message || "Could not open the test workspace."));
+  }, []);
+
+  if (error) {
+    return <p className="mt-4 text-sm text-danger">{error}</p>;
+  }
+  return <span className="sr-only">Opening test workspace.</span>;
 }
 
-/**
- * Minimal signed-in identity chip + sign-out. Restyle freely (see the
- * `design-ui` skill). Sign-out is only shown when auth is enabled (the
- * disabled-auth dev user has nothing to sign out of).
- */
 export function UserButton() {
   const user = useCurrentUser();
-  // Sign-out can take a moment (and can fail when deployed), so the control
-  // shows it is working and cannot be fired twice.
   const [signingOut, setSigningOut] = useState(false);
   if (!user) return null;
   const label = user.displayName ?? user.primaryEmail ?? "Account";
@@ -76,12 +70,11 @@ export function UserButton() {
           disabled={signingOut}
           onClick={() => {
             setSigningOut(true);
-            // Success navigates away; on failure re-enable so it can be retried.
             void signOut().catch(() => setSigningOut(false));
           }}
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
         >
-          {signingOut ? "Signing out…" : "Sign out"}
+          {signingOut ? "Resetting…" : "Reset test session"}
         </button>
       )}
     </div>

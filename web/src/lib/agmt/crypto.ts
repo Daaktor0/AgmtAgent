@@ -3,13 +3,19 @@
  *
  * Every encrypted value gets a fresh AES-256-GCM data key. The data key is
  * itself wrapped with a deployment secret derived for the Agmt envelope domain.
- * Local development may use the historical preview key; deployed environments
- * fail closed if neither AGMT_ENCRYPTION_KEY nor BETTER_AUTH_SECRET is present.
+ * Local development may use the historical preview key. Normal deployed
+ * environments require AGMT_ENCRYPTION_KEY or BETTER_AUTH_SECRET.
+ *
+ * The temporary open-access product-test deployment may derive a stable test
+ * wrapping secret from its private managed Postgres credential. This exists only
+ * so isolated browser workspaces can exercise the document pipeline before the
+ * final production secrets are configured. Remove this fallback with test mode.
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 const LOCAL_WRAP_LABEL = "agmt-wrap-v1-preview-not-for-production";
 const WRAP_DOMAIN = "agmt-envelope-wrap-v2\0";
+const TEST_WRAP_DOMAIN = "agmt-isolated-test-envelope-v1\0";
 
 function env(key: string): string | undefined {
   const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
@@ -20,8 +26,16 @@ function isDeployed(): boolean {
   return Boolean(env("VERCEL") || env("VERCEL_ENV"));
 }
 
+function temporaryTestSecret(): string | undefined {
+  if (!isDeployed() || env("VITE_AUTH_ENABLED") !== "false") return undefined;
+  const databaseUrl = env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
+  if (!databaseUrl) return undefined;
+  return createHash("sha256").update(TEST_WRAP_DOMAIN).update(databaseUrl).digest("hex");
+}
+
 function wrappingKey(): Buffer {
-  const deploymentSecret = env("AGMT_ENCRYPTION_KEY") ?? env("BETTER_AUTH_SECRET");
+  const deploymentSecret =
+    env("AGMT_ENCRYPTION_KEY") ?? env("BETTER_AUTH_SECRET") ?? temporaryTestSecret();
   if (deploymentSecret) {
     return createHash("sha256").update(WRAP_DOMAIN).update(deploymentSecret).digest();
   }

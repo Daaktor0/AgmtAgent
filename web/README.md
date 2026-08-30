@@ -35,3 +35,12 @@ use a separate `BETTER_AUTH_DATABASE_URL` or `AUTH_DATABASE_URL`; never reuse
 the application login or accept tenant/role values from the browser. The
 migration creates non-login runtime group roles only; operators provision
 least-privilege login memberships outside the repository.
+
+
+The new JOB-01/OBJ-01 plane keeps upload intents, leases and outbox state in
+Supabase Postgres while document bytes use a server-only object-store boundary.
+`object_manifest` stores metadata and integrity/envelope fields, never document
+bytes; `object_blob` is legacy and is not rewritten by the additive migration.
+`AGMT_OBJECT_STORE=memory` is restricted to local synthetic tests. A deployed
+runtime fails closed until an explicitly installed S3 adapter and the later
+malware/worker gates are approved.

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { requireVerified } from "@/lib/server/account";
-import { putBlob } from "@/lib/server/blobs";
+import { deleteBlob, putBlob } from "@/lib/server/blobs";
 import { writeAudit } from "@/lib/server/audit";
 import { encryptText, sha256Hex } from "@/lib/agmt/crypto";
 import { newId } from "@/lib/agmt/ids";
@@ -64,6 +64,7 @@ async function cleanupIncompleteRows(sql: Sql, userId: string, matterId: string)
         where document_version_id = ${version.versionId} and owner_user_id = ${userId}
       `;
       if (version.objectKey) {
+        await deleteBlob(userId, version.objectKey, sql);
         await sql`
           delete from object_blob
           where object_key = ${version.objectKey} and owner_user_id = ${userId}
@@ -155,8 +156,10 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
         phase = "create_document";
         await transactionSql`
           insert into document (
+              tenant_id,
+
             document_id, matter_id, owner_user_id, logical_name, role, user_instrument
-          ) values (
+          ) values ( ${context.tenantId}, 
             ${documentId}, ${data.matterId}, ${context.userId},
             ${data.logicalName.trim() || data.fileName.replace(/\.docx$/i, "")},
             'primary', ${data.userInstrument}
@@ -168,11 +171,13 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
           phase = "persist_refusal";
           await transactionSql`
             insert into document_version (
+              tenant_id,
+
               document_version_id, document_id, matter_id, owner_user_id, version_no,
               source_sha256, mime_type, byte_size, page_count, page_count_method,
               original_object_key, wrapped_data_key, cipher_metadata, ingest_status,
               refusal_code, source_quality, ingest_schema_version
-            ) values (
+            ) values ( ${context.tenantId}, 
               ${versionId}, ${documentId}, ${data.matterId}, ${context.userId}, 1,
               ${sha256Hex(bytes)},
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -209,13 +214,15 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
         phase = "create_version";
         await transactionSql`
           insert into document_version (
+              tenant_id,
+
             document_version_id, document_id, matter_id, owner_user_id, version_no,
             source_sha256, mime_type, byte_size, page_count, page_count_method,
             original_object_key, wrapped_data_key, cipher_metadata, ingest_status,
             source_quality, structure_confidence, index_quality_version,
             ingest_schema_version, classified_share, material_unclassified,
             usable_outline, unclassified_chars, unclassified_leaf_count, index_quality_json
-          ) values (
+          ) values ( ${context.tenantId}, 
             ${versionId}, ${documentId}, ${data.matterId}, ${context.userId}, 1,
             ${sha256Hex(bytes)},
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -241,9 +248,11 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
         mapId = newId();
         await transactionSql`
           insert into canonicalisation_map (
+              tenant_id,
+
             map_id, document_version_id, owner_user_id, version_no, status,
             map_sha256, recogniser_version
-          ) values (
+          ) values ( ${context.tenantId}, 
             ${mapId}, ${versionId}, ${context.userId}, 1, 'proposed',
             ${ingested.mapSha}, ${RECOGNISER_VERSION}
           )
@@ -253,11 +262,13 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
         for (const entry of ingested.proposed.entries) {
           await transactionSql`
             insert into canonicalisation_entry (
+              tenant_id,
+
               entry_id, map_id, owner_user_id, kind, identifier_type,
               source_provision_id, source_start, source_end,
               original_value_ciphertext, replacement, defined_term_id,
               detector, confidence, user_decision
-            ) values (
+            ) values ( ${context.tenantId}, 
               ${entry.entryId}, ${mapId}, ${context.userId}, ${entry.kind},
               ${entry.identifierType}, ${entry.sourceProvisionId}, ${entry.sourceStart},
               ${entry.sourceEnd}, ${envelopeToText(entry.originalValue)}, ${entry.replacement},
@@ -270,9 +281,11 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
         for (const capability of ingested.extracted.capabilities) {
           await transactionSql`
             insert into source_capability (
+              tenant_id,
+
               source_capability_id, document_version_id, owner_user_id,
               capability_name, available, detector_version, suppression_reason
-            ) values (
+            ) values ( ${context.tenantId}, 
               ${newId()}, ${versionId}, ${context.userId}, ${capability.name},
               ${capability.available}, ${capability.detectorVersion}, ${capability.suppressionReason}
             )
@@ -335,6 +348,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
           `;
         }
         if (originalObjectKey) {
+          await deleteBlob(context.userId, originalObjectKey, sql);
           await sql`
             delete from object_blob
             where object_key = ${originalObjectKey} and owner_user_id = ${context.userId}

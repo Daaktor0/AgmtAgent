@@ -1,7 +1,7 @@
 # Agmt Proof implementation status
 
-**Baseline:** current `main` at `fcbb5d53992510184ee8c0ab0118f8b3efdeaeef` (30 August 2026)  
-**Working branch:** `proof-production-hardening/fnd04-rls` at `8598d93d4407fb273093328026e63f79a6c09e65`  
+**Baseline:** current `main` at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
+**Working branch:** `proof-production-hardening/job01-obj01` at `d0c33520cda0a2f0ee4fc654d0a1b529bc5e0c06`  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
@@ -14,15 +14,14 @@
 
 ## Evidence from the latest code head
 
-At branch head `8598d93d4407fb273093328026e63f79a6c09e65`:
+At branch head `d0c33520cda0a2f0ee4fc654d0a1b529bc5e0c06`:
 
-- Web Proof workflow `33332641988`: dependency install, route/build verification, typecheck, DB transaction/context tests, production build, Proof golden corpus, and the full web suite all passed.
-- The full web command completed `224/224` tests with zero failures. Eval workflow `33332642038` also passed.
-- FND-04 static checks cover forced RLS, role attributes, context functions, grants/revokes, fail-closed policies, middleware tenant derivation, separate Better Auth configuration, bootstrap entitlement boundaries, and operation-scoped magic-link access.
-- The PGlite SQL rehearsal applies the full migration chain and proves same-tenant visibility, cross-tenant write rejection, missing-context denial, and support read-only behavior.
-- The DOCX fixture builder pins ZIP entry timestamps; transaction, tenant-integrity, migration-ledger, parser-boundary, atomic-publication, auth, PWA and golden-corpus regressions remain green.
+- Web Proof workflow `33335350002`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed.
+- Eval workflow `33335349948` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
+- The deterministic DOCX fixture now uses fixed entry metadata and uncompressed ZIP entries, so byte hashes are stable across repeated CI runs.
+- FND-04 tenant-bound write repairs cover the existing Matter/document/audit paths required by forced RLS; the static regression test rejects any tenant-owned insert that omits `tenant_id`.
+- JOB-01/OBJ-01 tests cover immutable object keys, tenant-hashed storage paths, byte/hash integrity, S3 adapter boundaries, job transitions, lease expiry, idempotency, additive migration safety, and PGlite RLS crossover behavior.
 - No credentials, connection strings, private keys, production documents or environment files are present in the changed repository paths.
-
 ## Package ledger
 
 | Package | Status | Evidence and remaining work |
@@ -33,8 +32,8 @@ At branch head `8598d93d4407fb273093328026e63f79a6c09e65`:
 | FND-02 | Relational publication integrated; fault-injection/object reconciliation pending | Provider-neutral transactions, rollback/release behavior, atomic Matter/document publication and parser-before-transaction boundaries are tested. |
 | FND-03 | Expand migration implemented; contract and historical review pending | Tenant/member tables, nullable tenant columns, composite keys/FKs and empty-sandbox rehearsal pass; validation and NOT NULL contract are intentionally deferred. |
 | FND-04 | Repository and empty-sandbox implementation complete; production security review pending | 32/32 public tables are forced-RLS with 108 policies; runtime roles are non-login/non-bypass; PGlite and real synthetic crossover probes pass. Login-role provisioning, managed sandbox probe-membership cleanup and owner review remain open. |
-| JOB-01 | Not started; dependency-ready after FND-03/FND-04 review | Durable upload/job/outbox state machines, leases, transitions and tenant-scoped audit are required before worker execution. |
-| OBJ-01 | Not started; depends on FND-01 | Object-store abstraction and immutable manifests are required before document bytes leave PostgreSQL. |
+| JOB-01 | Implemented repository-side; empty-sandbox schema verified; production worker review pending | Tenant-bound upload/job/outbox state machines, guarded transitions, leases, idempotency and RLS are implemented and tested. Isolated worker execution and production IAM remain open. |
+| OBJ-01 | Implemented repository-side; empty-sandbox schema verified; production object-store review pending | Server-only provider boundary, immutable tenant-hashed keys, integrity checks and metadata-only manifests are implemented and tested. Direct upload, malware quarantine, S3 wiring and KMS remain open. |
 | OBJ-02 | Not started; depends on OBJ-01/JOB-01 | Direct multipart upload, scoped presigning, completion and abort are not implemented. |
 | OBJ-03 | Not started; depends on OBJ-01 | Malware quarantine and clean-result gate are not implemented. |
 | WRK-01 | Not started; depends on JOB-01/OBJ-01 | Isolated parser/Proof worker, queue, DLQ, limits and restricted IAM are not implemented. |
@@ -83,6 +82,14 @@ At branch head `8598d93d4407fb273093328026e63f79a6c09e65`:
 
 A package is not marked complete until its acceptance tests, security considerations, definition of done, and relevant full-suite gates pass.
 
+## JOB-01 / OBJ-01 implementation evidence
+
+- `0005_job_object_plane.sql` is additive: it creates `object_manifest`, `upload_intent`, `ingest_job` and `job_outbox` with tenant-bound composite references, idempotency constraints, guarded state fields, lease metadata and forced RLS. It does not alter, copy, decrypt, delete or rewrite `object_blob`.
+- `object_manifest` stores provider/key/state/hash/size/envelope metadata only; document bytes are not stored in the new relational plane. The local memory provider is synthetic-data-only, and deployed runtimes fail closed until an explicit S3 adapter is installed.
+- The existing server ingestion path now uses the object-store boundary and records a staged manifest; reads require a clean manifest and verify ciphertext and plaintext integrity. The direct multipart upload, malware clean-result and isolated worker gates remain intentionally unfinished.
+- Rollback is forward-only: stop the affected artifact, preserve the prior release, and ship a reviewed forward-fix. There is no destructive down migration and no historical ciphertext migration. External orphan reconciliation is a later package requirement.
+- The authorized empty Supabase sandbox was migrated and verified at the schema level: 36 public tables, four new JOB/OBJ tables, 16 new package policies, all four new tables RLS-enabled and forced, zero users/documents/object bytes/job rows, and no security-advisor errors beyond the intentional `_migrations` INFO.
+
 ## FND-02 transaction design
 
 - The provider-neutral adapter exposes transaction(callback, options) with allow-listed isolation levels.
@@ -114,12 +121,13 @@ See [ADR 0004](adr/0004-tenant-integrity-expand-contract.md).
 ## Supabase sandbox migration receipt
 
 - Target: the user-selected Supabase Free project in Mumbai; its identifier and URL are intentionally omitted from repository documentation.
-- Preflight before FND-04: project healthy, four application migrations recorded, 32 public tables, four ledger rows, and zero users, accounts or documents.
+- Preflight before 0005: project healthy, five application migrations recorded, 32 public tables, five ledger rows, and zero users, accounts or documents.
 - Applied `0004_rls_runtime` from the exact repository file. The application ledger contains checksum `5d4001ff724b6d687486517337485424740d91c1a7a9ff86777e82f71d2f7e69` for `0004_rls_runtime.sql`.
-- Postflight: 32/32 public tables have RLS enabled and forced; 108 public policies exist; the four runtime roles are non-login, non-superuser, non-createdb, non-createrole, non-inherit, non-replication and non-bypassrls; application user/document counts remain zero.
+- Applied the exact `0005_job_object_plane.sql` file with checksum `fc9bdb2c863f0002598ee3d43715998270472cc1`. The existing five ledger rows were normalized to the release runner’s exact `.sql` basenames in one metadata-only transaction, and the sixth row was inserted after the DDL succeeded.
+- Postflight: 36/36 public tables have RLS enabled and forced; the four new tables have 16 package policies; the four runtime roles remain non-login, non-superuser, non-createdb, non-createrole, non-inherit, non-replication and non-bypassrls; application user/document/object/job counts remain zero.
 - The synthetic Supabase crossover probe passed same-tenant visibility, cross-tenant write denial, missing-context denial and support read-only behavior. Probe rows were rolled back.
 - The probe required temporary membership grants to the administrative postgres role. Those grants were non-effective because SET and INHERIT were false, but the managed grantor prevents the ordinary SQL channel from revoking them. A one-off sandbox cleanup record exists in Supabase management history; owner-level cleanup is still required and no application ledger row was added.
-- The security advisor no longer reports the prior RLS-disabled errors. It reports only an INFO for the intentionally release-only `_migrations` table having no policy. Performance INFOs identify unindexed foreign keys for later tuning; they are not a launch waiver.
+- The security advisor no longer reports the prior RLS-disabled errors. It reports only an INFO for the intentionally release-only `_migrations` table having no policy. The performance advisor reports existing/indexing and multiple-policy follow-ups; they are not security or launch waivers.
 - No AWS resources, external auth providers, storage buckets, production services, ciphertext or object bytes were changed.
 
 See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md) and [ADR 0006](adr/0006-tenant-rls-runtime-context.md).
@@ -143,5 +151,5 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md) and [ADR 0006](adr/
 - FND-02 still needs injected-failure integration coverage around the production publication path and the later object/job-plane reconciliation contract.
 - FND-03 contract work must stop on any ambiguous owner, missing principal, tenant mismatch or unverifiable historical ciphertext/key. No historical ciphertext migration has been attempted.
 - The green `224/224` repository suite closes only the repository/template gate. It does not waive the blueprint P0 precision/recall, exact evidence, parser, export, lifecycle, DR, operational or production-authentication gates.
-- The next dependency-ready repository lane is JOB-01 plus OBJ-01 design/implementation, followed by direct upload/quarantine and isolated worker controls. AWS account/resources are not required for this documentation or sandbox phase.
+- The next dependency-ready repository lane is direct upload/quarantine and isolated worker controls (OBJ-02, OBJ-03, WRK-01). Their production S3/malware/IAM authority is not present and no AWS resource was provisioned; repository interfaces may proceed, but live wiring must stop for owner setup/review.
 - Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security and operational gates pass.

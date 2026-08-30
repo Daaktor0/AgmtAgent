@@ -11,6 +11,7 @@ const migrations = await Promise.all([
   readFile(new URL("../migrations/0003_slice2.sql", import.meta.url), "utf8"),
   readFile(new URL("../migrations/0003_tenant_integrity_expand.sql", import.meta.url), "utf8"),
   readFile(new URL("../migrations/0004_rls_runtime.sql", import.meta.url), "utf8"),
+  readFile(new URL("../migrations/0005_job_object_plane.sql", import.meta.url), "utf8"),
 ]);
 
 async function setContext(database, context) {
@@ -132,6 +133,125 @@ test("FND-04 denies cross-tenant app operations and missing context", async () =
         "user-1",
         "support must be read-only",
       ]),
+      /permission denied|row-level security/i,
+    );
+    await database.exec("rollback");
+  } finally {
+    await database.close();
+  }
+});
+
+
+test("JOB-01 and OBJ-01 state tables remain tenant-scoped under runtime roles", async () => {
+  const database = new PGlite();
+  await database.waitReady;
+  try {
+    await database.exec(
+      "create table _migrations (name text primary key, checksum text not null, applied_at timestamptz not null default now())",
+    );
+    for (const migration of migrations) await database.exec(migration);
+    await seed(database);
+
+    await database.query("set role agmt_app");
+    await database.exec("begin");
+    await setContext(database, { userId: "user-1", tenantId: "tenant-1" });
+
+    await database.query(
+      "insert into object_manifest (object_key, tenant_id, owner_user_id, kind, storage_provider, storage_key, state, content_type, sha256, ciphertext_sha256, byte_size, ciphertext_byte_size, wrapped_data_key, cipher_metadata) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+      [
+        "obj_123e4567-e89b-12d3-a456-426614174000",
+        "tenant-1",
+        "user-1",
+        "original_docx",
+        "memory",
+        "tenants/one/objects/obj_123e4567-e89b-12d3-a456-426614174000",
+        "staged",
+        "application/octet-stream",
+        "a".repeat(64),
+        "b".repeat(64),
+        1,
+        1,
+        "wrapped",
+        "{}",
+      ],
+    );
+    await database.query(
+      "insert into upload_intent (upload_intent_id, tenant_id, owner_user_id, matter_id, object_key, content_type, byte_size, sha256, idempotency_key, status, expires_at) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+      [
+        "upload-intent-1",
+        "tenant-1",
+        "user-1",
+        "matter-1",
+        "obj_123e4567-e89b-12d3-a456-426614174000",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        1,
+        "a".repeat(64),
+        "upload-1",
+        "created",
+        "2099-01-01T00:00:00.000Z",
+      ],
+    );
+    await database.query(
+      "insert into ingest_job (job_id, tenant_id, owner_user_id, upload_intent_id, object_key, source_sha256, parser_version, idempotency_key, status) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+      [
+        "job-1",
+        "tenant-1",
+        "user-1",
+        "upload-intent-1",
+        "obj_123e4567-e89b-12d3-a456-426614174000",
+        "a".repeat(64),
+        "parser-v1",
+        "job-1",
+        "queued",
+      ],
+    );
+    await database.query(
+      "insert into job_outbox (outbox_id, tenant_id, created_by_user_id, aggregate_type, aggregate_id, job_type, idempotency_key, payload) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [
+        "outbox-1",
+        "tenant-1",
+        "user-1",
+        "ingest_job",
+        "job-1",
+        "ingest",
+        "job-1",
+        "{}",
+      ],
+    );
+
+    for (const table of ["object_manifest", "upload_intent", "ingest_job", "job_outbox"]) {
+      const rows = await database.query(
+        "select * from " + table + " order by 1",
+      );
+      assert.equal(rows.rows.length, 1, table + " should expose the current tenant");
+    }
+    const crossTenant = await database.query(
+      "select * from object_manifest where tenant_id = $1",
+      ["tenant-2"],
+    );
+    assert.deepEqual(crossTenant.rows, []);
+    await database.exec("commit");
+
+    await database.exec("begin");
+    const noContext = await database.query("select * from job_outbox");
+    assert.deepEqual(noContext.rows, []);
+    await database.exec("rollback");
+
+    await database.exec("reset role");
+    await database.query("set role agmt_support");
+    await database.exec("begin");
+    await setContext(database, {
+      userId: "support-agent",
+      tenantId: "tenant-1",
+      supportTicket: "ticket-123",
+    });
+    const supportRows = await database.query("select * from ingest_job");
+    assert.equal(supportRows.rows.length, 1);
+    await assert.rejects(
+      database.query(
+        "insert into job_outbox (outbox_id, tenant_id, created_by_user_id, aggregate_type, aggregate_id, job_type, idempotency_key, payload) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+        ["outbox-support", "tenant-1", "user-1", "ingest_job", "job-1", "ingest", "support", "{}"],
+      ),
       /permission denied|row-level security/i,
     );
     await database.exec("rollback");

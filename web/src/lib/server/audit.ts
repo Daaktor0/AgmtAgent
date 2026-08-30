@@ -1,4 +1,5 @@
 import { getSql, type Sql } from "@/lib/db";
+import { currentDatabaseContext } from "@/lib/db-context.server";
 import { newId } from "@/lib/agmt/ids";
 import { sha256Hex } from "@/lib/agmt/crypto";
 import { auditLog } from "@/lib/agmt/log";
@@ -16,12 +17,13 @@ export async function writeAudit(input: {
   sql?: Sql;
 }): Promise<void> {
   const sql = input.sql ?? (await getSql());
+  const tenantId = currentDatabaseContext()?.tenantId ?? null;
   await sql`
     insert into audit_event (
-      audit_id, owner_user_id, user_id, matter_id, action, subject_type, subject_id,
+      audit_id, tenant_id, owner_user_id, user_id, matter_id, action, subject_type, subject_id,
       ip_hash, user_agent_hash, detail_codes
     ) values (
-      ${newId()}, ${input.ownerUserId ?? null}, ${input.userId ?? null}, ${input.matterId ?? null},
+      ${newId()}, ${tenantId}, ${input.ownerUserId ?? null}, ${input.userId ?? null}, ${input.matterId ?? null},
       ${input.action}, ${input.subjectType ?? null}, ${input.subjectId ?? null},
       ${input.ip ? sha256Hex(input.ip) : null},
       ${input.ua ? sha256Hex(input.ua) : null},

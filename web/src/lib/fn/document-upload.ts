@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql, transactionOutcome, type Sql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
+import { transactionOutcome } from "@/lib/db-transaction";
 import { requireVerified } from "@/lib/server/account";
 import {
   blobPublicationArtifactFromError,
@@ -238,7 +239,6 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
             ${JSON.stringify(ingested.quality)}
           )
         `;
-        versionInserted = true;
 
         await transactionSql`
           update document

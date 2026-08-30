@@ -10,6 +10,7 @@ import {
   pendingMigrations,
 } from "./migration-plan.mjs";
 import { sha256Hex } from "./migration-checksum.mjs";
+import { validateMigrationLedger } from "./migration-ledger.mjs";
 
 const databaseUrl =
   process.env.DATABASE_URL?.trim() ||
@@ -79,25 +80,10 @@ async function main() {
     const appliedRows = (
       await client.query("SELECT name, checksum FROM _migrations")
     ).rows;
-    const appliedNames = appliedRows.map((row) => row.name);
-    for (const row of appliedRows) {
-      const migration = migrations.get(row.name);
-      if (!migration) {
-        throw new Error(
-          `[migrate] applied migration is missing from this release: ${row.name}`,
-        );
-      }
-      if (!row.checksum) {
-        throw new Error(
-          `[migrate] applied migration has no checksum; controlled ledger backfill is required: ${row.name}`,
-        );
-      }
-      if (row.checksum !== migration.checksum) {
-        throw new Error(
-          `[migrate] migration checksum mismatch; refusing to continue: ${row.name}`,
-        );
-      }
-    }
+    const appliedNames = validateMigrationLedger(
+      appliedRows,
+      migrations.values(),
+    );
 
     let count = 0;
     for (const { name } of pendingMigrations(

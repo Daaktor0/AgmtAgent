@@ -14,12 +14,14 @@
 
 ## Evidence from the latest code head
 
-At code head `8c9b4a236d4f713780750f82da774a89250fb42b`:
+At branch head `7835901983a91dc7ea89d614c5b5e75c26cce63c`:
 
-- Web Proof workflow `33326121240`: development build, typecheck, production build, and proof golden corpus passed.
-- Eval workflow `33326121257`: Python corpus/evaluation checks passed.
-- The explicit `DB transaction hardening tests` CI step and focused new checks passed: transaction commit/rollback, parser-before-transaction boundary, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection after the existing index-quality migration, checksum stability, and ledger drift failures.
-- The full web test command remains red at 190/208 tests. The 18 failures are existing Grok fixture/app-env/PWA metadata expectations plus a stale migration-directory expectation; they are not treated as a launch waiver. The package ledger below therefore keeps final approval pending.
+- Web Proof workflow `33329490902` at code head `076603b3b0c2011bf803ad883df93fa451ce23a1`: dependency install, development build, typecheck, transaction hardening, production build, and Proof golden corpus passed. The full web command completed `196/213` tests with `17` failures.
+- Eval workflow `33329510823`: Python corpus/evaluation checks passed.
+- The focused hardening checks passed, including transaction commit/rollback, parser-before-transaction boundaries, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection, checksum stability, ledger drift failures, and the new auth invariant regression.
+- The previously failing migration-plan expectation was reconciled with the four top-level migration files. The DOCX fixture builder now pins ZIP entry timestamps, and the idempotency/hash regression passes.
+- The remaining full-suite failures are repository-template fixture dependencies: unavailable `.grok/skills/og` material, missing template app-env defaults, Grok PWA asset/metadata fixtures and their write-atomic recipe. They remain visible failures rather than launch waivers.
+- The managed database adapter is now named for generic PostgreSQL, and the Supabase sandbox setup boundary is documented without project identifiers, connection strings or credentials.
 
 ## Package ledger
 
@@ -92,5 +94,5 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md).
 
 - FND-01, FND-03 contract, FND-04, and historical ciphertext disposition require human review before any non-empty or production schema/data action.
 - FND-02 still needs an injected-failure integration harness around the production publication path and the later object/job-plane reconciliation contract.
-- The current full web test command has 18 failures and must be reconciled or explicitly dispositioned; no numerical or security gate is being weakened.
+- The current full web test command has 17 failures and must be reconciled or explicitly dispositioned; no numerical or security gate is being weakened.
 - Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security, and operational gates pass.

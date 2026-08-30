@@ -1,6 +1,6 @@
 # ADR 0006: server-derived tenant RLS runtime context
 
-- **Status:** Accepted for repository implementation; production role provisioning and security review pending
+- **Status:** Accepted for repository implementation and empty-sandbox rehearsal; production role provisioning and security review pending
 - **Date:** 30 August 2026
 - **Decision owners:** Product/engineering owner and implementation agent
 

@@ -495,7 +495,7 @@ ${overrides.join("\n")}
 <Pages>${opts?.pages ?? 1}</Pages>
 </Properties>`,
   );
-  const buf = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  const buf = await zip.generateAsync({ type: "uint8array", compression: "STORE", streamFiles: false });
   return Buffer.from(buf);
 }
 

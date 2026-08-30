@@ -61,7 +61,8 @@ test("FND-03 migration contains no destructive data operation", () => {
 });
 
 test("FND-03 keeps tenant backfill tied to an existing principal", () => {
-  assert.match(migration, /left join user_account/i);
+  assert.match(migration, /references user_account \(user_id\)/i);
+  assert.match(migration, /existing owner has no user_account row/i);
   assert.match(migration, /on conflict \(tenant_id, user_id\) do nothing/i);
   assert.match(migration, /update matter set tenant_id = owner_user_id/i);
   assert.match(migration, /update document_version set tenant_id = owner_user_id/i);

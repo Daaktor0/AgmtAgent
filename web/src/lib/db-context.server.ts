@@ -33,6 +33,9 @@ function validateContext(context: DatabaseRuntimeContext): void {
   if (context.operation && context.runtimeRole !== "app") {
     throw new Error("Database operations are available only to the app runtime role.");
   }
+  if (context.operation && context.tenantId !== null) {
+    throw new Error("Database operations cannot be combined with a tenant context.");
+  }
 }
 
 export function currentDatabaseContext(): DatabaseRuntimeContext | null {

@@ -9,10 +9,10 @@ import {
   installObjectStore,
   storageKeyFor,
 } from "./object-store.ts";
-import {
-  reconcileBlobAfterTransactionFailure,
-  type BlobPublicationArtifact,
-} from "./blobs.ts";
+import type { BlobPublicationArtifact } from "./blobs.ts";
+
+process.env.DATABASE_URL ??= "postgres://synthetic.invalid/agmt";
+const { reconcileBlobAfterTransactionFailure } = await import("./blobs.ts");
 
 type StoredManifest = {
   objectKey: string;

@@ -60,7 +60,7 @@ test("JOB-01 state tables are tenant-bound and idempotency is tenant-scoped", ()
     assert.match(block, /tenant_id\s+text\s+not\s+null/i, table);
     assert.match(block, /owner_user_id|created_by_user_id/i, table);
   }
-  assert.match(migration, /references\s+agmt_tenant_member\s*\(\s*tenant_id\s*,\s*user_id\s*\)/i);
+  assert.match(migration, /references\s+(?:public\.)?agmt_tenant_member\s*\(\s*tenant_id\s*,\s*user_id\s*\)/i);
   assert.match(migration, /on\s+conflict\s*\(\s*tenant_id\s*,\s*idempotency_key\s*\)/i);
   assert.doesNotMatch(migration, /password|secret|private\s+key/i);
 });

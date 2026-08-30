@@ -13,13 +13,13 @@ import {
   type PostgresPoolLike,
   type Sql,
   type TransactionOptions,
-} from "./db-transaction";
+} from "./db-transaction.ts";
 import {
   currentDatabaseContext,
   databaseContextSettings,
-} from "./db-context.server";
+} from "./db-context.server.ts";
 
-export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction";
+export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction.ts";
 
 export type DbSource = "postgres" | "pglite";
 

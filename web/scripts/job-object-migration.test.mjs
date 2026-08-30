@@ -17,7 +17,7 @@ test("JOB-01 and OBJ-01 create additive durable state tables", () => {
   for (const table of tables) {
     assert.match(
       migration,
-      new RegExp("create\\s+table\\s+if\\s+not\\s+exists\\s+" + table + "\\b", "i"),
+      new RegExp("create\\s+table\\s+if\\s+not\\s+exists\\s+(?:public\\.)?" + table + "\\b", "i"),
     );
     assert.match(
       migration,
@@ -55,7 +55,7 @@ test("OBJ-01 stores object metadata only and leaves legacy ciphertext untouched"
 test("JOB-01 state tables are tenant-bound and idempotency is tenant-scoped", () => {
   for (const table of tables) {
     const block = migration.match(
-      new RegExp("create\\s+table\\s+if\\s+not\\s+exists\\s+" + table + "\\s*\\(([\\s\\S]*?)\\);", "i"),
+      new RegExp("create\\s+table\\s+if\\s+not\\s+exists\\s+(?:public\\.)?" + table + "\\s*\\(([\\s\\S]*?)\\);", "i"),
     )?.[1] ?? "";
     assert.match(block, /tenant_id\s+text\s+not\s+null/i, table);
     assert.match(block, /owner_user_id|created_by_user_id/i, table);

@@ -157,7 +157,7 @@ async function createPgliteSql(): Promise<Sql> {
     }>("select name, checksum from _migrations");
     const done = validateMigrationLedger(
       doneRows.rows,
-      migrationByName.values(),
+      [...migrationByName.values()],
     );
     for (const { name } of pendingMigrations(
       Object.keys(migrations),

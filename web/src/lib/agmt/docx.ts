@@ -8,6 +8,8 @@ import type { ExtractedBlock, ExtractedDocument, SourceCapability } from "./type
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
 
+const DETERMINISTIC_ZIP_DATE = new Date(0);
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -392,6 +394,8 @@ export type BuildDocxOpts = {
 /** Minimal DOCX writer used for fixtures and the in-app sample SHA. */
 export async function buildDocx(paragraphs: string[], opts?: BuildDocxOpts): Promise<Buffer> {
   const zip = new JSZip();
+  const writeZipFile = (name: string, data: string) =>
+    zip.file(name, data, { date: DETERMINISTIC_ZIP_DATE });
   const bodyParas = paragraphs
     .map((text) => {
       const page = text === "\\page" ? `<w:br w:type="page"/>` : "";
@@ -426,7 +430,7 @@ export async function buildDocx(paragraphs: string[], opts?: BuildDocxOpts): Pro
     overrides.push(
       `<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`,
     );
-    zip.file(
+    writeZipFile(
       "word/header1.xml",
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -448,13 +452,13 @@ export async function buildDocx(paragraphs: string[], opts?: BuildDocxOpts): Pro
           `<w:comment w:id="${i}" w:author="${escapeXml(c.author)}"><w:p><w:r><w:t xml:space="preserve">${escapeXml(c.text)}</w:t></w:r></w:p></w:comment>`,
       )
       .join("");
-    zip.file(
+    writeZipFile(
       "word/comments.xml",
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${commentXml}</w:comments>`,
     );
   }
-  zip.file(
+  writeZipFile(
     "[Content_Types].xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -465,7 +469,7 @@ export async function buildDocx(paragraphs: string[], opts?: BuildDocxOpts): Pro
 ${overrides.join("\n")}
 </Types>`,
   );
-  zip.file(
+  writeZipFile(
     "_rels/.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -473,18 +477,18 @@ ${overrides.join("\n")}
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
 </Relationships>`,
   );
-  zip.file(
+  writeZipFile(
     "word/_rels/document.xml.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`,
   );
-  zip.file(
+  writeZipFile(
     "word/document.xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <w:body>${bodyParas}${fieldParas}${tables}${sectPr}</w:body></w:document>`,
   );
-  zip.file(
+  writeZipFile(
     "docProps/app.xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">

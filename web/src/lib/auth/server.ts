@@ -3,19 +3,12 @@ import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
-import { ensureDbReady, getPglite } from "../db";
+import { getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
-import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
-import {
-  GROK_ISSUER_DEFAULT,
-  PREVIEW_ALLOWED_HOSTS,
-  PREVIEW_CLIENT_ID,
-  PREVIEW_CLIENT_SECRET,
-} from "./preview";
 
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -31,43 +24,23 @@ if (deployed && !databaseUrl) {
   );
 }
 
-void ensureDbReady();
 
-const globalAuthRef = globalThis as typeof globalThis & {
-  __grokAuthPreviewSecret__?: string;
-};
-function previewAuthSecret(): string {
-  globalAuthRef.__grokAuthPreviewSecret__ ??= randomBytes(32).toString("hex");
-  return globalAuthRef.__grokAuthPreviewSecret__;
-}
-
-/**
- * Production should ultimately use BETTER_AUTH_SECRET. During temporary
- * open-access product testing, derive a stable, domain-separated signing secret
- * from the already-private database credential so serverless instances agree on
- * session signatures. This avoids a source-visible or per-process secret while
- * keeping the bypass reversible once normal login is restored.
- */
 const configuredAuthSecret = env("BETTER_AUTH_SECRET");
-const temporaryDerivedSecret =
-  deployed && !configuredAuthSecret && databaseUrl
-    ? createHash("sha256")
-        .update(`agmt-temporary-test-auth-v1\0${databaseUrl}`)
-        .digest("hex")
-    : undefined;
-const authSecret = configuredAuthSecret ?? temporaryDerivedSecret ?? previewAuthSecret();
+if (deployed && !configuredAuthSecret) {
+  throw new Error("BETTER_AUTH_SECRET is required in deployed environments.");
+}
+const authSecret = configuredAuthSecret ?? randomBytes(32).toString("hex");
 
 const authDisabled = env("VITE_AUTH_ENABLED") === "false";
-const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
-const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? (!deployed ? PREVIEW_CLIENT_ID : undefined);
-const grokClientSecret =
-  env("GROK_AUTH_CLIENT_SECRET") ?? (!deployed ? PREVIEW_CLIENT_SECRET : undefined);
+const grokIssuer = env("GROK_AUTH_ISSUER") ?? "https://auth.grok.me";
+const grokClientId = env("GROK_AUTH_CLIENT_ID");
+const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET");
 
 export const authConfigured =
   !authDisabled && Boolean(grokClientId && grokClientSecret);
 
 const explicitBaseURL = env("BETTER_AUTH_URL") ?? env("AGMT_PUBLIC_URL");
-const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
+const previewAllowedHosts: string[] = ["*.grok-sandbox.com"];
 const LOCAL_DEV_ORIGINS = [
   "http://localhost:8080",
   "http://127.0.0.1:8080",
@@ -169,7 +142,6 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: [
         ...GROK_PROVIDERS.map((provider) => provider.providerId),
-        GATE_PROVIDER_ID,
       ],
       requireLocalEmailVerified: false,
     },
@@ -187,7 +159,6 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    gateIdentitySessions(),
     ...(grokOAuthPlugin ? [grokOAuthPlugin] : []),
     bearer(),
     tanstackStartCookies(),

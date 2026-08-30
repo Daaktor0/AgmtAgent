@@ -1,4 +1,4 @@
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { encryptBytes, decryptBytes, sha256Hex, type Envelope } from "@/lib/agmt/crypto";
 import { newId } from "@/lib/agmt/ids";
 
@@ -6,8 +6,9 @@ export async function putBlob(
   ownerUserId: string,
   kind: string,
   bytes: Buffer,
+  transactionSql?: Sql,
 ): Promise<{ objectKey: string; sha256: string; envelope: Envelope }> {
-  const sql = await getSql();
+  const sql = transactionSql ?? (await getSql());
   const envelope = encryptBytes(bytes);
   const objectKey = `obj_${newId()}`;
   const sha = sha256Hex(bytes);

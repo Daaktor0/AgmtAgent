@@ -254,13 +254,14 @@ export function readOgSite(cwd = process.cwd()) {
 
 /** Public path of an on-disk share card, or "" if neither file exists. */
 export function ogCardPublicPath(cwd = process.cwd()) {
+  if (!cwd) return "";
   if (existsSync(join(cwd, "public/og.jpg"))) return "/og.jpg";
   if (existsSync(join(cwd, "public/og.png"))) return "/og.png";
   return "";
 }
 
 function detectCustomOgCard(cwd = process.cwd(), site = {}) {
-  if (ogCardPublicPath(cwd)) return true;
+  if (cwd && ogCardPublicPath(cwd)) return true;
   // Vercel runtime has no public/: trust a bake that already saw the file.
   return siteHasCustomCard(site) || Boolean(String(site.image ?? "").trim());
 }
@@ -323,12 +324,13 @@ export function siteHasCustomCard(site = {}) {
  * Otherwise empty — caller emits the og.grok.me placeholder.
  */
 export function resolveOgCardAsset(site = {}, cwd = process.cwd()) {
-  return ogCardPublicPath(cwd) || (detectCustomOgCard(cwd, site) ? String(site.image ?? "").trim() || "/og.jpg" : "");
+  return (cwd ? ogCardPublicPath(cwd) : "") ||
+    (detectCustomOgCard(cwd, site) ? String(site.image ?? "").trim() || "/og.jpg" : "");
 }
 
 /** Stamp `card=custom` when public/og.jpg or public/og.png is on disk. */
 function applyCustomCardFromFs(site, cwd) {
-  const disk = ogCardPublicPath(cwd);
+  const disk = cwd ? ogCardPublicPath(cwd) : "";
   if (!disk) return site;
   return { ...site, card: "custom", image: disk };
 }
@@ -401,15 +403,18 @@ function insertBeforeHeadClose(html, snippet) {
 }
 
 export function normalizeHeadContext(ctx = {}) {
-  const cwd = ctx.cwd ?? process.cwd();
-  // Middleware passes a baked `site`. Still consult the workspace so a
-  // public/og.jpg generated after that snapshot (or missed by a wrong cwd)
-  // wins over the og.grok.me placeholder. Vercel has no public/ to read, so
-  // a correct bake is unchanged.
-  const site = applyCustomCardFromFs(
-    ctx.site !== undefined ? ctx.site : snapshotOgIdentity(cwd).site,
-    cwd,
-  );
+  const hasWorkspaceCwd = typeof ctx.cwd === "string" && ctx.cwd.length > 0;
+  const cwd = hasWorkspaceCwd ? ctx.cwd : null;
+  // Middleware passes a baked `site`. Consult the workspace only when the
+  // caller explicitly supplies `cwd`; direct helper calls must not silently
+  // inherit the process cwd and leak this repository's identity/assets.
+  const baseSite =
+    ctx.site !== undefined
+      ? ctx.site
+      : hasWorkspaceCwd
+        ? snapshotOgIdentity(cwd).site
+        : {};
+  const site = hasWorkspaceCwd ? applyCustomCardFromFs(baseSite, cwd) : baseSite;
   const appName = resolveOgTitle(site, ctx.appName ?? DEFAULT_APP_NAME, ctx.host ?? "");
   return {
     appName,

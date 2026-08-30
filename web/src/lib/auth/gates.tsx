@@ -1,14 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { authEnabled, signOut } from "./client";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
-import { openTestWorkspace } from "@/lib/fn/test-access";
-
-/**
- * Auth state components. During the current product-testing period, signed-out
- * visitors are provisioned an isolated temporary workspace instead of being sent
- * through interactive login. Each workspace still uses a real Better Auth
- * session and owner_user_id boundary.
- */
 
 export const SIGN_IN_PATH = "/login";
 
@@ -23,26 +16,12 @@ export function SignedOut({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/**
- * Temporary open-access gate: create one browser-bound test identity and reload
- * the current route. No shared production dev user is used.
- */
 export function RedirectToSignIn() {
-  const started = useRef(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const navigate = useNavigate();
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void openTestWorkspace()
-      .then(() => window.location.reload())
-      .catch((err: Error) => setError(err.message || "Could not open the test workspace."));
-  }, []);
-
-  if (error) {
-    return <p className="mt-4 text-sm text-danger">{error}</p>;
-  }
-  return <span className="sr-only">Opening test workspace.</span>;
+    void navigate({ to: SIGN_IN_PATH });
+  }, [navigate]);
+  return <span className="sr-only">Redirecting to sign-in.</span>;
 }
 
 export function UserButton() {
@@ -74,7 +53,7 @@ export function UserButton() {
           }}
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
         >
-          {signingOut ? "Resetting…" : "Reset test session"}
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
       )}
     </div>

@@ -67,7 +67,7 @@ function Home() {
             Agmt
           </p>
           <p className="mt-4 text-sm text-stone">
-            {isPending ? "Opening your workspace." : "Preparing a private test workspace."}
+            {isPending ? "Opening your workspace." : "Preparing your private workspace."}
           </p>
         </div>
         {!isPending && !user ? <RedirectToSignIn /> : null}

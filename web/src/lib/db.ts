@@ -1,6 +1,21 @@
-import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import {
+  migrationName,
+  pendingMigrations,
+} from "../../scripts/migration-plan.mjs";
+import { sha256Hex } from "../../scripts/migration-checksum.mjs";
+import { validateMigrationLedger } from "../../scripts/migration-ledger.mjs";
+import {
+  beginStatement,
+  createPostgresSql,
+  createSql as createTransactionalSql,
+  type PostgresPoolLike,
+  type Sql,
+  type TransactionOptions,
+} from "./db-transaction";
 
-export type DbSource = "neon" | "pglite";
+export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction";
+
+export type DbSource = "postgres" | "pglite";
 
 const env = (key: string): string | undefined => {
   const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
@@ -14,15 +29,7 @@ const databaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
 const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
 
-export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
-
-export interface Sql {
-  <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]>;
-  query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
-}
+export const dbSource: DbSource = databaseUrl ? "postgres" : "pglite";
 
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
@@ -35,31 +42,13 @@ const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
 const identity = (value: string) => value;
 
-type Run = <T>(text: string, params: unknown[]) => Promise<T[]>;
-
-function toSql(run: Run): Sql {
-  const sql = (async <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]> => {
-    let text = strings[0];
-    for (let index = 0; index < values.length; index += 1) {
-      text += `$${index + 1}${strings[index + 1]}`;
-    }
-    return run<T>(text, values);
-  }) as unknown as Sql;
-  sql.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
-    run<T>(text, params);
-  return sql;
-}
-
 function persistentDatabaseRequired(): never {
   throw new Error(
     "Agmt requires a persistent managed Postgres connection in deployed environments. Set DATABASE_URL (or POSTGRES_URL) before deploying.",
   );
 }
 
-function createNeonSql(): Promise<Sql> {
+function createManagedPostgresSql(): Promise<Sql> {
   if (!databaseUrl) return Promise.reject(new Error("DATABASE_URL is not configured"));
   globalRef.__pgSqlPromise__ ??= (async () => {
     const { Pool, types } = await import("pg");
@@ -73,10 +62,7 @@ function createNeonSql(): Promise<Sql> {
       connectionTimeoutMillis: 5_000,
       allowExitOnIdle: true,
     });
-    return toSql(async <T>(text: string, params: unknown[]) => {
-      const result = await pool.query(text, params);
-      return result.rows as T[];
-    });
+    return createPostgresSql(pool as unknown as PostgresPoolLike);
   })().catch((error) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw error;
@@ -98,7 +84,10 @@ async function createPgliteSql(): Promise<Sql> {
     });
     await pg.waitReady;
     await pg.exec(
-      "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
+      "create table if not exists _migrations (name text primary key, checksum text not null, applied_at timestamptz not null default now())",
+    );
+    await pg.exec(
+      "alter table _migrations add column if not exists checksum text",
     );
     return pg;
   })().catch((error) => {
@@ -113,12 +102,44 @@ async function createPgliteSql(): Promise<Sql> {
       import: "default",
       eager: true,
     }) as Record<string, string>;
-    const doneRows = await pg.query<{ name: string }>("select name from _migrations");
-    const done = doneRows.rows.map((row) => row.name);
-    for (const { name, path } of pendingMigrations(Object.keys(migrations), done)) {
+    const migrationByName = new Map<
+      string,
+      { name: string; path: string; text: string; checksum: string }
+    >();
+    for (const path of Object.keys(migrations)) {
+      const name = migrationName(path);
+      if (migrationByName.has(name)) {
+        throw new Error(`Duplicate migration basename: ${name}`);
+      }
+      const text = migrations[path];
+      migrationByName.set(name, {
+        name,
+        path,
+        text,
+        checksum: await sha256Hex(text),
+      });
+    }
+
+    const doneRows = await pg.query<{
+      name: string;
+      checksum: string | null;
+    }>("select name, checksum from _migrations");
+    const done = validateMigrationLedger(
+      doneRows.rows,
+      [...migrationByName.values()],
+    );
+    for (const { name } of pendingMigrations(
+      Object.keys(migrations),
+      done,
+    )) {
+      const migration = migrationByName.get(name);
+      if (!migration) throw new Error(`Migration disappeared: ${name}`);
       await pg.transaction(async (transaction) => {
-        await transaction.exec(migrations[path]);
-        await transaction.query("insert into _migrations (name) values ($1)", [name]);
+        await transaction.exec(migration.text);
+        await transaction.query(
+          "insert into _migrations (name, checksum) values ($1, $2)",
+          [name, migration.checksum],
+        );
       });
     }
   };
@@ -129,10 +150,31 @@ async function createPgliteSql(): Promise<Sql> {
   globalRef.__pgliteMigrateChain__ = pass;
   await pass;
 
-  return toSql(async <T>(text: string, params: unknown[]) => {
+  const run = async <T>(text: string, params: unknown[]) => {
     const result = await pg.query<T>(text, params);
     return result.rows;
-  });
+  };
+  const transaction = async <T>(
+    callback: (transactionSql: Sql) => Promise<T>,
+    options?: TransactionOptions,
+  ): Promise<T> =>
+    pg.transaction(async (transaction) => {
+      if (options?.isolationLevel) {
+        await transaction.exec(beginStatement(options).replace(/^BEGIN/, "SET TRANSACTION"));
+      }
+      const transactionSql = createTransactionalSql(
+        async <R>(text: string, params: unknown[]) => {
+          const result = await transaction.query<R>(text, params);
+          return result.rows;
+        },
+        async () => {
+          throw new Error("Nested database transactions are not supported");
+        },
+      );
+      return callback(transactionSql);
+    });
+
+  return createTransactionalSql(run, transaction);
 }
 
 let sqlPromise: Promise<Sql> | null = null;
@@ -144,7 +186,15 @@ async function createSql(): Promise<Sql> {
     );
   }
   if (deployedServerless && !databaseUrl) persistentDatabaseRequired();
-  return dbSource === "neon" ? createNeonSql() : createPgliteSql();
+  return dbSource === "postgres" ? createManagedPostgresSql() : createPgliteSql();
+}
+
+export async function withTransaction<T>(
+  callback: (transactionSql: Sql) => Promise<T>,
+  options?: TransactionOptions,
+): Promise<T> {
+  const sql = await getSql();
+  return sql.transaction(callback, options);
 }
 
 export function getSql(): Promise<Sql> {

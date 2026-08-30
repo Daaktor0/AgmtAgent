@@ -143,158 +143,164 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
     let phase = "inspect";
 
     try {
-      // Do all CPU/parser work before creating a visible document row. A parser
+      // Do all CPU/parser work before acquiring a database connection. A parser
       // failure can therefore never surface as a fake "Uploaded" document.
       const ingested = await ingestBuffer(bytes);
 
-      phase = "store_original";
-      const original = await putBlob(context.userId, "original_docx", bytes);
-      originalObjectKey = original.objectKey;
+      const transactionalResult = await sql.transaction(async (transactionSql) => {
+        phase = "store_original";
+        const original = await putBlob(context.userId, "original_docx", bytes, transactionSql);
+        originalObjectKey = original.objectKey;
 
-      phase = "create_document";
-      await sql`
-        insert into document (
-          document_id, matter_id, owner_user_id, logical_name, role, user_instrument
-        ) values (
-          ${documentId}, ${data.matterId}, ${context.userId},
-          ${data.logicalName.trim() || data.fileName.replace(/\.docx$/i, "")},
-          'primary', ${data.userInstrument}
-        )
-      `;
-      documentInserted = true;
+        phase = "create_document";
+        await transactionSql`
+          insert into document (
+            document_id, matter_id, owner_user_id, logical_name, role, user_instrument
+          ) values (
+            ${documentId}, ${data.matterId}, ${context.userId},
+            ${data.logicalName.trim() || data.fileName.replace(/\.docx$/i, "")},
+            'primary', ${data.userInstrument}
+          )
+        `;
+        documentInserted = true;
 
-      if (ingested.refused) {
-        phase = "persist_refusal";
-        await sql`
+        if (ingested.refused) {
+          phase = "persist_refusal";
+          await transactionSql`
+            insert into document_version (
+              document_version_id, document_id, matter_id, owner_user_id, version_no,
+              source_sha256, mime_type, byte_size, page_count, page_count_method,
+              original_object_key, wrapped_data_key, cipher_metadata, ingest_status,
+              refusal_code, source_quality, ingest_schema_version
+            ) values (
+              ${versionId}, ${documentId}, ${data.matterId}, ${context.userId}, 1,
+              ${sha256Hex(bytes)},
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              ${bytes.byteLength}, ${ingested.pageCount ?? 0}, 'estimated',
+              ${original.objectKey}, ${original.envelope.wrappedDataKey},
+              ${JSON.stringify(original.envelope.cipherMetadata)}, 'refused',
+              ${ingested.code}, 'unreadable', ${INGEST_SCHEMA_VERSION}
+            )
+          `;
+          versionInserted = true;
+          await transactionSql`
+            update document set current_version_id = ${versionId}
+            where document_id = ${documentId} and owner_user_id = ${context.userId}
+          `;
+          await writeAudit({
+            sql: transactionSql,
+            ownerUserId: context.userId,
+            userId: context.userId,
+            matterId: data.matterId,
+            action: "document.refuse",
+            subjectType: "document_version",
+            subjectId: versionId,
+            detailCodes: { code: ingested.code },
+          });
+          return {
+            ok: true as const,
+            documentId,
+            documentVersionId: versionId,
+            refused: true as const,
+            refusal: ingested,
+          };
+        }
+
+        phase = "create_version";
+        await transactionSql`
           insert into document_version (
             document_version_id, document_id, matter_id, owner_user_id, version_no,
             source_sha256, mime_type, byte_size, page_count, page_count_method,
             original_object_key, wrapped_data_key, cipher_metadata, ingest_status,
-            refusal_code, source_quality, ingest_schema_version
+            source_quality, structure_confidence, index_quality_version,
+            ingest_schema_version, classified_share, material_unclassified,
+            usable_outline, unclassified_chars, unclassified_leaf_count, index_quality_json
           ) values (
             ${versionId}, ${documentId}, ${data.matterId}, ${context.userId}, 1,
             ${sha256Hex(bytes)},
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            ${bytes.byteLength}, ${ingested.pageCount ?? 0}, 'estimated',
+            ${bytes.byteLength}, ${ingested.extracted.pageCount}, ${ingested.extracted.pageCountMethod},
             ${original.objectKey}, ${original.envelope.wrappedDataKey},
-            ${JSON.stringify(original.envelope.cipherMetadata)}, 'refused',
-            ${ingested.code}, 'unreadable', ${INGEST_SCHEMA_VERSION}
+            ${JSON.stringify(original.envelope.cipherMetadata)}, 'map_pending',
+            ${ingested.quality.sourceQuality}, ${ingested.quality.structureConfidence},
+            ${INDEX_QUALITY_VERSION}, ${INGEST_SCHEMA_VERSION}, ${ingested.quality.classifiedShare},
+            ${ingested.quality.materialUnclassified}, ${ingested.quality.usableOutline},
+            ${ingested.quality.unclassifiedChars}, ${ingested.quality.unclassifiedLeafCount},
+            ${JSON.stringify(ingested.quality)}
           )
         `;
         versionInserted = true;
-        await sql`
-          update document set current_version_id = ${versionId}
+
+        await transactionSql`
+          update document
+          set current_version_id = ${versionId}, detected_instrument = ${ingested.instrument}
           where document_id = ${documentId} and owner_user_id = ${context.userId}
         `;
+
+        phase = "create_map";
+        mapId = newId();
+        await transactionSql`
+          insert into canonicalisation_map (
+            map_id, document_version_id, owner_user_id, version_no, status,
+            map_sha256, recogniser_version
+          ) values (
+            ${mapId}, ${versionId}, ${context.userId}, 1, 'proposed',
+            ${ingested.mapSha}, ${RECOGNISER_VERSION}
+          )
+        `;
+
+        phase = "create_map_entries";
+        for (const entry of ingested.proposed.entries) {
+          await transactionSql`
+            insert into canonicalisation_entry (
+              entry_id, map_id, owner_user_id, kind, identifier_type,
+              source_provision_id, source_start, source_end,
+              original_value_ciphertext, replacement, defined_term_id,
+              detector, confidence, user_decision
+            ) values (
+              ${entry.entryId}, ${mapId}, ${context.userId}, ${entry.kind},
+              ${entry.identifierType}, ${entry.sourceProvisionId}, ${entry.sourceStart},
+              ${entry.sourceEnd}, ${envelopeToText(entry.originalValue)}, ${entry.replacement},
+              ${entry.definedTermId}, ${entry.detector}, ${entry.confidence}, ${entry.userDecision}
+            )
+          `;
+        }
+
+        phase = "create_capabilities";
+        for (const capability of ingested.extracted.capabilities) {
+          await transactionSql`
+            insert into source_capability (
+              source_capability_id, document_version_id, owner_user_id,
+              capability_name, available, detector_version, suppression_reason
+            ) values (
+              ${newId()}, ${versionId}, ${context.userId}, ${capability.name},
+              ${capability.available}, ${capability.detectorVersion}, ${capability.suppressionReason}
+            )
+          `;
+        }
+
         await writeAudit({
+          sql: transactionSql,
           ownerUserId: context.userId,
           userId: context.userId,
           matterId: data.matterId,
-          action: "document.refuse",
+          action: "document.upload",
           subjectType: "document_version",
           subjectId: versionId,
-          detailCodes: { code: ingested.code },
         });
+
         return {
           ok: true as const,
           documentId,
           documentVersionId: versionId,
-          refused: true as const,
-          refusal: ingested,
+          mapId,
+          refused: false as const,
+          instrument: ingested.instrument,
+          pageCount: ingested.extracted.pageCount,
         };
-      }
 
-      phase = "create_version";
-      await sql`
-        insert into document_version (
-          document_version_id, document_id, matter_id, owner_user_id, version_no,
-          source_sha256, mime_type, byte_size, page_count, page_count_method,
-          original_object_key, wrapped_data_key, cipher_metadata, ingest_status,
-          source_quality, structure_confidence, index_quality_version,
-          ingest_schema_version, classified_share, material_unclassified,
-          usable_outline, unclassified_chars, unclassified_leaf_count, index_quality_json
-        ) values (
-          ${versionId}, ${documentId}, ${data.matterId}, ${context.userId}, 1,
-          ${sha256Hex(bytes)},
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          ${bytes.byteLength}, ${ingested.extracted.pageCount}, ${ingested.extracted.pageCountMethod},
-          ${original.objectKey}, ${original.envelope.wrappedDataKey},
-          ${JSON.stringify(original.envelope.cipherMetadata)}, 'map_pending',
-          ${ingested.quality.sourceQuality}, ${ingested.quality.structureConfidence},
-          ${INDEX_QUALITY_VERSION}, ${INGEST_SCHEMA_VERSION}, ${ingested.quality.classifiedShare},
-          ${ingested.quality.materialUnclassified}, ${ingested.quality.usableOutline},
-          ${ingested.quality.unclassifiedChars}, ${ingested.quality.unclassifiedLeafCount},
-          ${JSON.stringify(ingested.quality)}
-        )
-      `;
-      versionInserted = true;
-
-      await sql`
-        update document
-        set current_version_id = ${versionId}, detected_instrument = ${ingested.instrument}
-        where document_id = ${documentId} and owner_user_id = ${context.userId}
-      `;
-
-      phase = "create_map";
-      mapId = newId();
-      await sql`
-        insert into canonicalisation_map (
-          map_id, document_version_id, owner_user_id, version_no, status,
-          map_sha256, recogniser_version
-        ) values (
-          ${mapId}, ${versionId}, ${context.userId}, 1, 'proposed',
-          ${ingested.mapSha}, ${RECOGNISER_VERSION}
-        )
-      `;
-
-      phase = "create_map_entries";
-      for (const entry of ingested.proposed.entries) {
-        await sql`
-          insert into canonicalisation_entry (
-            entry_id, map_id, owner_user_id, kind, identifier_type,
-            source_provision_id, source_start, source_end,
-            original_value_ciphertext, replacement, defined_term_id,
-            detector, confidence, user_decision
-          ) values (
-            ${entry.entryId}, ${mapId}, ${context.userId}, ${entry.kind},
-            ${entry.identifierType}, ${entry.sourceProvisionId}, ${entry.sourceStart},
-            ${entry.sourceEnd}, ${envelopeToText(entry.originalValue)}, ${entry.replacement},
-            ${entry.definedTermId}, ${entry.detector}, ${entry.confidence}, ${entry.userDecision}
-          )
-        `;
-      }
-
-      phase = "create_capabilities";
-      for (const capability of ingested.extracted.capabilities) {
-        await sql`
-          insert into source_capability (
-            source_capability_id, document_version_id, owner_user_id,
-            capability_name, available, detector_version, suppression_reason
-          ) values (
-            ${newId()}, ${versionId}, ${context.userId}, ${capability.name},
-            ${capability.available}, ${capability.detectorVersion}, ${capability.suppressionReason}
-          )
-        `;
-      }
-
-      await writeAudit({
-        ownerUserId: context.userId,
-        userId: context.userId,
-        matterId: data.matterId,
-        action: "document.upload",
-        subjectType: "document_version",
-        subjectId: versionId,
       });
-
-      return {
-        ok: true as const,
-        documentId,
-        documentVersionId: versionId,
-        mapId,
-        refused: false as const,
-        instrument: ingested.instrument,
-        pageCount: ingested.extracted.pageCount,
-      };
+      return transactionalResult;
     } catch (error) {
       const code = safeErrorCode(error);
       console.error(`[upload] failed phase=${phase} code=${code}`);

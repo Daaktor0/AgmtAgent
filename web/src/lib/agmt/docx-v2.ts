@@ -676,7 +676,7 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
   const notes: ExtractedNote[] = [];
   const bookmarks: ExtractedBookmark[] = [];
   const sectionCount = countOrderedTag(bodyChildren, "w:sectPr");
-  collectBookmarks(bodyObject, bookmarks);
+  const storyObjects: Obj[] = [bodyObject];
   let blockIndex = 0;
 
   for (const paragraph of paragraphsInOrder(bodyChildren, "/w:document/w:body")) {
@@ -703,6 +703,7 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
       throw parserError("corrupt", "Header/footer entry could not be loaded");
     }
     const xml = await readEntryText(headerFile, headerMetadata.uncompressedSize);
+    storyObjects.push(parseObject(xml));
     const ordered = orderedParser.parse(xml) as OrderedNode[];
     const root = firstTag(ordered, story === "header" ? "w:hdr" : "w:ftr");
     for (const paragraph of paragraphsInOrder(root, name)) {
@@ -740,8 +741,10 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
     if (!noteMetadata || !noteFile || noteMetadata.isDirectory) {
       throw parserError("invalid_ooxml_package", noteSpec.name + " could not be loaded");
     }
+    const notesXml = await readEntryText(noteFile, noteMetadata.uncompressedSize);
+    storyObjects.push(parseObject(notesXml));
     const extractedNotes = extractNotesStory(
-      await readEntryText(noteFile, noteMetadata.uncompressedSize),
+      notesXml,
       noteSpec.name,
       noteSpec.rootTag,
       noteSpec.noteTag,
@@ -763,12 +766,19 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
     }
     const parsed = parseObject(await readEntryText(commentsFile, commentsMetadata.uncompressedSize));
     const root = (parsed["w:comments"] ?? parsed) as Obj;
+    const commentIds = new Set<string>();
     for (const comment of asObjectArray(root["w:comment"])) {
+      const id = packageText(comment["@_w:id"], "comment id", 64);
+      if (!/^-?\d+$/.test(id) || commentIds.has(id)) {
+        throw parserError("invalid_comments", "Comment IDs must be unique decimal identifiers");
+      }
+      commentIds.add(id);
+      const author = packageText(comment["@_w:author"], "comment author", 256);
       const text: string[] = [];
       walkObjectText(comment, text, "final");
       comments.push({
-        id: String((comment as Record<string, string>)["@_w:id"] ?? ""),
-        author: String((comment as Record<string, string>)["@_w:author"] ?? ""),
+        id,
+        author,
         text: text.join(""),
       });
     }
@@ -776,7 +786,12 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
 
   const fields: ExtractedDocument["fields"] = [];
   const instructions: string[] = [];
-  collectInstructions(bodyObject, instructions);
+  const revisions: ExtractedDocument["revisions"] = [];
+  for (const story of storyObjects) {
+    collectBookmarks(story, bookmarks);
+    collectInstructions(story, instructions);
+    collectRevisions(story, revisions);
+  }
   for (const instruction of instructions) {
     const value = instruction.trim();
     if (!value) continue;
@@ -787,9 +802,6 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
       (!benign.includes(kind) && /https?:|\\\\|[A-Z]:\\/.test(value));
     fields.push({ instr: value.slice(0, 200), result: "", unresolved });
   }
-
-  const revisions: ExtractedDocument["revisions"] = [];
-  collectRevisions(bodyObject, revisions);
 
   let appPages: number | null = null;
   const appFile = zip.file("docProps/app.xml");

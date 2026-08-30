@@ -1,8 +1,8 @@
 # Agmt Proof implementation status
 
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Latest merged main:** `0a020084d1ef67beb9e48656bf885386b304be15` via PR #21  
-**Latest implementation branch:** `proof-production-hardening/fnd02-reconciliation` at `3b3436d5ae07119a3cb98d8490f548f0bd5ff946` (FND-02 implementation; merged via PR #21)  
+**Latest merged main:** `07fe5b04f26ed5596630af4a5ea1ec0d7a160216` via PR #22  
+**Latest implementation branch:** `proof-production-hardening/wrk03-story-capabilities` at `3ebbc2036ed0ec71e07ee0880a5fd45ca7e73a32` (WRK-03 implementation; PR #23 open)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
@@ -15,14 +15,13 @@
 
 ## Evidence from the latest code head
 
-At verified implementation code head 3b3436d5ae07119a3cb98d8490f548f0bd5ff946 (FND-02 transaction outcome and external-publication reconciliation batch; PR #21 open):
+At verified implementation code head 3ebbc2036ed0ec71e07ee0880a5fd45ca7e73a32 (WRK-03 non-main story capability batch; PR #23 open):
 
-- Web Proof workflow 33339154677: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed.
-- The full web test run reported 111/111 tests passed with 0 failures; Eval workflow 33339154680 passed.
-- Managed Postgres and PGlite transaction adapters now distinguish confirmed rollback from ambiguous commit/rollback outcomes. The upload path refuses destructive compensation when the outcome is unknown.
-- The provider write returns an exact tenant/key/provider/storage/integrity/envelope artifact. Confirmed rollback records an idempotent staged manifest and deletes only after exact ciphertext verification; provider or database failure leaves a durable reconciliation handoff when possible.
-- Fault-injection regressions cover rollback confirmation, commit transport uncertainty, record-before-delete ordering, cleanup failure, record-only unknown outcomes, exact-delete fallback, and unresolved dual failure.
-- No credentials, connection strings, private keys, production documents or environment files are present in the changed repository paths.
+- Web Proof workflow 33339789811: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed.
+- The full web test run reported 112/112 tests passed with 0 failures; Eval workflow 33339789841 passed.
+- The OOXML inventory now evaluates fields, revisions and bookmarks across the main document, headers/footers and note stories instead of silently treating non-main story features as absent.
+- Comments now require unique decimal identifiers and non-empty authors. Malformed metadata fails closed with a typed parser error before findings can be produced.
+- The prior FND-02 transaction/reconciliation evidence remains recorded below. No credentials, connection strings, private keys, production documents or environment files are present in the changed repository paths.
 
 ## Package ledger
 
@@ -40,7 +39,7 @@ At verified implementation code head 3b3436d5ae07119a3cb98d8490f548f0bd5ff946 (F
 | OBJ-03 | Repository contract implemented; live integration pending | Exact clean-result acceptance, fail-closed threat/failure handling and duplicate/conflict behavior are tested. GuardDuty/EventBridge authenticity and quarantine wiring remain open. |
 | WRK-01 | Repository contract implemented; live integration pending | Strict metadata-only worker envelope and bounded duplicate/crash/timeout/fatal dispositions are tested. Lambda/SQS/DLQ isolation, IAM, egress and image controls remain open. |
 | WRK-02 | Repository-side boundary implemented; worker/resource proof pending | Central-directory preflight, bounded extraction, path/record validation and hostile ZIP regressions are implemented. Isolated-worker CPU/memory proof, adversarial corpus, image and IAM controls remain open. |
-| WRK-03 | Repository-side capability inventory implemented; differential review pending | Content types, relationship targets, external-target policy, notes, bookmarks and sections are inventoried with fail-closed parsing. Word/differential golden coverage and broader external/active-content review remain open. |
+| WRK-03 | Repository-side capability inventory expanded; differential review pending | Content types, relationship targets, external-target policy, notes, fields, revisions, bookmarks, sections and non-main stories are inventoried with fail-closed parsing. Word/differential golden coverage and broader external/active-content review remain open. |
 | ING-01 | Not started; depends on FND-02/WRK-03/OBJ-01 | Generation staging, validation, atomic publication and reconciliation are not implemented. |
 | ING-02 | Not started; depends on ING-01 | Concurrent source/parser uniqueness, locking and idempotent reuse are not implemented. |
 | ING-03 | Not started; depends on JOB-01/ING-01 | Lease expiry, age scans and safe orphan/stuck-work reconciliation are not implemented. |
@@ -109,10 +108,10 @@ A package is not marked complete until its acceptance tests, security considerat
 
 ## WRK-03 implementation evidence
 
-- `docx-v2.ts` validates content types and relationship parts before extracting the main story, never follows external targets, resolves internal targets within the package and rejects missing/escaping relationships and active-content types.
-- The extracted document now reports evaluated capability states for package metadata, relationships, external relationships, active content, comments, revisions, fields, tables, headers/footers, footnotes, endnotes, bookmarks and sections. Footnote/endnote paragraphs carry story-specific source anchors.
-- Web Proof workflow `33338227000` and Eval workflow `33338227015` passed at the code head above; the full web suite reported 104/104 tests. The new regressions cover external relationship inventory, note extraction, bookmarks, sections and relationship traversal.
-- WRK-03 remains open under the blueprint until differential Word/golden inventories and the broader external/active-content corpus pass, and until worker isolation/resource controls are reviewed. This batch made no migration or external-service change. See [ADR 0010](adr/0010-ooxml-capability-inventory.md).
+- docx-v2.ts validates content types and relationship parts before extracting the main story, never follows external targets, resolves internal targets within the package and rejects missing/escaping relationships and active-content types.
+- The extracted document reports evaluated capability states for package metadata, relationships, external relationships, active content, comments, revisions, fields, tables, headers/footers, footnotes, endnotes, bookmarks and sections. Fields, revisions and bookmarks are now collected from the main, header/footer and note story objects; footnote/endnote paragraphs carry story-specific source anchors.
+- Web Proof workflow 33339789811 and Eval workflow 33339789841 passed at the code head above; the full web suite reported 112/112 tests. Regressions cover external relationship inventory, note extraction, non-main-story fields/revisions/bookmarks, malformed comment identity, bookmarks, sections and relationship traversal.
+- WRK-03 remains open under the blueprint until differential Word/golden inventories and the broader external/active-content corpus pass, and until worker isolation/resource controls are reviewed. This batch made no migration or external-service change. See ADR 0010.
 
 ## FND-02 transaction and reconciliation evidence
 

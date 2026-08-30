@@ -76,7 +76,7 @@ function renameZipEntry(bytes: Buffer, oldName: string, newName: string): Buffer
 }
 
 function errorCode(code: string): (error: unknown) => boolean {
-  return error instanceof ZipSafetyError && error.code === code;
+  return (error: unknown) => error instanceof ZipSafetyError && error.code === code;
 }
 
 

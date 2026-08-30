@@ -1,4 +1,4 @@
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { newId } from "@/lib/agmt/ids";
 import { sha256Hex } from "@/lib/agmt/crypto";
 import { auditLog } from "@/lib/agmt/log";
@@ -13,8 +13,9 @@ export async function writeAudit(input: {
   detailCodes?: unknown;
   ip?: string | null;
   ua?: string | null;
+  sql?: Sql;
 }): Promise<void> {
-  const sql = await getSql();
+  const sql = input.sql ?? (await getSql());
   await sql`
     insert into audit_event (
       audit_id, owner_user_id, user_id, matter_id, action, subject_type, subject_id,

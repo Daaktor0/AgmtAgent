@@ -4,7 +4,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
-import { pendingMigrations } from "./migration-plan.mjs";
+import {
+  isMigrationFile,
+  migrationName,
+  pendingMigrations,
+} from "./migration-plan.mjs";
+import { sha256Hex } from "./migration-checksum.mjs";
 
 const databaseUrl =
   process.env.DATABASE_URL?.trim() ||
@@ -12,6 +17,24 @@ const databaseUrl =
   process.env.POSTGRES_PRISMA_URL?.trim();
 const deployed = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
+
+async function loadMigrations(entries) {
+  const migrations = new Map();
+  for (const path of entries.filter(isMigrationFile)) {
+    const name = migrationName(path);
+    if (migrations.has(name)) {
+      throw new Error(`[migrate] duplicate migration basename: ${name}`);
+    }
+    const text = await readFile(join(migrationsDir, path), "utf8");
+    migrations.set(name, {
+      name,
+      path,
+      text,
+      checksum: await sha256Hex(text),
+    });
+  }
+  return migrations;
+}
 
 async function main() {
   let entries;
@@ -22,7 +45,8 @@ async function main() {
     return;
   }
 
-  if (pendingMigrations(entries, []).length === 0) {
+  const migrations = await loadMigrations(entries);
+  if (migrations.size === 0) {
     console.log("[migrate] no migrations — nothing to do.");
     return;
   }
@@ -46,19 +70,49 @@ async function main() {
   const client = await pool.connect();
   try {
     await client.query(
-      "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+      "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())",
     );
-    const applied = (await client.query("SELECT name FROM _migrations")).rows.map(
-      (row) => row.name,
+    await client.query(
+      "ALTER TABLE _migrations ADD COLUMN IF NOT EXISTS checksum TEXT",
     );
 
+    const appliedRows = (
+      await client.query("SELECT name, checksum FROM _migrations")
+    ).rows;
+    const appliedNames = appliedRows.map((row) => row.name);
+    for (const row of appliedRows) {
+      const migration = migrations.get(row.name);
+      if (!migration) {
+        throw new Error(
+          `[migrate] applied migration is missing from this release: ${row.name}`,
+        );
+      }
+      if (!row.checksum) {
+        throw new Error(
+          `[migrate] applied migration has no checksum; controlled ledger backfill is required: ${row.name}`,
+        );
+      }
+      if (row.checksum !== migration.checksum) {
+        throw new Error(
+          `[migrate] migration checksum mismatch; refusing to continue: ${row.name}`,
+        );
+      }
+    }
+
     let count = 0;
-    for (const { name } of pendingMigrations(entries, applied)) {
-      const text = await readFile(join(migrationsDir, name), "utf8");
+    for (const { name } of pendingMigrations(
+      [...migrations.keys()],
+      appliedNames,
+    )) {
+      const migration = migrations.get(name);
+      if (!migration) throw new Error(`[migrate] migration disappeared: ${name}`);
       try {
         await client.query("BEGIN");
-        await client.query(text);
-        await client.query("INSERT INTO _migrations (name) VALUES ($1)", [name]);
+        await client.query(migration.text);
+        await client.query(
+          "INSERT INTO _migrations (name, checksum) VALUES ($1, $2)",
+          [name, migration.checksum],
+        );
         await client.query("COMMIT");
       } catch (error) {
         console.error(`[migrate] error applying ${name}`);
@@ -72,7 +126,11 @@ async function main() {
       console.log(`[migrate] applied ${name}`);
       count += 1;
     }
-    console.log(count ? `[migrate] done — ${count} migration(s) applied.` : "[migrate] up to date.");
+    console.log(
+      count
+        ? `[migrate] done — ${count} migration(s) applied.`
+        : "[migrate] up to date.",
+    );
   } finally {
     client.release();
     await pool.end();

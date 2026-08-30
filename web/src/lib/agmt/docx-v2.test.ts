@@ -35,38 +35,28 @@ function mutateZipEntry(
   mutation: (archive: Buffer, kind: "local" | "central", offset: number) => void,
 ): Buffer {
   const archive = Buffer.from(bytes);
-  const signature = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
   const centralSignature = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
-  let localFound = false;
-  let centralFound = false;
-  for (let offset = 0; (offset = archive.indexOf(signature, offset)) >= 0; offset += 4) {
-    const nameLength = archive.readUInt16LE(offset + 26);
-    const extraLength = archive.readUInt16LE(offset + 28);
-    const entryName = archive.subarray(offset + 30, offset + 30 + nameLength).toString("utf8");
-    if (entryName === name) {
-      mutation(archive, "local", offset);
-      localFound = true;
-      break;
-    }
-    offset += 30 + nameLength + extraLength;
-  }
+  let centralOffset = -1;
+  let localOffset = -1;
   for (let offset = 0; (offset = archive.indexOf(centralSignature, offset)) >= 0; offset += 4) {
     const nameLength = archive.readUInt16LE(offset + 28);
     const extraLength = archive.readUInt16LE(offset + 30);
     const commentLength = archive.readUInt16LE(offset + 32);
     const entryName = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
     if (entryName === name) {
-      mutation(archive, "central", offset);
-      centralFound = true;
+      centralOffset = offset;
+      localOffset = archive.readUInt32LE(offset + 42);
+      mutation(archive, "central", centralOffset);
       break;
     }
     offset += 46 + nameLength + extraLength + commentLength;
   }
-  assert.equal(localFound, true, "fixture local entry was not found");
-  assert.equal(centralFound, true, "fixture central entry was not found");
+  const localSignature = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+  assert.equal(centralOffset >= 0, true, "fixture central entry was not found");
+  assert.equal(localOffset >= 0 && archive.subarray(localOffset, localOffset + 4).equals(localSignature), true, "fixture local entry was not found");
+  mutation(archive, "local", localOffset);
   return archive;
 }
-
 function renameZipEntry(bytes: Buffer, oldName: string, newName: string): Buffer {
   assert.equal(Buffer.byteLength(oldName), Buffer.byteLength(newName));
   return mutateZipEntry(bytes, oldName, (archive, kind, offset) => {

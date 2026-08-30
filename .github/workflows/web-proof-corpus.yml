@@ -28,6 +28,8 @@ jobs:
         run: npm run build:dev
       - name: Typecheck
         run: npm run typecheck
+      - name: DB transaction hardening tests
+        run: node --experimental-strip-types --test src/lib/db-transaction.test.ts
       - name: Production build
         run: npm run build
       - name: Proof golden corpus

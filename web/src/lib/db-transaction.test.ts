@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   beginStatement,
+  createPostgresSql,
   createSql,
   withTransaction,
   type Sql,
@@ -84,4 +85,50 @@ test("transaction isolation statements are allow-listed", () => {
       }),
     /Unsupported transaction isolation level/,
   );
+});
+
+test("managed Postgres transaction pins the client and releases on failure", async () => {
+  const events: string[] = [];
+  let released = 0;
+  const client = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(text);
+      return { rows: [] };
+    },
+    release: () => {
+      released += 1;
+    },
+  };
+  const pool = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(`pool:${text}`);
+      return { rows: [] };
+    },
+    connect: async () => client,
+  };
+  const sql = createPostgresSql(pool);
+
+  await assert.rejects(
+    sql.transaction(async (transactionSql) => {
+      await transactionSql.query("insert probe", ["not-committed"]);
+      throw new Error("forced client failure");
+    }),
+    /forced client failure/,
+  );
+  assert.deepEqual(events, ["BEGIN", "insert probe", "ROLLBACK"]);
+  assert.equal(released, 1);
+
+  events.length = 0;
+  await sql.transaction(
+    async (transactionSql) => {
+      await transactionSql.query("select probe");
+    },
+    { isolationLevel: "serializable" },
+  );
+  assert.deepEqual(events, [
+    "BEGIN ISOLATION LEVEL SERIALIZABLE",
+    "select probe",
+    "COMMIT",
+  ]);
+  assert.equal(released, 2);
 });

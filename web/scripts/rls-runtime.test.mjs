@@ -37,10 +37,10 @@ test("FND-04 separates Better Auth connection configuration", () => {
 
 test("FND-04 account entitlement writes require tenant context", () => {
   assert.match(account, /ensureEntitlement\?: boolean/);
-  assert.match(account, /options\\.ensureEntitlement !== false/);
+  assert.match(account, /options\.ensureEntitlement !== false/);
   assert.match(
     runtime,
-    /ensureAccount\\(verifiedUserId, \\{\\s*ensureEntitlement: false,\\s*\\}\\)/,
+    /ensureAccount\(verifiedUserId, \{\s*ensureEntitlement: false,\s*\}\)/,
   );
   assert.match(account, /currentDatabaseContext\(\)\?\.tenantId/);
   assert.match(account, /insert into review_entitlement \(/);

@@ -1,7 +1,7 @@
 -- FND-04: tenant isolation through non-login runtime roles and RLS.
 --
 -- This is a forward-only contract migration. It grants no access to the
--- Supabase client roles and does not rewrite, decrypt, delete, or move data.
+-- Supabase client roles and does not rewrite, decrypt, remove, or move data.
 -- The application supplies only server-derived settings inside a transaction:
 -- agmt.user_id, agmt.tenant_id, agmt.support_ticket and agmt.operation.
 --

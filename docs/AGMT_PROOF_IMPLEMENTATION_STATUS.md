@@ -14,12 +14,12 @@
 
 ## Evidence from the latest code head
 
-At code head `f526f826f81d51743bd85cc5079a680cd27155fa`:
+At code head `239be9fbc1c30774e462bcdeadc7c4caf5e51a01`:
 
-- Web Proof workflow `33325366767`: development build, typecheck, production build, and proof golden corpus passed.
-- Eval workflow `33325366801`: Python corpus/evaluation checks passed.
-- Focused new checks passed inside the web test command: transaction commit/rollback, additive tenant migration checks, in-memory PGlite cross-tenant rejection, checksum stability, and ledger drift failures.
-- The full web test command remains red at 187/205 tests. The 18 failures are existing Grok fixture/app-env/PWA metadata expectations plus a stale migration-directory expectation; they are not treated as a launch waiver. The package ledger below therefore keeps final approval pending.
+- Web Proof workflow `33325866274`: development build, typecheck, production build, and proof golden corpus passed.
+- Eval workflow `33325866263`: Python corpus/evaluation checks passed.
+- Focused new checks passed inside the web test command: transaction commit/rollback, parser-before-transaction boundary, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection after the existing index-quality migration, checksum stability, and ledger drift failures.
+- The full web test command remains red at 190/208 tests. The 18 failures are existing Grok fixture/app-env/PWA metadata expectations plus a stale migration-directory expectation; they are not treated as a launch waiver. The package ledger below therefore keeps final approval pending.
 
 ## Package ledger
 
@@ -27,8 +27,8 @@ At code head `f526f826f81d51743bd85cc5079a680cd27155fa`:
 |---|---|---|
 | FND-01 | Implemented; human approval pending | Added baseline ADR, supported DOCX matrix, invariants, state boundaries, non-goals, gate ownership, and review stop conditions. See ADRs 0001 and 0002. |
 | SEC-01 | Repository changes implemented; security review pending | Removed automatic test-workspace access, deleted gate-session/preview-secret source paths, made deployed auth require an explicit secret/provider configuration, and kept sign-in unavailable when unconfigured. Relevant builds and auth checks pass; final full-suite/security review is pending. |
-| FND-05 | Implemented repository-side; release rehearsal pending | Builds no longer run migrations; `db:migrate:release` is manual-only; the runner and PGlite ledger store/verify SHA-256 checksums and fail closed on unknown, edited, or legacy unchecksummed rows. No live migration was run. |
-| FND-02 | Adapter implemented; publication integration pending | Added provider-neutral `Sql.transaction`, dedicated Postgres connection handling, PGlite transaction mapping, allow-listed isolation, rollback/release behavior, and forced-failure regression tests. Document-generation publication still must move behind this boundary after tenant/runtime context is ready. |
+| FND-05 | Implemented repository-side; release rehearsal pending | Builds no longer run migrations; `db:migrate:release` is manual-only; managed-Postgres and PGlite ledgers store/verify SHA-256 checksums and fail closed on unknown, edited, or legacy unchecksummed rows. No live migration was run. |
+| FND-02 | Relational publication integrated; fault-injection/object reconciliation pending | Added provider-neutral `Sql.transaction`, dedicated Postgres connection handling, PGlite transaction mapping, allow-listed isolation, rollback/release behavior, forced-failure tests, atomic Matter creation, and atomic document publication. Parser work remains outside the transaction; future external object-store writes remain outside it. |
 | FND-03 | Expand migration implemented; contract and review pending | Added `0003_tenant_integrity_expand.sql`, tenant/member tables, tenant columns, supporting composite keys, tenant-scoped foreign keys, and a PGlite rehearsal proving cross-tenant document relationships fail. Columns remain temporarily nullable; validation, NOT NULL contract, runtime context, RLS, and historical-data review remain blocked. |
 | FND-04 | Blocked by FND-03 contract | RLS/runtime-role implementation has not started. It must follow validated composite tenant constraints and an approved request/worker/support role model. |
 
@@ -39,9 +39,10 @@ A package is not marked complete until its acceptance tests, security considerat
 - The provider-neutral adapter exposes `transaction(callback, options)`.
 - Managed Postgres acquires one pool client, issues `BEGIN` with an allow-listed isolation level, runs the callback on that same client, commits only after success, rolls back on every exception, and releases in `finally`.
 - PGlite delegates to its native transaction callback. Nested transactions are rejected rather than silently misrepresented as savepoints.
-- Database publication will persist one complete generation and advance `document.current_version_id` last. A forced failure must leave readers on the prior complete generation.
-- Object-store operations remain outside the database transaction and require staged-object reconciliation in the later object/job plane.
+- Matter creation now publishes its matter, mandate, active pointer, and audit row through one callback.
+- Document upload parses before acquiring a connection, then publishes the object metadata, document/version, canonicalisation rows, capabilities, current pointer, and audit row through one callback. A callback failure rolls back the relational publication; the existing compensation path remains as a safety net for legacy/incomplete rows.
 - Tenant/request context is deliberately deferred until the FND-04 runtime/RLS package.
+- Object-store operations remain outside the database transaction and require staged-object reconciliation in the later object/job plane.
 
 See [ADR 0003](adr/0003-atomic-database-transaction-boundary.md).
 
@@ -78,6 +79,7 @@ See [ADR 0004](adr/0004-tenant-integrity-expand-contract.md).
 
 ## Remaining stop conditions
 
-- FND-01, FND-02 publication integration, FND-03 contract, and FND-04 require human review of the ADRs and historical ciphertext disposition before any live schema/data action.
+- FND-01, FND-03 contract, FND-04, and historical ciphertext disposition require human review before any live schema/data action.
+- FND-02 still needs an injected-failure integration harness around the production publication path and the later object/job-plane reconciliation contract.
 - The current full web test command has 18 failures and must be reconciled or explicitly dispositioned; no numerical or security gate is being weakened.
 - Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security, and operational gates pass.

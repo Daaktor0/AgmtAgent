@@ -1,7 +1,7 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 import {
   beginStatement,
-  createSql,
+  createSql as createTransactionalSql,
   type Sql,
   type TransactionOptions,
 } from "./db-transaction";
@@ -66,7 +66,7 @@ function createNeonSql(): Promise<Sql> {
       const client = await pool.connect();
       try {
         await client.query(beginStatement(options));
-        const transactionSql = createSql(
+        const transactionSql = createTransactionalSql(
           async <R>(text: string, params: unknown[]) => {
             const result = await client.query<R>(text, params);
             return result.rows;
@@ -89,7 +89,7 @@ function createNeonSql(): Promise<Sql> {
         client.release();
       }
     };
-    return createSql(run, transaction);
+    return createTransactionalSql(run, transaction);
   })().catch((error) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw error;
@@ -154,7 +154,7 @@ async function createPgliteSql(): Promise<Sql> {
       if (options?.isolationLevel) {
         await transaction.exec(beginStatement(options).replace(/^BEGIN/, "SET TRANSACTION"));
       }
-      const transactionSql = createSql(
+      const transactionSql = createTransactionalSql(
         async <R>(text: string, params: unknown[]) => {
           const result = await transaction.query<R>(text, params);
           return result.rows;
@@ -166,7 +166,7 @@ async function createPgliteSql(): Promise<Sql> {
       return callback(transactionSql);
     });
 
-  return createSql(run, transaction);
+  return createTransactionalSql(run, transaction);
 }
 
 let sqlPromise: Promise<Sql> | null = null;

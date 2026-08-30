@@ -1,8 +1,8 @@
 # Agmt Proof implementation status
 
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Latest merged main:** `1afa28924fd3b1db5e64500bf7ceaa17e6d5031a` via PR #13  
-**Implementation branch:** `proof-production-hardening/job01-obj01-final` at `5e9e595caf896f85187bed9e206dbe6de41801c0` (merged)  
+**Latest merged main:** `1254f5934de7385f8ab707a57d3dc56650d052d6` via PR #14  
+**Current implementation branch:** `proof-production-hardening/upload-quarantine-worker-contracts` at `b34872c88093e20dcfafd9dd922e392b863b08fc` (PR #15; documentation commit included below)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
@@ -15,10 +15,10 @@
 
 ## Evidence from the latest code head
 
-At verified feature head `5e9e595caf896f85187bed9e206dbe6de41801c0` (merged into `main`):
+At verified implementation code head `b34872c88093e20dcfafd9dd922e392b863b08fc` (PR #15; repository contract batch):
 
-- Web Proof workflow `33335803534`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (229/229 full-suite tests).
-- Eval workflow `33335803722` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
+- Web Proof workflow `33336709469`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (99/99 full-suite tests).
+- Eval workflow `33336709477` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
 - The deterministic DOCX fixture now uses fixed entry metadata and uncompressed ZIP entries, so byte hashes are stable across repeated CI runs.
 - FND-04 tenant-bound write repairs cover the existing Matter/document/audit paths required by forced RLS; the static regression test rejects any tenant-owned insert that omits `tenant_id`.
 - JOB-01/OBJ-01 tests cover immutable object keys, tenant-hashed storage paths, byte/hash integrity, S3 adapter boundaries, job transitions, lease expiry, idempotency, additive migration safety, and PGlite RLS crossover behavior.
@@ -35,9 +35,9 @@ At verified feature head `5e9e595caf896f85187bed9e206dbe6de41801c0` (merged into
 | FND-04 | Repository and empty-sandbox implementation complete; production security review pending | 32/32 public tables are forced-RLS with 108 policies; runtime roles are non-login/non-bypass; PGlite and real synthetic crossover probes pass. Login-role provisioning, managed sandbox probe-membership cleanup and owner review remain open. |
 | JOB-01 | Implemented repository-side; empty-sandbox schema verified; production worker review pending | Tenant-bound upload/job/outbox state machines, guarded transitions, leases, idempotency and RLS are implemented and tested. Isolated worker execution and production IAM remain open. |
 | OBJ-01 | Implemented repository-side; empty-sandbox schema verified; production object-store review pending | Server-only provider boundary, immutable tenant-hashed keys, integrity checks and metadata-only manifests are implemented and tested. Direct upload, malware quarantine, S3 wiring and KMS remain open. |
-| OBJ-02 | Not started; depends on OBJ-01/JOB-01 | Direct multipart upload, scoped presigning, completion and abort are not implemented. |
-| OBJ-03 | Not started; depends on OBJ-01 | Malware quarantine and clean-result gate are not implemented. |
-| WRK-01 | Not started; depends on JOB-01/OBJ-01 | Isolated parser/Proof worker, queue, DLQ, limits and restricted IAM are not implemented. |
+| OBJ-02 | Repository contract implemented; live integration pending | Bounded DOCX multipart planning, tenant/Matter ownership binding, short-lived HTTPS grants and exact completion integrity are tested. Live S3 presign/complete/abort wiring remains open. |
+| OBJ-03 | Repository contract implemented; live integration pending | Exact clean-result acceptance, fail-closed threat/failure handling and duplicate/conflict behavior are tested. GuardDuty/EventBridge authenticity and quarantine wiring remain open. |
+| WRK-01 | Repository contract implemented; live integration pending | Strict metadata-only worker envelope and bounded duplicate/crash/timeout/fatal dispositions are tested. Lambda/SQS/DLQ isolation, IAM, egress and image controls remain open. |
 | WRK-02 | Not started; depends on WRK-01 | Pre-decompression central-directory and bounded extraction controls are not implemented. |
 | WRK-03 | Not started; depends on WRK-02 | Full OOXML relationship/capability model is not implemented. |
 | ING-01 | Not started; depends on FND-02/WRK-03/OBJ-01 | Generation staging, validation, atomic publication and reconciliation are not implemented. |
@@ -90,6 +90,14 @@ A package is not marked complete until its acceptance tests, security considerat
 - The existing server ingestion path now uses the object-store boundary and records a staged manifest; reads require a clean manifest and verify ciphertext and plaintext integrity. The direct multipart upload, malware clean-result and isolated worker gates remain intentionally unfinished.
 - Rollback is forward-only: stop the affected artifact, preserve the prior release, and ship a reviewed forward-fix. There is no destructive down migration and no historical ciphertext migration. External orphan reconciliation is a later package requirement.
 - The authorized empty Supabase sandbox was migrated and verified at the schema level: 36 public tables, four new JOB/OBJ tables, 16 new package policies, all four new tables RLS-enabled and forced, zero users/documents/object bytes/job rows, and no security-advisor errors beyond the intentional `_migrations` INFO.
+
+## OBJ-02 / OBJ-03 / WRK-01 repository contract evidence
+
+- `direct-upload.ts` enforces supported DOCX type/name, the 25 MiB byte cap, SHA-256 input, bounded expiry, server-derived opaque/quarantine keys, exact tenant/owner/Matter ownership, exact multipart part counts, HTTPS-only grants and exact provider completion hash/size.
+- `malware-gate.ts` accepts only `NO_THREATS_FOUND`; threats, failed, unsupported, unknown and malformed results are inaccessible and cannot enqueue ingest. Same-event duplicates are idempotent; conflicting duplicates fail closed.
+- `worker-contract.ts` accepts only the versioned metadata envelope, rejects bytes/presigned URLs/unknown fields and bounds retries so duplicate success acknowledges while fatal or exhausted failures dead-letter.
+- Web Proof workflow `33336709469` and Eval workflow `33336709477` passed at the code head above; the full web suite reported 99/99 tests. The package rows remain open because live data-plane integration and restricted production security controls are not present.
+- This batch made no migration and changed no Supabase schema, external service, production database, authentication configuration or object bytes. See [ADR 0008](adr/0008-upload-quarantine-worker-contracts.md).
 
 ## FND-02 transaction design
 

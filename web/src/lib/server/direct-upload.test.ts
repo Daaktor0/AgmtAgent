@@ -57,7 +57,7 @@ test("OBJ-02 fails closed on size, type, filename, digest and expiry violations"
 test("OBJ-02 binds every plan to the server-derived tenant, owner and Matter", () => {
   const plan = createDirectUploadPlan(request(), now);
   assert.doesNotThrow(() => assertUploadOwnership(plan, { tenantId, ownerUserId, matterId }));
-  assert.throws(() => assertUploadOwnership(plan, { tenantId: "tenant-two", ownerUserId, matterId }), /ownership/);
+  assert.throws(() => assertUploadOwnership(plan, { tenantId: "tenant-two", ownerUserId, matterId }), /belong.*tenant/i);
   assert.throws(() => assertUploadOwnership(plan, { tenantId, ownerUserId: "user-two", matterId }), /ownership/);
   assert.throws(() => assertUploadOwnership(plan, { tenantId, ownerUserId, matterId: "matter-two" }), /ownership/);
 });
@@ -80,5 +80,5 @@ test("OBJ-02 exposes only short-lived HTTPS part grants and verifies provider co
   assert.doesNotThrow(() => validateCompletedUpload(plan, { storageKey: plan.quarantineStorageKey, sha256, byteSize: plan.byteSize }));
   assert.throws(() => validateCompletedUpload(plan, { storageKey: plan.quarantineStorageKey, sha256: "b".repeat(64), byteSize: plan.byteSize }), /hash/);
   assert.throws(() => validateCompletedUpload(plan, { storageKey: plan.quarantineStorageKey, sha256, byteSize: plan.byteSize - 1 }), /size/);
-  assert.throws(() => buildDirectUploadGrant(plan, { uploadId: "multipart-1", expiresAt: new Date(now + 60_000).toISOString() }, ["http://not-tls.example/part/1"]), /HTTPS/);
+  assert.throws(() => buildDirectUploadGrant(plan, { uploadId: "multipart-1", expiresAt: new Date(now + 60_000).toISOString() }, Array.from({ length: plan.partCount }, (_, index) => "http://not-tls.example/part/" + (index + 1))), /HTTPS/);
 });

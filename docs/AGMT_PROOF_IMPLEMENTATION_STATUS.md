@@ -6,7 +6,7 @@
 
 ## Baseline verification
 
-- `AGENTS.md`: absent from current `main` (repository API returned 404); no repository-local agent instructions were available.
+- `AGENTS.md`: absent from current `main` (repository API returned 404); no baseline repository-local agent instructions were available. The hardening branch adds scoped guidance at `web/AGENTS.md` for the checked-in web workspace.
 - `docs/AGMT_PROOF_PRODUCTION_LAUNCH_BLUEPRINT.md` is present and was read in full before code changes.
 - The audited findings are reproducible from current source: automatic test-workspace access, baked preview OAuth credentials, database-derived deployed auth fallback, build-time migration coupling, synchronous/base64 ingestion, sequential persistence, and PostgreSQL document blobs.
 - Current baseline is not launch-ready for confidential documents.
@@ -14,14 +14,14 @@
 
 ## Evidence from the latest code head
 
-At branch head `6a71cfd2614a6560cefb68be7cea902fd69e4618`:
+At branch head `dcd30da0127266de1a66e68c63a3a7d0b8a95119`:
 
-- Web Proof workflow `33329490902` at code head `076603b3b0c2011bf803ad883df93fa451ce23a1`: dependency install, development build, typecheck, transaction hardening, production build, and Proof golden corpus passed. The full web command completed `196/213` tests with `17` failures.
-- Eval workflow `33329510823`: Python corpus/evaluation checks passed.
-- The focused hardening checks passed, including transaction commit/rollback, parser-before-transaction boundaries, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection, checksum stability, ledger drift failures, and the new auth invariant regression.
-- The previously failing migration-plan expectation was reconciled with the four top-level migration files. The DOCX fixture builder now pins ZIP entry timestamps, and the idempotency/hash regression passes.
-- The remaining full-suite failures are repository-template fixture dependencies: unavailable `.grok/skills/og` material, missing template app-env defaults, Grok PWA asset/metadata fixtures and their write-atomic recipe. They remain visible failures rather than launch waivers.
-- The managed database adapter is now named for generic PostgreSQL, and the Supabase sandbox setup boundary is documented without project identifiers, connection strings or credentials.
+- Web Proof workflow `33330341660`: dependency install, development build, typecheck, transaction hardening, production build, Proof golden corpus, and the full web suite passed; the full command completed `213/213` tests.
+- Eval workflow `33330341659`: Python corpus/evaluation checks passed.
+- The focused hardening checks passed, including transaction commit/rollback, parser-before-transaction boundaries, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection, checksum stability, ledger drift failures, and auth invariant regression.
+- The migration-plan expectation is reconciled with the four top-level migration files. The DOCX fixture builder pins ZIP entry timestamps, and the idempotency/hash regression passes.
+- The PWA head helper no longer inherits the repository process cwd during direct calls; production plugin/middleware calls still pass an explicit workspace or baked identity. The secure auth-on default is reflected in the tests. The web app now contains the repository-owned PWA installer assets and the agent/brand/write-atomic guidance required by its existing tests.
+- The managed database adapter is named for generic PostgreSQL, and the Supabase sandbox setup boundary is documented without project identifiers, connection strings or credentials.
 
 ## Package ledger
 
@@ -94,5 +94,5 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md).
 
 - FND-01, FND-03 contract, FND-04, and historical ciphertext disposition require human review before any non-empty or production schema/data action.
 - FND-02 still needs an injected-failure integration harness around the production publication path and the later object/job-plane reconciliation contract.
-- The current full web test command has 17 failures and must be reconciled or explicitly dispositioned; no numerical or security gate is being weakened.
+- The full web test command is green at 213/213, but this only closes the repository/template test gate; it does not waive any blueprint security, evidence, tenant, parser, export, lifecycle, DR, or operational gate.
 - Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security, and operational gates pass.

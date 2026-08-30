@@ -32,13 +32,13 @@ test("WRK-01 builds a small metadata-only worker message", () => {
 });
 
 test("WRK-01 rejects unknown fields, document bytes, bad identities and oversized messages", () => {
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, bytes: "payload" }), WorkerContractError);
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, presignedUrl: "https://example.test" }), WorkerContractError);
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, attempt: 0 }), /attempt/);
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, sourceSha256: "x" }), /SHA-256/);
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, objectKey: "../../object" }), /object key/);
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, parserVersion: "" }), /parser/);
-  assert.throws(() => validateIngestWorkerMessage({ ...messageInput, traceId: "x".repeat(1000) }), /trace/);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, bytes: "payload" }), WorkerContractError);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, presignedUrl: "https://example.test" }), WorkerContractError);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, attempt: 0 }), /attempt/);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, sourceSha256: "x" }), /SHA-256/);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, objectKey: "../../object" }), /object key/);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, parserVersion: "" }), /parser/);
+  assert.throws(() => validateIngestWorkerMessage({ version: WORKER_MESSAGE_VERSION, ...messageInput, traceId: "x".repeat(1000) }), /trace/);
 });
 
 test("WRK-01 converges duplicate, crash and timeout outcomes under bounded attempts", () => {

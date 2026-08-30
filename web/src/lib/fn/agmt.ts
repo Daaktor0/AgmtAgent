@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { currentDatabaseContext } from "@/lib/db-context.server";
 import { ensureAccount, requireVerified } from "@/lib/server/account";
 import { writeAudit } from "@/lib/server/audit";
 import { putBlob, getBlob } from "@/lib/server/blobs";
@@ -24,6 +25,16 @@ function textToPlain(stored: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+function requiredTenantId(): string {
+  const tenantId = currentDatabaseContext()?.tenantId;
+  if (!tenantId) {
+    throw Object.assign(new Error("A tenant database context is required."), {
+      code: "tenant_context_unavailable",
+    });
+  }
+  return tenantId;
 }
 
 export const bootstrapAccount = createServerFn({ method: "GET" })
@@ -99,14 +110,18 @@ export const createMatter = createServerFn({ method: "POST" })
       : null;
     await sql.transaction(async (transactionSql) => {
       await transactionSql`
-        insert into matter (matter_id, owner_user_id, name, status, created_at, updated_at)
-        values (${matterId}, ${context.userId}, ${data.name.trim()}, 'active', ${nowIso()}, ${nowIso()})
+        insert into matter (
+          tenant_id,
+matter_id, owner_user_id, name, status, created_at, updated_at)
+        values ( ${context.tenantId}, ${matterId}, ${context.userId}, ${data.name.trim()}, 'active', ${nowIso()}, ${nowIso()})
       `;
       await transactionSql`
         insert into mandate_version (
+          tenant_id,
+
           mandate_version_id, matter_id, owner_user_id, version_no, represented_party,
           instruments, stage, must_protect_notes_ciphertext, mandate_hash, created_by_user_id, created_at
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${mandateId}, ${matterId}, ${context.userId}, 1, ${data.representedParty},
           ${JSON.stringify(data.instruments)}, ${data.stage}, ${notesEnc}, ${hash}, ${context.userId}, ${nowIso()}
         )
@@ -225,9 +240,11 @@ export const updateMandate = createServerFn({ method: "POST" })
       : null;
     await sql`
       insert into mandate_version (
+          tenant_id,
+
         mandate_version_id, matter_id, owner_user_id, version_no, represented_party,
         instruments, stage, must_protect_notes_ciphertext, mandate_hash, created_by_user_id
-      ) values (
+      ) values ( ${context.tenantId}, 
         ${mandateId}, ${data.matterId}, ${context.userId}, ${(ver[0]?.n ?? 0) + 1},
         ${data.representedParty}, ${JSON.stringify(data.instruments)}, ${data.stage},
         ${notesEnc}, ${hash}, ${context.userId}
@@ -265,8 +282,10 @@ export const deleteMatter = createServerFn({ method: "POST" })
     `;
     await sql`
       insert into deletion_job (
+          tenant_id,
+
         deletion_id, owner_user_id, matter_id, requested_at, revoked_at, purge_due_at, policy_version
-      ) values (
+      ) values ( ${context.tenantId}, 
         ${newId()}, ${context.userId}, ${data.matterId}, ${now}, ${now}, ${purge}, 'retention-v1'
       )
     `;
@@ -292,6 +311,7 @@ async function persistIngest(opts: {
 }) {
   await requireVerified(opts.userId);
   const sql = await getSql();
+  const tenantId = requiredTenantId();
   const matter = await sql<{ matter_id: string }>`
     select matter_id from matter
     where matter_id = ${opts.matterId} and owner_user_id = ${opts.userId} and deleted_at is null
@@ -316,8 +336,10 @@ async function persistIngest(opts: {
   } else {
     documentId = newId();
     await sql`
-      insert into document (document_id, matter_id, owner_user_id, logical_name, role, user_instrument)
-      values (${documentId}, ${opts.matterId}, ${opts.userId}, ${opts.logicalName}, ${opts.role}, ${opts.userInstrument})
+      insert into document (
+          tenant_id,
+document_id, matter_id, owner_user_id, logical_name, role, user_instrument)
+      values ( ${tenantId}, ${documentId}, ${opts.matterId}, ${opts.userId}, ${opts.logicalName}, ${opts.role}, ${opts.userInstrument})
     `;
   }
 
@@ -338,10 +360,12 @@ async function persistIngest(opts: {
   if (ingested.refused) {
     await sql`
       insert into document_version (
+          tenant_id,
+
         document_version_id, document_id, matter_id, owner_user_id, version_no, supersedes_version_id,
         source_sha256, mime_type, byte_size, page_count, page_count_method, original_object_key,
         wrapped_data_key, cipher_metadata, ingest_status, refusal_code, source_quality, ingest_schema_version
-      ) values (
+      ) values ( ${tenantId}, 
         ${versionId}, ${documentId}, ${opts.matterId}, ${opts.userId}, ${versionNo},
         ${prev[0]?.document_version_id ?? null}, ${sha},
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -385,12 +409,14 @@ async function persistIngest(opts: {
 
   await sql`
     insert into document_version (
+          tenant_id,
+
       document_version_id, document_id, matter_id, owner_user_id, version_no, supersedes_version_id,
       source_sha256, mime_type, byte_size, page_count, page_count_method, original_object_key,
       wrapped_data_key, cipher_metadata, ingest_status, source_quality, structure_confidence,
       index_quality_version, ingest_schema_version, classified_share, material_unclassified,
       usable_outline, unclassified_chars, unclassified_leaf_count, index_quality_json
-    ) values (
+    ) values ( ${tenantId}, 
       ${versionId}, ${documentId}, ${opts.matterId}, ${opts.userId}, ${versionNo},
       ${prev[0]?.document_version_id ?? null}, ${sha},
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -412,18 +438,22 @@ async function persistIngest(opts: {
   const mapId = newId();
   await sql`
     insert into canonicalisation_map (
+          tenant_id,
+
       map_id, document_version_id, owner_user_id, version_no, status, map_sha256, recogniser_version
-    ) values (
+    ) values ( ${tenantId}, 
       ${mapId}, ${versionId}, ${opts.userId}, 1, 'proposed', ${ingested.mapSha}, ${RECOGNISER_VERSION}
     )
   `;
   for (const e of ingested.proposed.entries) {
     await sql`
       insert into canonicalisation_entry (
+          tenant_id,
+
         entry_id, map_id, owner_user_id, kind, identifier_type, source_provision_id,
         source_start, source_end, original_value_ciphertext, replacement, defined_term_id,
         detector, confidence, user_decision
-      ) values (
+      ) values ( ${tenantId}, 
         ${e.entryId}, ${mapId}, ${opts.userId}, ${e.kind}, ${e.identifierType}, ${e.sourceProvisionId},
         ${e.sourceStart}, ${e.sourceEnd}, ${envelopeToText(e.originalValue)}, ${e.replacement},
         ${e.definedTermId}, ${e.detector}, ${e.confidence}, ${e.userDecision}
@@ -432,8 +462,10 @@ async function persistIngest(opts: {
   }
   for (const cap of ingested.extracted.capabilities) {
     await sql`
-      insert into source_capability (source_capability_id, document_version_id, owner_user_id, capability_name, available, detector_version, suppression_reason)
-      values (${newId()}, ${versionId}, ${opts.userId}, ${cap.name}, ${cap.available}, ${cap.detectorVersion}, ${cap.suppressionReason})
+      insert into source_capability (
+          tenant_id,
+source_capability_id, document_version_id, owner_user_id, capability_name, available, detector_version, suppression_reason)
+      values ( ${tenantId}, ${newId()}, ${versionId}, ${opts.userId}, ${cap.name}, ${cap.available}, ${cap.detectorVersion}, ${cap.suppressionReason})
     `;
   }
   void workBlob;
@@ -767,9 +799,11 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     `;
     await sql`
       insert into canonicalisation_map (
+          tenant_id,
+
         map_id, document_version_id, owner_user_id, version_no, status, map_sha256, recogniser_version,
         confirmed_by_user_id, confirmed_at
-      ) values (
+      ) values ( ${context.tenantId}, 
         ${newMapId}, ${d.currentVersionId}, ${context.userId}, ${maps[0].versionNo + 1}, 'confirmed',
         ${mapSha(entries)}, ${RECOGNISER_VERSION}, ${context.userId}, ${nowIso()}
       )
@@ -777,10 +811,12 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     for (const e of entries) {
       await sql`
         insert into canonicalisation_entry (
+          tenant_id,
+
           entry_id, map_id, owner_user_id, kind, identifier_type, source_provision_id,
           source_start, source_end, original_value_ciphertext, replacement, defined_term_id,
           detector, confidence, user_decision
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${newId()}, ${newMapId}, ${context.userId}, ${e.kind}, ${e.identifierType}, ${e.sourceProvisionId},
           ${e.sourceStart}, ${e.sourceEnd}, ${envelopeToText(e.originalValue)}, ${e.replacement},
           ${e.definedTermId}, ${e.detector}, ${e.confidence}, ${e.userDecision}
@@ -807,9 +843,11 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     const projectionId = newId();
     await sql`
       insert into canonical_projection (
+          tenant_id,
+
         projection_id, document_version_id, map_id, owner_user_id, projection_sha256,
         projection_object_key, offset_map_object_key
-      ) values (
+      ) values ( ${context.tenantId}, 
         ${projectionId}, ${d.currentVersionId}, ${newMapId}, ${context.userId}, ${projBlob.sha256},
         ${projBlob.objectKey}, ${offsetBlob.objectKey}
       )
@@ -819,11 +857,13 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     for (const p of provisions) {
       await sql`
         insert into provision (
+          tenant_id,
+
           provision_id, document_version_id, projection_id, owner_user_id, parent_provision_id,
           order_index, node_type, owns_text, number, heading, scope_type, scope_id,
           canonical_text_ciphertext, canonical_length, source_xml_anchor, source_start, source_end,
           structural_path, classification_confidence, line_start, line_end
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${p.provisionId}, ${d.currentVersionId}, ${projectionId}, ${context.userId}, ${p.parentProvisionId},
           ${p.orderIndex}, ${p.nodeType}, ${p.ownsText}, ${p.number}, ${p.heading}, ${p.scopeType}, ${p.scopeId},
           ${p.ownsText ? envelopeToText(p.canonicalText) : null}, ${p.canonicalLength},
@@ -836,10 +876,12 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     for (const def of ingested.definitions) {
       await sql`
         insert into definition (
+          tenant_id,
+
           definition_id, document_id, document_version_id, projection_id, owner_user_id,
           term, normalised_term, definition_kind, scope_type, scope_id, defining_provision_id,
           start_offset, end_offset
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${def.definitionId}, ${d.documentId}, ${d.currentVersionId}, ${projectionId}, ${context.userId},
           ${def.term}, ${def.normalisedTerm}, ${def.definitionKind}, ${def.scopeType}, ${def.scopeId},
           ${def.definingProvisionId}, ${def.start}, ${def.end}
@@ -854,17 +896,21 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     `;
     for (const u of ingested.uses) {
       await sql`
-        insert into definition_use (definition_use_id, definition_id, owner_user_id, provision_id, start_offset, end_offset)
-        values (${u.definitionUseId}, ${u.definitionId}, ${context.userId}, ${u.provisionId}, ${u.start}, ${u.end})
+        insert into definition_use (
+          tenant_id,
+definition_use_id, definition_id, owner_user_id, provision_id, start_offset, end_offset)
+        values ( ${context.tenantId}, ${u.definitionUseId}, ${u.definitionId}, ${context.userId}, ${u.provisionId}, ${u.start}, ${u.end})
       `;
     }
 
     for (const e of proof.dealMap) {
       await sql`
         insert into deal_map_entry (
+          tenant_id,
+
           deal_map_entry_id, document_id, document_version_id, projection_id, owner_user_id,
           category, label, value, provision_id, start_offset, end_offset, extraction_method, confidence, uncertainty_code
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${newId()}, ${d.documentId}, ${d.currentVersionId}, ${projectionId}, ${context.userId},
           ${e.category}, ${e.label}, ${e.value}, ${e.provisionId}, ${e.start}, ${e.end},
           'deterministic', ${e.confidence}, ${e.uncertaintyCode}
@@ -878,9 +924,11 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     const status = !allRequiredRan ? "partial" : anySuppressed ? "partial" : "complete";
     await sql`
       insert into proof_run (
+          tenant_id,
+
         proof_run_id, matter_id, owner_user_id, document_version_id, map_id, projection_id,
         status, registry_sha256, started_at, ended_at, idempotency_key
-      ) values (
+      ) values ( ${context.tenantId}, 
         ${runId}, ${d.matterId}, ${context.userId}, ${d.currentVersionId}, ${newMapId}, ${projectionId},
         ${status}, ${proof.result.registrySha}, ${nowIso()}, ${nowIso()}, ${`confirm:${d.currentVersionId}:${newMapId}`}
       )
@@ -888,9 +936,11 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
     for (const ex of proof.result.executions) {
       await sql`
         insert into proof_check_execution (
+          tenant_id,
+
           proof_check_execution_id, proof_run_id, owner_user_id, check_id, check_version, status,
           required_capabilities, missing_capabilities, hit_count
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${newId()}, ${runId}, ${context.userId}, ${ex.checkId}, ${ex.checkVersion}, ${ex.status},
           ${JSON.stringify([])}, ${JSON.stringify(ex.missing)}, ${ex.hitCount}
         )
@@ -900,10 +950,12 @@ export const confirmCanonicalMap = createServerFn({ method: "POST" })
       if (!f.valid || !f.quote) continue;
       await sql`
         insert into proof_hit (
+          tenant_id,
+
           proof_hit_id, proof_run_id, document_version_id, map_id, projection_id, owner_user_id,
           check_id, check_version, severity, certainty, provision_id, quote_start, quote_end,
           server_quote_snapshot, detail_code, detail_args, source_mapping_valid
-        ) values (
+        ) values ( ${context.tenantId}, 
           ${newId()}, ${runId}, ${d.currentVersionId}, ${newMapId}, ${projectionId}, ${context.userId},
           ${f.hit.checkId}, ${f.hit.checkVersion}, ${f.hit.severity}, ${f.hit.certainty},
           ${f.hit.provisionId}, ${f.hit.quoteStart}, ${f.hit.quoteEnd},
@@ -1206,8 +1258,10 @@ export const voteNotADefect = createServerFn({ method: "POST" })
     if (!hit[0]) return { ok: false as const };
     await sql`
       insert into proof_feedback_ticket (
+          tenant_id,
+
         ticket_id, proof_hit_id, check_id, check_version, owner_user_id, user_id, vote, user_note
-      ) values (
+      ) values ( ${context.tenantId}, 
         ${newId()}, ${hit[0].proof_hit_id}, ${hit[0].check_id}, ${hit[0].check_version},
         ${context.userId}, ${context.userId}, 'not_a_defect', ${data.note ?? null}
       )

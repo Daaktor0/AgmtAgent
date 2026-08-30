@@ -62,13 +62,23 @@ The currently reviewed schema files are:
 3. `0003_slice2.sql`
 4. `0003_tenant_integrity_expand.sql`
 5. `0004_rls_runtime.sql`
+6. `0005_job_object_plane.sql`
 
-The empty sandbox has all five application ledger entries. The FND-04
-migration leaves all 32 public tables enabled and forced for RLS, with
-runtime access granted only to the reviewed non-login role model. The
+The empty sandbox has all six application ledger entries, including the exact
+`0005_job_object_plane.sql` checksum recorded by the release runner. The FND-04
+migration leaves the original 32 public tables enabled and forced for RLS;
+`0005_job_object_plane.sql` adds four metadata/job tables, 16 package policies,
+and forces RLS on each. Runtime access remains limited to the reviewed non-login
+role model. The
 Supabase security advisor no longer reports RLS-disabled errors; the
 release-only `_migrations` table is intentionally not queryable by runtime
 roles and may produce an informational no-policy notice.
+
+The new object plane stores no document bytes in PostgreSQL: `object_manifest`
+contains only provider/key/state/hash/size and envelope metadata. The legacy
+`object_blob` table is retained unchanged until historical ciphertext/key
+review. Local `AGMT_OBJECT_STORE=memory` is for synthetic tests only; deployed
+runtimes fail closed until an explicit S3 adapter is installed.
 
 A synthetic crossover probe passed on the sandbox and left zero probe rows.
 The probe temporarily granted two runtime roles to the administrative postgres

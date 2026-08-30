@@ -1,8 +1,8 @@
 # Agmt Proof implementation status
 
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Latest merged main:** `1254f5934de7385f8ab707a57d3dc56650d052d6` via PR #14  
-**Current implementation branch:** `proof-production-hardening/upload-quarantine-worker-contracts` at `b34872c88093e20dcfafd9dd922e392b863b08fc` (PR #15; documentation commit included below)  
+**Latest merged main:** `780503abb38318e24f5d5ec75bc0f194f04b5707` via PR #15  
+**Latest implementation branch:** `proof-production-hardening/upload-quarantine-worker-contracts` at `b34872c88093e20dcfafd9dd922e392b863b08fc` (merged via PR #15)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
@@ -15,7 +15,7 @@
 
 ## Evidence from the latest code head
 
-At verified implementation code head `b34872c88093e20dcfafd9dd922e392b863b08fc` (PR #15; repository contract batch):
+At verified implementation code head `b34872c88093e20dcfafd9dd922e392b863b08fc` (merged into `main` via PR #15; repository contract batch):
 
 - Web Proof workflow `33336709469`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (99/99 full-suite tests).
 - Eval workflow `33336709477` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.

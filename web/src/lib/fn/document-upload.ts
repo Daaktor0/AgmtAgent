@@ -1,8 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql, type Sql } from "@/lib/db";
+import { getSql, transactionOutcome, type Sql } from "@/lib/db";
 import { requireVerified } from "@/lib/server/account";
-import { deleteBlob, putBlob } from "@/lib/server/blobs";
+import {
+  blobPublicationArtifactFromError,
+  deleteBlob,
+  putBlob,
+  reconcileBlobAfterTransactionFailure,
+  type PutBlobResult,
+} from "@/lib/server/blobs";
 import { writeAudit } from "@/lib/server/audit";
 import { encryptText, sha256Hex } from "@/lib/agmt/crypto";
 import { newId } from "@/lib/agmt/ids";
@@ -138,9 +144,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
     const documentId = newId();
     const versionId = newId();
     let mapId: string | null = null;
-    let originalObjectKey: string | null = null;
-    let documentInserted = false;
-    let versionInserted = false;
+    let originalObject: PutBlobResult | null = null;
     let phase = "inspect";
 
     try {
@@ -151,7 +155,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
       const transactionalResult = await sql.transaction(async (transactionSql) => {
         phase = "store_original";
         const original = await putBlob(context.userId, "original_docx", bytes, transactionSql);
-        originalObjectKey = original.objectKey;
+        originalObject = original;
 
         phase = "create_document";
         await transactionSql`
@@ -165,7 +169,6 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
             'primary', ${data.userInstrument}
           )
         `;
-        documentInserted = true;
 
         if (ingested.refused) {
           phase = "persist_refusal";
@@ -187,7 +190,6 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
               ${ingested.code}, 'unreadable', ${INGEST_SCHEMA_VERSION}
             )
           `;
-          versionInserted = true;
           await transactionSql`
             update document set current_version_id = ${versionId}
             where document_id = ${documentId} and owner_user_id = ${context.userId}
@@ -316,46 +318,40 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
       return transactionalResult;
     } catch (error) {
       const code = safeErrorCode(error);
-      console.error(`[upload] failed phase=${phase} code=${code}`);
+      const outcome = transactionOutcome(error);
+      const artifact =
+        originalObject?.artifact ?? blobPublicationArtifactFromError(error);
 
-      // Best-effort compensation. There are no FK cascades in the current Slice
-      // schema, so explicitly remove any partial records created by this attempt.
-      try {
-        if (mapId) {
-          await sql`
-            delete from canonicalisation_entry
-            where map_id = ${mapId} and owner_user_id = ${context.userId}
-          `;
-          await sql`
-            delete from canonicalisation_map
-            where map_id = ${mapId} and owner_user_id = ${context.userId}
-          `;
+      if (artifact) {
+        try {
+          const reconciliation = await reconcileBlobAfterTransactionFailure(sql, artifact, {
+            // Destructive provider cleanup is allowed only after the transaction
+            // adapter confirmed that no relational publication committed.
+            allowDeletion: outcome === "rolled_back",
+          });
+          if (reconciliation.status === "unresolved") {
+            console.error(
+              "[upload] reconciliation_unresolved",
+              reconciliation.recordError ?? reconciliation.deleteError,
+            );
+          } else {
+            console.warn(
+              "[upload] reconciliation_" + reconciliation.status,
+              "phase=" + phase + " code=" + code,
+            );
+          }
+        } catch (reconciliationError) {
+          console.error(
+            "[upload] reconciliation_failed code=" + safeErrorCode(reconciliationError),
+          );
         }
-        if (versionInserted) {
-          await sql`
-            delete from source_capability
-            where document_version_id = ${versionId} and owner_user_id = ${context.userId}
-          `;
-          await sql`
-            delete from document_version
-            where document_version_id = ${versionId} and owner_user_id = ${context.userId}
-          `;
-        }
-        if (documentInserted) {
-          await sql`
-            delete from document
-            where document_id = ${documentId} and owner_user_id = ${context.userId}
-          `;
-        }
-        if (originalObjectKey) {
-          await deleteBlob(context.userId, originalObjectKey, sql);
-          await sql`
-            delete from object_blob
-            where object_key = ${originalObjectKey} and owner_user_id = ${context.userId}
-          `;
-        }
-      } catch (cleanupError) {
-        console.error(`[upload] cleanup_failed code=${safeErrorCode(cleanupError)}`);
+      }
+
+      if (outcome === "unknown" || outcome === null) {
+        // A commit/rollback transport failure is ambiguous. Do not delete
+        // relational rows or provider bytes, even if a cleanup query appears
+        // to succeed; the next reconciler must decide from exact manifests.
+        console.error("[upload] publication_outcome_uncertain phase=" + phase);
       }
 
       return {
@@ -363,5 +359,6 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
         code: "processing_failed",
         message: "Agmt could not prepare this Word file for Proof. The failed upload was not added to the Matter.",
       };
+
     }
   });

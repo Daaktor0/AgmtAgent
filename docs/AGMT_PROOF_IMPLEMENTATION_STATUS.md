@@ -1,7 +1,8 @@
 # Agmt Proof implementation status
 
-**Baseline:** current `main` at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Working branch:** `proof-production-hardening/job01-obj01` at `d0c33520cda0a2f0ee4fc654d0a1b529bc5e0c06`  
+**Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
+**Latest merged main:** `1afa28924fd3b1db5e64500bf7ceaa17e6d5031a` via PR #13  
+**Implementation branch:** `proof-production-hardening/job01-obj01-final` at `5e9e595caf896f85187bed9e206dbe6de41801c0` (merged)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
@@ -14,10 +15,10 @@
 
 ## Evidence from the latest code head
 
-At branch head `d0c33520cda0a2f0ee4fc654d0a1b529bc5e0c06`:
+At verified feature head `5e9e595caf896f85187bed9e206dbe6de41801c0` (merged into `main`):
 
-- Web Proof workflow `33335350002`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed.
-- Eval workflow `33335349948` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
+- Web Proof workflow `33335803534`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (229/229 full-suite tests).
+- Eval workflow `33335803722` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
 - The deterministic DOCX fixture now uses fixed entry metadata and uncompressed ZIP entries, so byte hashes are stable across repeated CI runs.
 - FND-04 tenant-bound write repairs cover the existing Matter/document/audit paths required by forced RLS; the static regression test rejects any tenant-owned insert that omits `tenant_id`.
 - JOB-01/OBJ-01 tests cover immutable object keys, tenant-hashed storage paths, byte/hash integrity, S3 adapter boundaries, job transitions, lease expiry, idempotency, additive migration safety, and PGlite RLS crossover behavior.
@@ -130,7 +131,7 @@ See [ADR 0004](adr/0004-tenant-integrity-expand-contract.md).
 - The security advisor no longer reports the prior RLS-disabled errors. It reports only an INFO for the intentionally release-only `_migrations` table having no policy. The performance advisor reports existing/indexing and multiple-policy follow-ups; they are not security or launch waivers.
 - No AWS resources, external auth providers, storage buckets, production services, ciphertext or object bytes were changed.
 
-See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md) and [ADR 0006](adr/0006-tenant-rls-runtime-context.md).
+See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md), [ADR 0006](adr/0006-tenant-rls-runtime-context.md) and [ADR 0007](adr/0007-job-object-plane.md).
 
 ## Gate ownership map
 
@@ -150,6 +151,6 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md) and [ADR 0006](adr/
 - FND-04 remains pending production role provisioning, connection-role review, non-empty crossover review and explicit security approval.
 - FND-02 still needs injected-failure integration coverage around the production publication path and the later object/job-plane reconciliation contract.
 - FND-03 contract work must stop on any ambiguous owner, missing principal, tenant mismatch or unverifiable historical ciphertext/key. No historical ciphertext migration has been attempted.
-- The green `224/224` repository suite closes only the repository/template gate. It does not waive the blueprint P0 precision/recall, exact evidence, parser, export, lifecycle, DR, operational or production-authentication gates.
+- The green `229/229` repository suite closes only the repository/template gate. It does not waive the blueprint P0 precision/recall, exact evidence, parser, export, lifecycle, DR, operational or production-authentication gates.
 - The next dependency-ready repository lane is direct upload/quarantine and isolated worker controls (OBJ-02, OBJ-03, WRK-01). Their production S3/malware/IAM authority is not present and no AWS resource was provisioned; repository interfaces may proceed, but live wiring must stop for owner setup/review.
 - Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security and operational gates pass.

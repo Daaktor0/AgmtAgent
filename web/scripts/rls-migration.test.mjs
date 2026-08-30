@@ -92,9 +92,13 @@ test("FND-04 enables and forces RLS on every public table", () => {
 
 test("FND-04 defines non-login, non-bypass runtime roles", () => {
   for (const role of ["agmt_app", "agmt_worker", "agmt_support", "agmt_auth"]) {
-    assert.match(migration, new RegExp("create\\s+role\\s+" + role + "\\b", "i"));
-    assert.match(migration, new RegExp(role + "[\\s\\S]{0,500}nobypassrls", "i"));
-    assert.match(migration, new RegExp(role + "[\\s\\S]{0,500}nologin", "i"));
+    assert.match(migration, new RegExp("['"]" + role + "['"]", "i"));
+  }
+  assert.match(
+    migration,
+    /create role %I no login no superuser no createdb no createrole no inherit no replication no bypassrls/i,
+  );
+  assert.match(migration, /rolbypassrls/);
   }
   assert.match(migration, /role attributes are checked/i);
 });

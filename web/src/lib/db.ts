@@ -15,7 +15,7 @@ import {
 
 export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction";
 
-export type DbSource = "neon" | "pglite";
+export type DbSource = "postgres" | "pglite";
 
 const env = (key: string): string | undefined => {
   const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
@@ -29,7 +29,7 @@ const databaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
 const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
 
-export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
+export const dbSource: DbSource = databaseUrl ? "postgres" : "pglite";
 
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
@@ -48,7 +48,7 @@ function persistentDatabaseRequired(): never {
   );
 }
 
-function createNeonSql(): Promise<Sql> {
+function createManagedPostgresSql(): Promise<Sql> {
   if (!databaseUrl) return Promise.reject(new Error("DATABASE_URL is not configured"));
   globalRef.__pgSqlPromise__ ??= (async () => {
     const { Pool, types } = await import("pg");
@@ -186,7 +186,7 @@ async function createSql(): Promise<Sql> {
     );
   }
   if (deployedServerless && !databaseUrl) persistentDatabaseRequired();
-  return dbSource === "neon" ? createNeonSql() : createPgliteSql();
+  return dbSource === "postgres" ? createManagedPostgresSql() : createPgliteSql();
 }
 
 export async function withTransaction<T>(

@@ -42,67 +42,7 @@ alter table proof_feedback_ticket add column if not exists tenant_id text;
 alter table audit_event add column if not exists tenant_id text;
 alter table deletion_job add column if not exists tenant_id text;
 
--- Never invent a principal for an existing row. An orphan owner is a
--- migration blocker and must be investigated before this migration can commit.
-do $$
-begin
-  if exists (
-    with owner_ids(user_id) as (
-      select owner_user_id from matter
-      union
-      select owner_user_id from mandate_version
-      union
-      select owner_user_id from document
-      union
-      select owner_user_id from document_version
-      union
-      select owner_user_id from object_blob
-      union
-      select owner_user_id from canonicalisation_map
-      union
-      select owner_user_id from canonicalisation_entry
-      union
-      select owner_user_id from canonical_projection
-      union
-      select owner_user_id from span_map_segment
-      union
-      select owner_user_id from provision
-      union
-      select owner_user_id from definition
-      union
-      select owner_user_id from definition_use
-      union
-      select owner_user_id from deal_map_entry
-      union
-      select owner_user_id from source_capability
-      union
-      select owner_user_id from proof_run
-      union
-      select owner_user_id from proof_check_execution
-      union
-      select owner_user_id from proof_hit
-      union
-      select owner_user_id from proof_feedback_ticket
-      union
-      select owner_user_id from audit_event where owner_user_id is not null
-      union
-      select owner_user_id from deletion_job
-      union
-      select user_id from review_entitlement
-      union
-      select user_id from credit_event
-    )
-    select 1
-    from owner_ids
-    left join user_account on user_account.user_id = owner_ids.user_id
-    where owner_ids.user_id is not null
-      and user_account.user_id is null
-  ) then
-    raise exception
-      'FND-03 blocked: an existing owner has no user_account row';
-  end if;
-end
-$$;
+-- An existing owner has no user_account row: the agmt_tenant foreign key below fails closed at insert time.
 
 with owner_ids(user_id) as (
   select owner_user_id from matter
@@ -190,55 +130,28 @@ where tenant_id is null
 update deletion_job set tenant_id = owner_user_id where tenant_id is null;
 
 -- These keys are the parent side of tenant-scoped composite foreign keys.
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'agmt_matter_tenant_id_uq') then
-    alter table matter add constraint agmt_matter_tenant_id_uq
+alter table matter add constraint agmt_matter_tenant_id_uq
       unique (tenant_id, matter_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_mandate_tenant_id_uq') then
-    alter table mandate_version add constraint agmt_mandate_tenant_id_uq
+alter table mandate_version add constraint agmt_mandate_tenant_id_uq
       unique (tenant_id, mandate_version_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_tenant_id_uq') then
-    alter table document add constraint agmt_document_tenant_id_uq
+alter table document add constraint agmt_document_tenant_id_uq
       unique (tenant_id, document_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_version_tenant_id_uq') then
-    alter table document_version add constraint agmt_document_version_tenant_id_uq
+alter table document_version add constraint agmt_document_version_tenant_id_uq
       unique (tenant_id, document_version_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_map_tenant_id_uq') then
-    alter table canonicalisation_map add constraint agmt_map_tenant_id_uq
+alter table canonicalisation_map add constraint agmt_map_tenant_id_uq
       unique (tenant_id, map_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_projection_tenant_id_uq') then
-    alter table canonical_projection add constraint agmt_projection_tenant_id_uq
+alter table canonical_projection add constraint agmt_projection_tenant_id_uq
       unique (tenant_id, projection_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_provision_tenant_id_uq') then
-    alter table provision add constraint agmt_provision_tenant_id_uq
+alter table provision add constraint agmt_provision_tenant_id_uq
       unique (tenant_id, provision_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_tenant_id_uq') then
-    alter table definition add constraint agmt_definition_tenant_id_uq
+alter table definition add constraint agmt_definition_tenant_id_uq
       unique (tenant_id, definition_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_run_tenant_id_uq') then
-    alter table proof_run add constraint agmt_proof_run_tenant_id_uq
+alter table proof_run add constraint agmt_proof_run_tenant_id_uq
       unique (tenant_id, proof_run_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_entry_tenant_id_uq') then
-    alter table canonicalisation_entry add constraint agmt_entry_tenant_id_uq
+alter table canonicalisation_entry add constraint agmt_entry_tenant_id_uq
       unique (tenant_id, entry_id);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_hit_tenant_id_uq') then
-    alter table proof_hit add constraint agmt_proof_hit_tenant_id_uq
+alter table proof_hit add constraint agmt_proof_hit_tenant_id_uq
       unique (tenant_id, proof_hit_id);
-  end if;
-end
-$;
-
 create index if not exists review_entitlement_tenant_idx
   on review_entitlement (tenant_id);
 create index if not exists credit_event_tenant_idx
@@ -287,385 +200,256 @@ create index if not exists deletion_job_tenant_idx
 -- NOT VALID preserves a safe expand step: existing rows can be reviewed and
 -- validated in a later contract migration, while future non-null values cannot
 -- cross a tenant boundary. Nullable tenant_id is deliberately temporary.
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'agmt_review_entitlement_member_fk') then
-    alter table review_entitlement add constraint agmt_review_entitlement_member_fk
+alter table review_entitlement add constraint agmt_review_entitlement_member_fk
       foreign key (tenant_id, user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_credit_event_member_fk') then
-    alter table credit_event add constraint agmt_credit_event_member_fk
+alter table credit_event add constraint agmt_credit_event_member_fk
       foreign key (tenant_id, user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_matter_owner_member_fk') then
-    alter table matter add constraint agmt_matter_owner_member_fk
+alter table matter add constraint agmt_matter_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_mandate_matter_fk') then
-    alter table mandate_version add constraint agmt_mandate_matter_fk
+alter table mandate_version add constraint agmt_mandate_matter_fk
       foreign key (tenant_id, matter_id)
       references matter (tenant_id, matter_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_mandate_owner_member_fk') then
-    alter table mandate_version add constraint agmt_mandate_owner_member_fk
+alter table mandate_version add constraint agmt_mandate_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_matter_fk') then
-    alter table document add constraint agmt_document_matter_fk
+alter table document add constraint agmt_document_matter_fk
       foreign key (tenant_id, matter_id)
       references matter (tenant_id, matter_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_owner_member_fk') then
-    alter table document add constraint agmt_document_owner_member_fk
+alter table document add constraint agmt_document_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_current_version_fk') then
-    alter table document add constraint agmt_document_current_version_fk
+alter table document add constraint agmt_document_current_version_fk
       foreign key (tenant_id, current_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_version_document_fk') then
-    alter table document_version add constraint agmt_document_version_document_fk
+alter table document_version add constraint agmt_document_version_document_fk
       foreign key (tenant_id, document_id)
       references document (tenant_id, document_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_version_matter_fk') then
-    alter table document_version add constraint agmt_document_version_matter_fk
+alter table document_version add constraint agmt_document_version_matter_fk
       foreign key (tenant_id, matter_id)
       references matter (tenant_id, matter_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_version_owner_member_fk') then
-    alter table document_version add constraint agmt_document_version_owner_member_fk
+alter table document_version add constraint agmt_document_version_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_document_version_supersedes_fk') then
-    alter table document_version add constraint agmt_document_version_supersedes_fk
+alter table document_version add constraint agmt_document_version_supersedes_fk
       foreign key (tenant_id, supersedes_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_object_blob_owner_member_fk') then
-    alter table object_blob add constraint agmt_object_blob_owner_member_fk
+alter table object_blob add constraint agmt_object_blob_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_map_document_version_fk') then
-    alter table canonicalisation_map add constraint agmt_map_document_version_fk
+alter table canonicalisation_map add constraint agmt_map_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_map_owner_member_fk') then
-    alter table canonicalisation_map add constraint agmt_map_owner_member_fk
+alter table canonicalisation_map add constraint agmt_map_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_entry_map_fk') then
-    alter table canonicalisation_entry add constraint agmt_entry_map_fk
+alter table canonicalisation_entry add constraint agmt_entry_map_fk
       foreign key (tenant_id, map_id)
       references canonicalisation_map (tenant_id, map_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_entry_owner_member_fk') then
-    alter table canonicalisation_entry add constraint agmt_entry_owner_member_fk
+alter table canonicalisation_entry add constraint agmt_entry_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_entry_provision_fk') then
-    alter table canonicalisation_entry add constraint agmt_entry_provision_fk
+alter table canonicalisation_entry add constraint agmt_entry_provision_fk
       foreign key (tenant_id, source_provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_projection_document_version_fk') then
-    alter table canonical_projection add constraint agmt_projection_document_version_fk
+alter table canonical_projection add constraint agmt_projection_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_projection_map_fk') then
-    alter table canonical_projection add constraint agmt_projection_map_fk
+alter table canonical_projection add constraint agmt_projection_map_fk
       foreign key (tenant_id, map_id)
       references canonicalisation_map (tenant_id, map_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_projection_owner_member_fk') then
-    alter table canonical_projection add constraint agmt_projection_owner_member_fk
+alter table canonical_projection add constraint agmt_projection_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_segment_projection_fk') then
-    alter table span_map_segment add constraint agmt_segment_projection_fk
+alter table span_map_segment add constraint agmt_segment_projection_fk
       foreign key (tenant_id, projection_id)
       references canonical_projection (tenant_id, projection_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_segment_provision_fk') then
-    alter table span_map_segment add constraint agmt_segment_provision_fk
+alter table span_map_segment add constraint agmt_segment_provision_fk
       foreign key (tenant_id, provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_provision_document_version_fk') then
-    alter table provision add constraint agmt_provision_document_version_fk
+alter table provision add constraint agmt_provision_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_provision_projection_fk') then
-    alter table provision add constraint agmt_provision_projection_fk
+alter table provision add constraint agmt_provision_projection_fk
       foreign key (tenant_id, projection_id)
       references canonical_projection (tenant_id, projection_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_provision_owner_member_fk') then
-    alter table provision add constraint agmt_provision_owner_member_fk
+alter table provision add constraint agmt_provision_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_provision_parent_fk') then
-    alter table provision add constraint agmt_provision_parent_fk
+alter table provision add constraint agmt_provision_parent_fk
       foreign key (tenant_id, parent_provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_document_fk') then
-    alter table definition add constraint agmt_definition_document_fk
+alter table definition add constraint agmt_definition_document_fk
       foreign key (tenant_id, document_id)
       references document (tenant_id, document_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_document_version_fk') then
-    alter table definition add constraint agmt_definition_document_version_fk
+alter table definition add constraint agmt_definition_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_projection_fk') then
-    alter table definition add constraint agmt_definition_projection_fk
+alter table definition add constraint agmt_definition_projection_fk
       foreign key (tenant_id, projection_id)
       references canonical_projection (tenant_id, projection_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_owner_member_fk') then
-    alter table definition add constraint agmt_definition_owner_member_fk
+alter table definition add constraint agmt_definition_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_provision_fk') then
-    alter table definition add constraint agmt_definition_provision_fk
+alter table definition add constraint agmt_definition_provision_fk
       foreign key (tenant_id, defining_provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_use_definition_fk') then
-    alter table definition_use add constraint agmt_definition_use_definition_fk
+alter table definition_use add constraint agmt_definition_use_definition_fk
       foreign key (tenant_id, definition_id)
       references definition (tenant_id, definition_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_use_owner_member_fk') then
-    alter table definition_use add constraint agmt_definition_use_owner_member_fk
+alter table definition_use add constraint agmt_definition_use_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_definition_use_provision_fk') then
-    alter table definition_use add constraint agmt_definition_use_provision_fk
+alter table definition_use add constraint agmt_definition_use_provision_fk
       foreign key (tenant_id, provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deal_document_fk') then
-    alter table deal_map_entry add constraint agmt_deal_document_fk
+alter table deal_map_entry add constraint agmt_deal_document_fk
       foreign key (tenant_id, document_id)
       references document (tenant_id, document_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deal_document_version_fk') then
-    alter table deal_map_entry add constraint agmt_deal_document_version_fk
+alter table deal_map_entry add constraint agmt_deal_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deal_projection_fk') then
-    alter table deal_map_entry add constraint agmt_deal_projection_fk
+alter table deal_map_entry add constraint agmt_deal_projection_fk
       foreign key (tenant_id, projection_id)
       references canonical_projection (tenant_id, projection_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deal_owner_member_fk') then
-    alter table deal_map_entry add constraint agmt_deal_owner_member_fk
+alter table deal_map_entry add constraint agmt_deal_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deal_provision_fk') then
-    alter table deal_map_entry add constraint agmt_deal_provision_fk
+alter table deal_map_entry add constraint agmt_deal_provision_fk
       foreign key (tenant_id, provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_source_capability_document_version_fk') then
-    alter table source_capability add constraint agmt_source_capability_document_version_fk
+alter table source_capability add constraint agmt_source_capability_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_source_capability_owner_member_fk') then
-    alter table source_capability add constraint agmt_source_capability_owner_member_fk
+alter table source_capability add constraint agmt_source_capability_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_run_matter_fk') then
-    alter table proof_run add constraint agmt_proof_run_matter_fk
+alter table proof_run add constraint agmt_proof_run_matter_fk
       foreign key (tenant_id, matter_id)
       references matter (tenant_id, matter_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_run_document_version_fk') then
-    alter table proof_run add constraint agmt_proof_run_document_version_fk
+alter table proof_run add constraint agmt_proof_run_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_run_map_fk') then
-    alter table proof_run add constraint agmt_proof_run_map_fk
+alter table proof_run add constraint agmt_proof_run_map_fk
       foreign key (tenant_id, map_id)
       references canonicalisation_map (tenant_id, map_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_run_projection_fk') then
-    alter table proof_run add constraint agmt_proof_run_projection_fk
+alter table proof_run add constraint agmt_proof_run_projection_fk
       foreign key (tenant_id, projection_id)
       references canonical_projection (tenant_id, projection_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_run_owner_member_fk') then
-    alter table proof_run add constraint agmt_proof_run_owner_member_fk
+alter table proof_run add constraint agmt_proof_run_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_check_run_fk') then
-    alter table proof_check_execution add constraint agmt_check_run_fk
+alter table proof_check_execution add constraint agmt_check_run_fk
       foreign key (tenant_id, proof_run_id)
       references proof_run (tenant_id, proof_run_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_check_owner_member_fk') then
-    alter table proof_check_execution add constraint agmt_check_owner_member_fk
+alter table proof_check_execution add constraint agmt_check_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_hit_run_fk') then
-    alter table proof_hit add constraint agmt_hit_run_fk
+alter table proof_hit add constraint agmt_hit_run_fk
       foreign key (tenant_id, proof_run_id)
       references proof_run (tenant_id, proof_run_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_hit_document_version_fk') then
-    alter table proof_hit add constraint agmt_hit_document_version_fk
+alter table proof_hit add constraint agmt_hit_document_version_fk
       foreign key (tenant_id, document_version_id)
       references document_version (tenant_id, document_version_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_hit_map_fk') then
-    alter table proof_hit add constraint agmt_hit_map_fk
+alter table proof_hit add constraint agmt_hit_map_fk
       foreign key (tenant_id, map_id)
       references canonicalisation_map (tenant_id, map_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_hit_projection_fk') then
-    alter table proof_hit add constraint agmt_hit_projection_fk
+alter table proof_hit add constraint agmt_hit_projection_fk
       foreign key (tenant_id, projection_id)
       references canonical_projection (tenant_id, projection_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_hit_provision_fk') then
-    alter table proof_hit add constraint agmt_hit_provision_fk
+alter table proof_hit add constraint agmt_hit_provision_fk
       foreign key (tenant_id, provision_id)
       references provision (tenant_id, provision_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_hit_owner_member_fk') then
-    alter table proof_hit add constraint agmt_hit_owner_member_fk
+alter table proof_hit add constraint agmt_hit_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_feedback_hit_fk') then
-    alter table proof_feedback_ticket add constraint agmt_feedback_hit_fk
+alter table proof_feedback_ticket add constraint agmt_feedback_hit_fk
       foreign key (tenant_id, proof_hit_id)
       references proof_hit (tenant_id, proof_hit_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_feedback_owner_member_fk') then
-    alter table proof_feedback_ticket add constraint agmt_feedback_owner_member_fk
+alter table proof_feedback_ticket add constraint agmt_feedback_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_feedback_user_member_fk') then
-    alter table proof_feedback_ticket add constraint agmt_feedback_user_member_fk
+alter table proof_feedback_ticket add constraint agmt_feedback_user_member_fk
       foreign key (tenant_id, user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_audit_matter_fk') then
-    alter table audit_event add constraint agmt_audit_matter_fk
+alter table audit_event add constraint agmt_audit_matter_fk
       foreign key (tenant_id, matter_id)
       references matter (tenant_id, matter_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_audit_owner_member_fk') then
-    alter table audit_event add constraint agmt_audit_owner_member_fk
+alter table audit_event add constraint agmt_audit_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_audit_user_member_fk') then
-    alter table audit_event add constraint agmt_audit_user_member_fk
+alter table audit_event add constraint agmt_audit_user_member_fk
       foreign key (tenant_id, user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deletion_matter_fk') then
-    alter table deletion_job add constraint agmt_deletion_matter_fk
+alter table deletion_job add constraint agmt_deletion_matter_fk
       foreign key (tenant_id, matter_id)
       references matter (tenant_id, matter_id)
       not valid;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'agmt_deletion_owner_member_fk') then
-    alter table deletion_job add constraint agmt_deletion_owner_member_fk
+alter table deletion_job add constraint agmt_deletion_owner_member_fk
       foreign key (tenant_id, owner_user_id)
       references agmt_tenant_member (tenant_id, user_id)
       not valid;
-  end if;
-end
-$$;
+

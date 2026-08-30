@@ -14,7 +14,7 @@
 
 ## Evidence from the latest code head
 
-At branch head `7835901983a91dc7ea89d614c5b5e75c26cce63c`:
+At branch head `6a71cfd2614a6560cefb68be7cea902fd69e4618`:
 
 - Web Proof workflow `33329490902` at code head `076603b3b0c2011bf803ad883df93fa451ce23a1`: dependency install, development build, typecheck, transaction hardening, production build, and Proof golden corpus passed. The full web command completed `196/213` tests with `17` failures.
 - Eval workflow `33329510823`: Python corpus/evaluation checks passed.

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { auth, SESSION_TOKEN_COOKIE } from "@/lib/auth/server";
 
 async function signSessionToken(token: string, secret: string): Promise<string> {
@@ -77,36 +76,4 @@ export async function openVerifiedEmailSession(
   await setSessionCookie(signed);
 
   return { userId, sessionToken: signed };
-}
-
-/**
- * Temporary open-access mode used only while Agmt is being product-tested.
- *
- * There is deliberately no shared "dev-user" on the production database. Each
- * browser receives a fresh Better Auth identity and HttpOnly session, so its
- * Matters and documents remain isolated by owner_user_id even though there is
- * no interactive login step. Remove this helper when normal sign-in is restored.
- */
-export async function openAnonymousTestSession(): Promise<{ userId: string }> {
-  const context = await auth.$context;
-  const nonce = randomUUID();
-  const email = `tester-${nonce}@test.agmt.local`;
-  const user = await context.internalAdapter.createUser({
-    email,
-    name: "Test workspace",
-    emailVerified: true,
-  });
-  if (!user?.id) throw new Error("Could not create a test workspace.");
-
-  await context.internalAdapter.createAccount({
-    userId: user.id,
-    accountId: nonce,
-    providerId: "temporary_test_access",
-  });
-
-  const session = await context.internalAdapter.createSession(user.id);
-  if (!session?.token) throw new Error("Could not open a test workspace session.");
-  const signed = await signSessionToken(session.token, context.secret);
-  await setSessionCookie(signed);
-  return { userId: user.id };
 }

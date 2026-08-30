@@ -8,6 +8,10 @@ const baseline = await readFile(
   new URL("../migrations/0002_slice0.sql", import.meta.url),
   "utf8",
 );
+const indexQuality = await readFile(
+  new URL("../migrations/0003_slice2.sql", import.meta.url),
+  "utf8",
+);
 const tenantExpansion = await readFile(
   new URL("../migrations/0003_tenant_integrity_expand.sql", import.meta.url),
   "utf8",
@@ -18,6 +22,7 @@ test("FND-03 migration rehearsal rejects cross-tenant relationships", async () =
   await database.waitReady;
   try {
     await database.exec(baseline);
+    await database.exec(indexQuality);
     await database.exec(tenantExpansion);
 
     await database.query(

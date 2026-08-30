@@ -5,10 +5,10 @@ import { ensureAccount, requireVerified } from "@/lib/server/account";
 import { writeAudit } from "@/lib/server/audit";
 import { putBlob, getBlob } from "@/lib/server/blobs";
 import { newId, nowIso } from "@/lib/agmt/ids";
-import { encryptText, decryptText, hashToken, sha256Hex } from "@/lib/agmt/crypto";
+import { encryptText, decryptText, sha256Hex } from "@/lib/agmt/crypto";
 import { ingestBuffer, applyMap, runConfirmedProof, identifierCategoryCounts } from "@/lib/agmt/pipeline";
 import { sampleShaDocx } from "@/lib/agmt/sample-sha";
-import { RETENTION, MAGIC_LINK_TTL_MS, MAGIC_LINK_RATE_EMAIL, MAGIC_LINK_RATE_WINDOW_MS, MAGIC_LINK_SUBJECT, SUPPORT_CONTACT, INGEST_SCHEMA_VERSION, RECOGNISER_VERSION, INDEX_QUALITY_VERSION } from "@/lib/agmt/config";
+import { RETENTION, INGEST_SCHEMA_VERSION, RECOGNISER_VERSION, INDEX_QUALITY_VERSION } from "@/lib/agmt/config";
 import { reviewGate as computeReviewGate } from "@/lib/agmt/review-gate";
 import { reviewUnsupportedReason } from "@/lib/agmt/instrument";
 import { mapSha } from "@/lib/agmt/canonicalise";
@@ -1213,85 +1213,4 @@ export const voteNotADefect = createServerFn({ method: "POST" })
       )
     `;
     return { ok: true as const };
-  });
-
-export const requestMagicLink = createServerFn({ method: "POST" })
-  .validator((d: { email: string }) => d)
-  .handler(async ({ data }) => {
-    const email = data.email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error("Enter a valid email address.");
-    }
-    const sql = await getSql();
-    const windowStart = new Date(Date.now() - MAGIC_LINK_RATE_WINDOW_MS).toISOString();
-    const recent = await sql<{ n: number }>`
-      select count(*) as n from magic_link_token
-      where email_normalised = ${email} and created_at > ${windowStart}
-    `;
-    if (Number(recent[0]?.n ?? 0) >= MAGIC_LINK_RATE_EMAIL) {
-      throw new Error("Too many verification requests. Try again in 15 minutes.");
-    }
-    const raw = newId() + newId();
-    const tokenId = newId();
-    const expires = new Date(Date.now() + MAGIC_LINK_TTL_MS).toISOString();
-    await sql`
-      insert into magic_link_token (token_id, email_normalised, token_hash, expires_at)
-      values (${tokenId}, ${email}, ${hashToken(raw)}, ${expires})
-    `;
-    await writeAudit({
-      action: "auth.magic_link_request",
-      subjectType: "magic_link_token",
-      subjectId: tokenId,
-    });
-    return {
-      ok: true as const,
-      subject: MAGIC_LINK_SUBJECT,
-      expiresMinutes: 15,
-      support: SUPPORT_CONTACT,
-      previewToken: raw,
-    };
-  });
-
-export const verifyMagicLink = createServerFn({ method: "POST" })
-  .validator((d: { token: string }) => d)
-  .handler(async ({ data }) => {
-    const sql = await getSql();
-    const hash = hashToken(data.token);
-    const rows = await sql<{
-      token_id: string;
-      email_normalised: string;
-      expires_at: string;
-      used_at: string | null;
-    }>`
-      select token_id, email_normalised, expires_at, used_at
-      from magic_link_token where token_hash = ${hash}
-    `;
-    const t = rows[0];
-    if (!t) throw new Error("This verification link is invalid.");
-    if (t.used_at) throw new Error("This verification link has already been used.");
-    if (new Date(t.expires_at).getTime() < Date.now()) {
-      throw new Error("This verification link has expired. Request a new one.");
-    }
-    await sql`update magic_link_token set used_at = ${nowIso()} where token_id = ${t.token_id}`;
-
-    const { openVerifiedEmailSession } = await import("@/lib/server/session");
-    const opened = await openVerifiedEmailSession(t.email_normalised, { source: "delivered_magic_link" });
-
-    await sql`
-      insert into user_account (user_id, email_normalised, email_verified_at, display_name, status)
-      values (${opened.userId}, ${t.email_normalised}, ${nowIso()}, ${t.email_normalised}, 'active')
-      on conflict (user_id) do update set email_verified_at = ${nowIso()}, email_normalised = ${t.email_normalised}
-    `;
-    await sql`
-      insert into review_entitlement (user_id, review_enabled) values (${opened.userId}, false)
-      on conflict (user_id) do nothing
-    `;
-    await writeAudit({
-      ownerUserId: opened.userId,
-      userId: opened.userId,
-      action: "auth.magic_link_verify",
-      subjectType: "user_account",
-      subjectId: opened.userId,
-    });
-    return { ok: true as const, sessionToken: opened.sessionToken, email: t.email_normalised };
   });

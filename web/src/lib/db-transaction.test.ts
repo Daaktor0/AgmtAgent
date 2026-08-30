@@ -132,3 +132,79 @@ test("managed Postgres transaction pins the client and releases on failure", asy
   ]);
   assert.equal(released, 2);
 });
+
+test("managed Postgres query applies role and transaction-local context", async () => {
+  const events: string[] = [];
+  let released = 0;
+  const client = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(text);
+      return { rows: [] };
+    },
+    release: () => {
+      released += 1;
+    },
+  };
+  const pool = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(`pool:${text}`);
+      return { rows: [] };
+    },
+    connect: async () => client,
+  };
+  const sql = createPostgresSql(pool, {
+    configureClient: async () => {
+      events.push("SET ROLE");
+    },
+    configureTransaction: async () => {
+      events.push("SET LOCAL context");
+    },
+    useTransactionForQuery: () => true,
+  });
+
+  await sql.query("select protected", ["tenant-1"]);
+
+  assert.deepEqual(events, [
+    "SET ROLE",
+    "BEGIN",
+    "SET LOCAL context",
+    "select protected",
+    "COMMIT",
+  ]);
+  assert.equal(released, 1);
+});
+
+test("managed Postgres query rolls back when context setup fails", async () => {
+  const events: string[] = [];
+  let released = 0;
+  const client = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(text);
+      return { rows: [] };
+    },
+    release: () => {
+      released += 1;
+    },
+  };
+  const pool = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(`pool:${text}`);
+      return { rows: [] };
+    },
+    connect: async () => client,
+  };
+  const sql = createPostgresSql(pool, {
+    configureClient: async () => {
+      events.push("SET ROLE");
+    },
+    configureTransaction: async () => {
+      events.push("SET LOCAL context");
+      throw new Error("context setup failed");
+    },
+    useTransactionForQuery: () => true,
+  });
+
+  await assert.rejects(sql.query("select protected"), /context setup failed/);
+  assert.deepEqual(events, ["SET ROLE", "BEGIN", "SET LOCAL context", "ROLLBACK"]);
+  assert.equal(released, 1);
+});

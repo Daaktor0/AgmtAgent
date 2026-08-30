@@ -6,7 +6,9 @@ import { sha256Hex } from "../../scripts/migration-checksum.mjs";
 import { validateMigrationLedger } from "../../scripts/migration-ledger.mjs";
 import {
   beginStatement,
+  createPostgresSql,
   createSql as createTransactionalSql,
+  type PostgresPoolLike,
   type Sql,
   type TransactionOptions,
 } from "./db-transaction";
@@ -60,41 +62,7 @@ function createNeonSql(): Promise<Sql> {
       connectionTimeoutMillis: 5_000,
       allowExitOnIdle: true,
     });
-    const run = async <T>(text: string, params: unknown[]) => {
-      const result = await pool.query(text, params);
-      return result.rows as T[];
-    };
-    const transaction = async <T>(
-      callback: (transactionSql: Sql) => Promise<T>,
-      options?: TransactionOptions,
-    ): Promise<T> => {
-      const client = await pool.connect();
-      try {
-        await client.query(beginStatement(options));
-        const transactionSql = createTransactionalSql(
-          async <R>(text: string, params: unknown[]) => {
-            const result = await client.query(text, params);
-            return result.rows as R[];
-          },
-          async () => {
-            throw new Error("Nested database transactions are not supported");
-          },
-        );
-        const result = await callback(transactionSql);
-        await client.query("COMMIT");
-        return result;
-      } catch (error) {
-        try {
-          await client.query("ROLLBACK");
-        } catch {
-          // Preserve the original transaction error.
-        }
-        throw error;
-      } finally {
-        client.release();
-      }
-    };
-    return createTransactionalSql(run, transaction);
+    return createPostgresSql(pool as unknown as PostgresPoolLike);
   })().catch((error) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw error;

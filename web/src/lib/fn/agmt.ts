@@ -97,27 +97,30 @@ export const createMatter = createServerFn({ method: "POST" })
     const notesEnc = data.mustProtectNotes?.trim()
       ? envelopeToText(data.mustProtectNotes.trim())
       : null;
-    await sql`
-      insert into matter (matter_id, owner_user_id, name, status, created_at, updated_at)
-      values (${matterId}, ${context.userId}, ${data.name.trim()}, 'active', ${nowIso()}, ${nowIso()})
-    `;
-    await sql`
-      insert into mandate_version (
-        mandate_version_id, matter_id, owner_user_id, version_no, represented_party,
-        instruments, stage, must_protect_notes_ciphertext, mandate_hash, created_by_user_id, created_at
-      ) values (
-        ${mandateId}, ${matterId}, ${context.userId}, 1, ${data.representedParty},
-        ${JSON.stringify(data.instruments)}, ${data.stage}, ${notesEnc}, ${hash}, ${context.userId}, ${nowIso()}
-      )
-    `;
-    await sql`update matter set active_mandate_version_id = ${mandateId} where matter_id = ${matterId} and owner_user_id = ${context.userId}`;
-    await writeAudit({
-      ownerUserId: context.userId,
-      userId: context.userId,
-      matterId,
-      action: "matter.create",
-      subjectType: "matter",
-      subjectId: matterId,
+    await sql.transaction(async (transactionSql) => {
+      await transactionSql`
+        insert into matter (matter_id, owner_user_id, name, status, created_at, updated_at)
+        values (${matterId}, ${context.userId}, ${data.name.trim()}, 'active', ${nowIso()}, ${nowIso()})
+      `;
+      await transactionSql`
+        insert into mandate_version (
+          mandate_version_id, matter_id, owner_user_id, version_no, represented_party,
+          instruments, stage, must_protect_notes_ciphertext, mandate_hash, created_by_user_id, created_at
+        ) values (
+          ${mandateId}, ${matterId}, ${context.userId}, 1, ${data.representedParty},
+          ${JSON.stringify(data.instruments)}, ${data.stage}, ${notesEnc}, ${hash}, ${context.userId}, ${nowIso()}
+        )
+      `;
+      await transactionSql`update matter set active_mandate_version_id = ${mandateId} where matter_id = ${matterId} and owner_user_id = ${context.userId}`;
+      await writeAudit({
+        ownerUserId: context.userId,
+        userId: context.userId,
+        matterId,
+        action: "matter.create",
+        subjectType: "matter",
+        subjectId: matterId,
+        sql: transactionSql,
+      });
     });
     return { matterId };
   });

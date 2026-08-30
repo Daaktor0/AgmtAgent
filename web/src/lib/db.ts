@@ -68,8 +68,8 @@ function createNeonSql(): Promise<Sql> {
         await client.query(beginStatement(options));
         const transactionSql = createTransactionalSql(
           async <R>(text: string, params: unknown[]) => {
-            const result = await client.query<R>(text, params);
-            return result.rows;
+            const result = await client.query(text, params);
+            return result.rows as R[];
           },
           async () => {
             throw new Error("Nested database transactions are not supported");

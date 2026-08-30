@@ -11,6 +11,10 @@
 
 create schema if not exists agmt_private;
 revoke all on schema agmt_private from PUBLIC, anon, authenticated;
+revoke all on schema agmt_private from anon, authenticated;
+revoke all on schema public from anon, authenticated;
+revoke all on all tables in schema public from anon, authenticated;
+revoke all on all sequences in schema public from anon, authenticated;
 
 do $role$
 declare
@@ -314,18 +318,18 @@ create policy agmt_tenant_app_insert
 create policy agmt_tenant_worker_all
   on public.agmt_tenant for all to agmt_worker
   using (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and tenant_id = agmt_private.current_tenant_id()
   )
   with check (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and tenant_id = agmt_private.current_tenant_id()
   );
 
 create policy agmt_tenant_support_select
   on public.agmt_tenant for select to agmt_support
   using (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and agmt_private.support_ticket() is not null
     and tenant_id = agmt_private.current_tenant_id()
   );
@@ -349,18 +353,18 @@ create policy agmt_tenant_member_app_insert
 create policy agmt_tenant_member_worker_all
   on public.agmt_tenant_member for all to agmt_worker
   using (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and tenant_id = agmt_private.current_tenant_id()
   )
   with check (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and tenant_id = agmt_private.current_tenant_id()
   );
 
 create policy agmt_tenant_member_support_select
   on public.agmt_tenant_member for select to agmt_support
   using (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and agmt_private.support_ticket() is not null
     and tenant_id = agmt_private.current_tenant_id()
   );
@@ -377,7 +381,7 @@ create policy user_account_app_write
 create policy user_account_worker_all
   on public.user_account for all to agmt_worker
   using (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and exists (
       select 1
       from public.agmt_tenant_member member
@@ -386,7 +390,7 @@ create policy user_account_worker_all
     )
   )
   with check (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and exists (
       select 1
       from public.agmt_tenant_member member
@@ -398,7 +402,7 @@ create policy user_account_worker_all
 create policy user_account_support_select
   on public.user_account for select to agmt_support
   using (
-    current_tenant_id() is not null
+    agmt_private.current_tenant_id() is not null
     and agmt_private.support_ticket() is not null
     and exists (
       select 1

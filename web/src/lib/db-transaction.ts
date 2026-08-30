@@ -56,19 +56,71 @@ export interface PostgresPoolLike {
   connect(): Promise<PostgresClientLike>;
 }
 
-export function createPostgresSql(pool: PostgresPoolLike): Sql {
+export type PostgresClientConfigurator = (client: PostgresClientLike) => Promise<void>;
+export type PostgresTransactionConfigurator = (client: PostgresClientLike) => Promise<void>;
+
+export interface PostgresSqlOptions {
+  configureClient?: PostgresClientConfigurator;
+  configureTransaction?: PostgresTransactionConfigurator;
+  useTransactionForQuery?: () => boolean;
+}
+
+export function createPostgresSql(
+  pool: PostgresPoolLike,
+  options: PostgresSqlOptions = {},
+): Sql {
+  const hasConfiguration = Boolean(
+    options.configureClient ||
+      options.configureTransaction ||
+      options.useTransactionForQuery,
+  );
+
   const run = async <T>(text: string, params: unknown[]) => {
-    const result = await pool.query(text, params);
-    return result.rows as T[];
+    if (!hasConfiguration) {
+      const result = await pool.query(text, params);
+      return result.rows as T[];
+    }
+
+    const client = await pool.connect();
+    let began = false;
+    try {
+      await options.configureClient?.(client);
+      if (options.useTransactionForQuery?.()) {
+        await client.query("BEGIN");
+        began = true;
+        await options.configureTransaction?.(client);
+        const result = await client.query(text, params);
+        await client.query("COMMIT");
+        began = false;
+        return result.rows as T[];
+      }
+      const result = await client.query(text, params);
+      return result.rows as T[];
+    } catch (error) {
+      if (began) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // Preserve the original query/configuration error.
+        }
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   const transaction = async <T>(
     callback: (transactionSql: Sql) => Promise<T>,
-    options?: TransactionOptions,
+    optionsForTransaction?: TransactionOptions,
   ): Promise<T> => {
     const client = await pool.connect();
+    let began = false;
     try {
-      await client.query(beginStatement(options));
+      await options.configureClient?.(client);
+      await client.query(beginStatement(optionsForTransaction));
+      began = true;
+      await options.configureTransaction?.(client);
       const transactionSql = createSql(
         async <R>(text: string, params: unknown[]) => {
           const result = await client.query(text, params);
@@ -80,12 +132,15 @@ export function createPostgresSql(pool: PostgresPoolLike): Sql {
       );
       const result = await callback(transactionSql);
       await client.query("COMMIT");
+      began = false;
       return result;
     } catch (error) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        // Preserve the original transaction error.
+      if (began) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // Preserve the original transaction error.
+        }
       }
       throw error;
     } finally {
@@ -95,7 +150,6 @@ export function createPostgresSql(pool: PostgresPoolLike): Sql {
 
   return createSql(run, transaction);
 }
-
 export function createSql(
   run: QueryRunner,
   transaction: TransactionRunner,

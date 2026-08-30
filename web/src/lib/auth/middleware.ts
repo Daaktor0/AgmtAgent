@@ -19,11 +19,10 @@ import { createMiddleware } from "@tanstack/react-start";
  *     });
  *
  * Signed out with auth on (live preview included) -> throws `UnauthorizedError`
- * (see `verify.server.ts`). With auth disabled (`VITE_AUTH_ENABLED=false`, the
- * shipped default) it resolves the shared dev user — but throws instead when a
- * `DATABASE_URL` is also set, so an app without sign-in must not use this at
- * all. On the auth-on path, use it on every server function that touches
- * per-user data and scope every query by `context.userId`.
+ * (see `verify.server.ts`). Local development without persistent Postgres may
+ * use the explicit synthetic dev identity; a deployed or persistent database
+ * never falls back to it. Every successful request also receives a server-
+ * derived tenant context, and application queries inherit database RLS.
  */
 export const authMiddleware = createMiddleware({ type: "function" })
   .client(async ({ next }) => {
@@ -40,8 +39,11 @@ export const authMiddleware = createMiddleware({ type: "function" })
     // it, and so Vite does not ship `@tanstack/react-start/server` to the browser.
     const { assertSameSiteRequest } = await import("./isolation.server");
     const { requireUserId } = await import("./verify.server");
+    const { withAuthenticatedDatabaseContext } = await import("./runtime-context.server");
     // Reject scripted cross-site/sibling requests before touching per-user data.
     assertSameSiteRequest();
     const userId = await requireUserId(context.bearerToken);
-    return next({ context: { userId } });
+    return withAuthenticatedDatabaseContext(userId, ({ tenantId }) =>
+      next({ context: { userId, tenantId } }),
+    );
   });

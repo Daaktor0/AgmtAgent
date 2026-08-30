@@ -1,5 +1,6 @@
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { auth } from "@/lib/auth/server";
+import { currentDatabaseContext } from "@/lib/db-context.server";
 import { nowIso } from "@/lib/agmt/ids";
 import { auditLog } from "@/lib/agmt/log";
 
@@ -9,6 +10,15 @@ export type Account = {
   emailVerifiedAt: string | null;
   displayName: string | null;
   status: string;
+};
+
+export type EnsureAccountOptions = {
+  /**
+   * The first request bootstraps user_account before the tenant membership
+   * exists. Callers must pass false only inside the authenticated context
+   * bootstrap boundary.
+   */
+  ensureEntitlement?: boolean;
 };
 
 /**
@@ -35,7 +45,43 @@ async function identityFor(userId: string): Promise<{
   }
 }
 
-export async function ensureAccount(userId: string): Promise<Account> {
+async function ensureReviewEntitlement(sql: Sql, userId: string): Promise<void> {
+  const tenantId = currentDatabaseContext()?.tenantId;
+  if (!tenantId) {
+    throw new Error("A tenant database context is required for review entitlement access.");
+  }
+
+  const existing = await sql<{ tenantId: string | null }>`
+    select tenant_id as "tenantId"
+    from review_entitlement
+    where user_id = ${userId}
+  `;
+  if (existing[0]) {
+    if (existing[0].tenantId && existing[0].tenantId !== tenantId) {
+      throw new Error("Review entitlement belongs to a different tenant.");
+    }
+    if (!existing[0].tenantId) {
+      await sql`
+        update review_entitlement
+        set tenant_id = ${tenantId}
+        where user_id = ${userId} and tenant_id is null
+      `;
+    }
+    return;
+  }
+
+  await sql`
+    insert into review_entitlement (
+      user_id, tenant_id, review_enabled, extra_run_credits, stronger_override_credits
+    )
+    values (${userId}, ${tenantId}, false, 0, 0)
+  `;
+}
+
+export async function ensureAccount(
+  userId: string,
+  options: EnsureAccountOptions = {},
+): Promise<Account> {
   const sql = await getSql();
   const { email, displayName } = await identityFor(userId);
   const verified = Boolean(email);
@@ -45,9 +91,10 @@ export async function ensureAccount(userId: string): Promise<Account> {
     from user_account where user_id = ${userId}
   `;
   if (existing[0]) {
-    if (verified && email && (!existing[0].emailVerifiedAt || !existing[0].emailNormalised)) {
-      const at = existing[0].emailVerifiedAt ?? nowIso();
-      const name = existing[0].displayName ?? displayName ?? email;
+    let account = existing[0];
+    if (verified && email && (!account.emailVerifiedAt || !account.emailNormalised)) {
+      const at = account.emailVerifiedAt ?? nowIso();
+      const name = account.displayName ?? displayName ?? email;
       await sql`
         update user_account
         set email_normalised = ${email},
@@ -55,24 +102,28 @@ export async function ensureAccount(userId: string): Promise<Account> {
             display_name = ${name}
         where user_id = ${userId}
       `;
-      return { ...existing[0], emailNormalised: email, emailVerifiedAt: at, displayName: name };
+      account = { ...account, emailNormalised: email, emailVerifiedAt: at, displayName: name };
     }
-    return existing[0];
+    if (options.ensureEntitlement !== false) {
+      await ensureReviewEntitlement(sql, userId);
+    }
+    return account;
   }
+
+  const createdAt = nowIso();
+  const emailVerifiedAt = verified ? nowIso() : null;
   await sql`
     insert into user_account (user_id, email_normalised, email_verified_at, display_name, status, created_at)
-    values (${userId}, ${email}, ${verified ? nowIso() : null}, ${displayName ?? email}, 'active', ${nowIso()})
+    values (${userId}, ${email}, ${emailVerifiedAt}, ${displayName ?? email}, 'active', ${createdAt})
   `;
-  await sql`
-    insert into review_entitlement (user_id, review_enabled, extra_run_credits, stronger_override_credits)
-    values (${userId}, false, 0, 0)
-    on conflict (user_id) do nothing
-  `;
+  if (options.ensureEntitlement !== false) {
+    await ensureReviewEntitlement(sql, userId);
+  }
   auditLog("account.ensure", { user_id: userId });
   return {
     userId,
     emailNormalised: email,
-    emailVerifiedAt: verified ? nowIso() : null,
+    emailVerifiedAt,
     displayName: displayName ?? email,
     status: "active",
   };

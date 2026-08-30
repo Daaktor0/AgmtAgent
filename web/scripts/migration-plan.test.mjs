@@ -65,6 +65,7 @@ test("the migration runner consumes only the top-level ordered set", () => {
     { name: "0002_slice0.sql", path: "0002_slice0.sql" },
     { name: "0003_slice2.sql", path: "0003_slice2.sql" },
     { name: "0003_tenant_integrity_expand.sql", path: "0003_tenant_integrity_expand.sql" },
+    { name: "0004_rls_runtime.sql", path: "0004_rls_runtime.sql" },
   ]);
   assert.ok(entries.includes("auth"));
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes(AUTH_MIGRATION));

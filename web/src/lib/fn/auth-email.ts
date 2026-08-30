@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { randomBytes } from "node:crypto";
 import { getSql } from "@/lib/db";
+import { withDatabaseContext } from "@/lib/db-context.server";
+import { withAuthenticatedDatabaseContext } from "@/lib/auth/runtime-context.server";
 import { writeAudit } from "@/lib/server/audit";
 import { hashToken } from "@/lib/agmt/crypto";
 import { newId, nowIso } from "@/lib/agmt/ids";
@@ -10,6 +12,17 @@ import {
   MAGIC_LINK_SUBJECT,
   MAGIC_LINK_TTL_MS,
 } from "@/lib/agmt/config";
+
+const AUTH_FLOW_USER_ID = "auth-flow";
+
+function authOperationContext(operation: "auth_magic_link_request" | "auth_magic_link_verify") {
+  return {
+    userId: AUTH_FLOW_USER_ID,
+    tenantId: null,
+    runtimeRole: "app" as const,
+    operation,
+  };
+}
 
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -121,7 +134,8 @@ async function sendVerificationEmail(to: string, token: string): Promise<void> {
 
 export const requestMagicLink = createServerFn({ method: "POST" })
   .validator((data: { email: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) =>
+    withDatabaseContext(authOperationContext("auth_magic_link_request"), async () => {
     const email = data.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error("Enter a valid email address.");
@@ -165,11 +179,12 @@ export const requestMagicLink = createServerFn({ method: "POST" })
       subject: MAGIC_LINK_SUBJECT,
       expiresMinutes: Math.round(MAGIC_LINK_TTL_MS / 60000),
     };
-  });
-
+    }),
+  );
 export const verifyMagicLink = createServerFn({ method: "POST" })
   .validator((data: { token: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }) =>
+    withDatabaseContext(authOperationContext("auth_magic_link_verify"), async () => {
     // New production tokens are exactly 32 random bytes encoded as base64url
     // (43 characters). This deliberately rejects the old preview UUID token.
     if (!/^[A-Za-z0-9_-]{43}$/.test(data.token)) {
@@ -197,24 +212,14 @@ export const verifyMagicLink = createServerFn({ method: "POST" })
       source: "delivered_magic_link",
     });
 
-    await sql`
-      insert into user_account (user_id, email_normalised, email_verified_at, display_name, status)
-      values (${opened.userId}, ${token.email_normalised}, ${usedAt}, ${token.email_normalised}, 'active')
-      on conflict (user_id) do update
-      set email_verified_at = excluded.email_verified_at,
-          email_normalised = excluded.email_normalised
-    `;
-    await sql`
-      insert into review_entitlement (user_id, review_enabled)
-      values (${opened.userId}, false)
-      on conflict (user_id) do nothing
-    `;
-    await writeAudit({
-      ownerUserId: opened.userId,
-      userId: opened.userId,
-      action: "auth.magic_link_verify",
-      subjectType: "user_account",
-      subjectId: opened.userId,
+    await withAuthenticatedDatabaseContext(opened.userId, async () => {
+      await writeAudit({
+        ownerUserId: opened.userId,
+        userId: opened.userId,
+        action: "auth.magic_link_verify",
+        subjectType: "user_account",
+        subjectId: opened.userId,
+      });
     });
 
     return {
@@ -222,4 +227,5 @@ export const verifyMagicLink = createServerFn({ method: "POST" })
       sessionToken: opened.sessionToken,
       email: token.email_normalised,
     };
-  });
+    }),
+  );

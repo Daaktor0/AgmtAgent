@@ -5,25 +5,35 @@ Mumbai test sandbox. It does not use Supabase Auth, Storage, Edge Functions or
 the browser Supabase client. Document bytes remain outside PostgreSQL in the
 planned AWS data plane; that data plane is not provisioned yet.
 
-The sandbox is not approved for confidential documents. The current schema has
-RLS disabled on its public tables while FND-04 is pending.
+The sandbox is not approved for confidential documents. FND-04 RLS is applied
+to the empty schema, but production role provisioning, security review and a
+small owner-level cleanup of the synthetic probe membership metadata remain
+open.
 
 ## Required configuration
 
-Get connection details from the Supabase Dashboard **Connect** panel. Keep the
+Get connection details from the Supabase Dashboard Connect panel. Keep the
 connection string in a secret manager or an ignored local environment store; do
 not commit it or paste it into chat.
 
 The server-side application accepts:
 
-- `DATABASE_URL` (preferred), or `POSTGRES_URL` / `POSTGRES_PRISMA_URL`
-  as compatibility names.
+- `DATABASE_URL` (preferred), or `POSTGRES_URL` / `POSTGRES_PRISMA_URL` as
+  compatibility names for the application database.
+- `AGMT_DB_ROLE=agmt_app` for the web application. Worker and support processes
+  must use their explicitly provisioned `agmt_worker` or `agmt_support` role.
+  This value is server-only and is never taken from browser input.
+- `BETTER_AUTH_DATABASE_URL` (preferred) or `AUTH_DATABASE_URL` pointing to a
+  separate least-privilege login/membership for the `agmt_auth` group role.
+  Do not reuse the application login. The migration creates only non-login
+  group roles; an operator must provision login roles and memberships outside
+  the repository without committing credentials.
 - `BETTER_AUTH_SECRET` with at least 256 bits of random entropy in deployed
   environments.
-- `GROK_AUTH_CLIENT_ID` and `GROK_AUTH_CLIENT_SECRET` when Grok-brokered
-  OAuth is enabled.
-- `GROK_AUTH_ISSUER`, `BETTER_AUTH_URL` and `AGMT_PUBLIC_URL` only when
-  their non-default values are required.
+- `GROK_AUTH_CLIENT_ID` and `GROK_AUTH_CLIENT_SECRET` when Grok-brokered OAuth
+  is enabled.
+- `GROK_AUTH_ISSUER`, `BETTER_AUTH_URL` and `AGMT_PUBLIC_URL` only when their
+  non-default values are required.
 
 Use the Supabase connection mode appropriate to the process. Supabase documents
 direct or session-capable connections for migration/long-lived work and its
@@ -33,8 +43,8 @@ See the [Supabase Postgres connection guide](https://supabase.com/docs/guides/da
 
 ## Apply or verify the schema
 
-Migrations are forward-only and are deliberately separate from application
-builds. The release command is:
+Migrations are forward-only and deliberately separate from application builds.
+The release command is:
 
 ```text
 npm run db:migrate:release
@@ -51,10 +61,20 @@ The currently reviewed schema files are:
 2. `0002_slice0.sql`
 3. `0003_slice2.sql`
 4. `0003_tenant_integrity_expand.sql`
+5. `0004_rls_runtime.sql`
 
-The empty sandbox was migrated and verified under
-[ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md). No user rows,
-document rows, ciphertext or object bytes were present at that time.
+The empty sandbox has all five application ledger entries. The FND-04
+migration leaves all 32 public tables enabled and forced for RLS, with
+runtime access granted only to the reviewed non-login role model. The
+Supabase security advisor no longer reports RLS-disabled errors; the
+release-only `_migrations` table is intentionally not queryable by runtime
+roles and may produce an informational no-policy notice.
+
+A synthetic crossover probe passed on the sandbox and left zero probe rows.
+The probe temporarily granted two runtime roles to the administrative postgres
+role; those memberships have SET and INHERIT false but remain in metadata due
+the managed grantor. Do not reproduce this outside a disposable sandbox. An
+owner-level cleanup is required before treating the sandbox as fully clean.
 
 ## Safe testing boundary
 
@@ -65,8 +85,10 @@ Until FND-04 and the blueprint launch gates pass:
   documents.
 - Do not configure live OAuth providers or put production secrets in this
   project.
-- Do not treat the Supabase URL, an anon key or a service-role key as a
-  substitute for the server-side database secret.
+- Do not use a Supabase anon key, service-role key or database-owner
+  credential in the web process.
+- Do not add login users to the runtime group roles until the security review
+  approves the exact connection and membership options.
 
 No AWS account or AWS resource is needed for this sandbox schema test. AWS
 becomes necessary only when the later object-storage, malware quarantine,

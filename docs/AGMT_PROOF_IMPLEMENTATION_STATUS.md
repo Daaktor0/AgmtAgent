@@ -1,8 +1,8 @@
 # Agmt Proof implementation status
 
-**Baseline:** current `main` at `b2d48d6f52bf6afdad33821db5daf70c107f5e5f` (30 August 2026)  
-**Working branch:** `proof-production-hardening/fnd01-sec01-fnd05`  
-**Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No infrastructure was provisioned, no production database or documents were changed, and no external authentication provider was configured.
+**Baseline:** current `main` at `fcbb5d53992510184ee8c0ab0118f8b3efdeaeef` (30 August 2026)  
+**Working branch:** `proof-production-hardening/fnd04-rls` at `8598d93d4407fb273093328026e63f79a6c09e65`  
+**Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
 
@@ -14,37 +14,82 @@
 
 ## Evidence from the latest code head
 
-At branch head `dcd30da0127266de1a66e68c63a3a7d0b8a95119`:
+At branch head `8598d93d4407fb273093328026e63f79a6c09e65`:
 
-- Web Proof workflow `33330341660`: dependency install, development build, typecheck, transaction hardening, production build, Proof golden corpus, and the full web suite passed; the full command completed `213/213` tests.
-- Eval workflow `33330341659`: Python corpus/evaluation checks passed.
-- The focused hardening checks passed, including transaction commit/rollback, parser-before-transaction boundaries, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection, checksum stability, ledger drift failures, and auth invariant regression.
-- The migration-plan expectation is reconciled with the four top-level migration files. The DOCX fixture builder pins ZIP entry timestamps, and the idempotency/hash regression passes.
-- The PWA head helper no longer inherits the repository process cwd during direct calls; production plugin/middleware calls still pass an explicit workspace or baked identity. The secure auth-on default is reflected in the tests. The web app now contains the repository-owned PWA installer assets and the agent/brand/write-atomic guidance required by its existing tests.
-- The managed database adapter is named for generic PostgreSQL, and the Supabase sandbox setup boundary is documented without project identifiers, connection strings or credentials.
+- Web Proof workflow `33332641988`: dependency install, route/build verification, typecheck, DB transaction/context tests, production build, Proof golden corpus, and the full web suite all passed.
+- The full web command completed `224/224` tests with zero failures. Eval workflow `33332642038` also passed.
+- FND-04 static checks cover forced RLS, role attributes, context functions, grants/revokes, fail-closed policies, middleware tenant derivation, separate Better Auth configuration, bootstrap entitlement boundaries, and operation-scoped magic-link access.
+- The PGlite SQL rehearsal applies the full migration chain and proves same-tenant visibility, cross-tenant write rejection, missing-context denial, and support read-only behavior.
+- The DOCX fixture builder pins ZIP entry timestamps; transaction, tenant-integrity, migration-ledger, parser-boundary, atomic-publication, auth, PWA and golden-corpus regressions remain green.
+- No credentials, connection strings, private keys, production documents or environment files are present in the changed repository paths.
 
 ## Package ledger
 
 | Package | Status | Evidence and remaining work |
 |---|---|---|
-| FND-01 | Implemented; human approval pending | Added baseline ADR, supported DOCX matrix, invariants, state boundaries, non-goals, gate ownership, and review stop conditions. See ADRs 0001 and 0002. |
-| SEC-01 | Repository changes implemented; security review pending | Removed automatic test-workspace access, deleted gate-session/preview-secret source paths, made deployed auth require an explicit secret/provider configuration, and kept sign-in unavailable when unconfigured. Relevant builds and auth checks pass; final full-suite/security review is pending. |
-| FND-05 | Implemented repository-side; release rehearsal pending | Builds no longer run migrations; `db:migrate:release` is manual-only; managed-Postgres and PGlite ledgers store/verify SHA-256 checksums and fail closed on unknown, edited, or legacy unchecksummed rows. Exact repository SQL was applied to the empty Supabase sandbox and both migration histories were verified; the secret-backed release-job rehearsal is still pending. |
-| FND-02 | Relational publication integrated; fault-injection/object reconciliation pending | Added provider-neutral `Sql.transaction`, dedicated Postgres connection handling, PGlite transaction mapping, allow-listed isolation, rollback/release behavior, forced-failure tests, atomic Matter creation, and atomic document publication. Parser work remains outside the transaction; future external object-store writes remain outside it. |
-| FND-03 | Expand migration implemented; contract and review pending | Added `0003_tenant_integrity_expand.sql`, tenant/member tables, tenant columns, supporting composite keys, tenant-scoped foreign keys, and a PGlite rehearsal proving cross-tenant document relationships fail. The expand migration is also verified in the empty Supabase sandbox with no user/document rows. Columns remain temporarily nullable; validation, NOT NULL contract, runtime context, RLS, and historical-data review remain blocked. |
-| FND-04 | Blocked by FND-03 contract | RLS/runtime-role implementation has not started. It must follow validated composite tenant constraints and an approved request/worker/support role model. |
+| FND-01 | Implemented; human approval pending | Baseline ADR, supported DOCX matrix, invariants, state boundaries, non-goals, gate ownership and stop conditions are recorded. |
+| SEC-01 | Repository changes implemented; security review pending | Test-workspace access, preview secrets and legacy duplicate paths are removed; deployed auth requires explicit configuration. |
+| FND-05 | Implemented repository-side; release rehearsal pending | Builds are separated from manual forward-only migrations with SHA-256 ledger validation; least-privilege release credential rehearsal remains open. |
+| FND-02 | Relational publication integrated; fault-injection/object reconciliation pending | Provider-neutral transactions, rollback/release behavior, atomic Matter/document publication and parser-before-transaction boundaries are tested. |
+| FND-03 | Expand migration implemented; contract and historical review pending | Tenant/member tables, nullable tenant columns, composite keys/FKs and empty-sandbox rehearsal pass; validation and NOT NULL contract are intentionally deferred. |
+| FND-04 | Repository and empty-sandbox implementation complete; production security review pending | 32/32 public tables are forced-RLS with 108 policies; runtime roles are non-login/non-bypass; PGlite and real synthetic crossover probes pass. Login-role provisioning, managed sandbox probe-membership cleanup and owner review remain open. |
+| JOB-01 | Not started; dependency-ready after FND-03/FND-04 review | Durable upload/job/outbox state machines, leases, transitions and tenant-scoped audit are required before worker execution. |
+| OBJ-01 | Not started; depends on FND-01 | Object-store abstraction and immutable manifests are required before document bytes leave PostgreSQL. |
+| OBJ-02 | Not started; depends on OBJ-01/JOB-01 | Direct multipart upload, scoped presigning, completion and abort are not implemented. |
+| OBJ-03 | Not started; depends on OBJ-01 | Malware quarantine and clean-result gate are not implemented. |
+| WRK-01 | Not started; depends on JOB-01/OBJ-01 | Isolated parser/Proof worker, queue, DLQ, limits and restricted IAM are not implemented. |
+| WRK-02 | Not started; depends on WRK-01 | Pre-decompression central-directory and bounded extraction controls are not implemented. |
+| WRK-03 | Not started; depends on WRK-02 | Full OOXML relationship/capability model is not implemented. |
+| ING-01 | Not started; depends on FND-02/WRK-03/OBJ-01 | Generation staging, validation, atomic publication and reconciliation are not implemented. |
+| ING-02 | Not started; depends on ING-01 | Concurrent source/parser uniqueness, locking and idempotent reuse are not implemented. |
+| ING-03 | Not started; depends on JOB-01/ING-01 | Lease expiry, age scans and safe orphan/stuck-work reconciliation are not implemented. |
+| CRY-01 | Not started; depends on OBJ-01 | Versioned KMS envelope metadata and schema are not implemented. |
+| CRY-02 | Not started; depends on CRY-01 | Streaming AES-256-GCM/KMS data-key encryption is not implemented. |
+| CRY-03 | Not started; depends on CRY-01 | Legacy ciphertext inventory and decryptability dry-run are not implemented. |
+| CRY-04 | Blocked by human decision | Rewrapping historical ciphertext cannot begin without explicit recovery/key-disposition approval. |
+| CRY-05 | Not started; depends on CRY-02 | Rotation, break-glass, MFA approval and audit controls are not implemented. |
+| CAN-01 | Not started; depends on WRK-03 | Typed identifiers, confidence policy and provenance thresholds are not implemented. |
+| CAN-02 | Not started; depends on CAN-01/FND-02 | Final projection/index persistence and confirmation propagation are not implemented. |
+| CAN-03 | Not started; depends on CAN-02 | Span-segment invariants, digest checks and reversibility properties are not implemented. |
+| EVD-01 | Not started; depends on CAN-03/WRK-03 | Positive/absence evidence schemas and immutable scope manifests are not implemented. |
+| EVD-02 | Not started; depends on EVD-01 | Canonical-to-exact-OOXML reconstruction validation is not implemented. |
+| EVD-03 | Not started; depends on EVD-01 | Evaluated-scope absence inventory and zero-count proof are not implemented. |
+| PRF-01 | Not started; depends on EVD-01 | Signed rule-registry release contract is not implemented. |
+| PRF-02 | Not started; depends on PRF-01/EVD-02 | Cross-reference/numbering P0 rules are not rebuilt against final evidence. |
+| PRF-03 | Not started; depends on CAN-02/PRF-01 | Definition/use P0 rules are not rebuilt against final indexes. |
+| PRF-04 | Not started; depends on WRK-03/EVD-02 | Comments/fields/placeholders/hidden-character P0 rules are not rebuilt. |
+| PRF-05 | Not started; depends on EVD-03/CAN-01 | Header/party/signature P0 rules are not rebuilt. |
+| PRF-06 | Not started; depends on WRK-01/PRF-01 | Asynchronous truthful/stale-aware Proof execution is not implemented. |
+| EXP-01 | Not started; depends on CAN-03/EVD-02 | Canonical-to-OOXML edit planner is not implemented. |
+| EXP-02 | Not started; depends on EXP-01 | Comments-only export is not implemented. |
+| EXP-03 | Not started; depends on EXP-01 | Accepted tracked-change export is not implemented. |
+| EXP-04 | Not started; depends on EXP-02 | Schema, structural, visual and LibreOffice/Word export gates are not implemented. |
+| SEC-02 | Not started; depends on SEC-01 | Production email/Google/Microsoft provider configuration is intentionally not performed. |
+| SEC-03 | Not started; depends on SEC-02 | Session, CSRF, throttling and recovery hardening remains open. |
+| SEC-04 | Not started; depends on SEC-01/WRK-01 | Headers, WAF, SBOM and dependency/image controls remain open. |
+| OPS-01 | Not started; depends on FND-01 | Scrubbed telemetry and privacy review remain open. |
+| OPS-02 | Not started; depends on OPS-01 | Dashboards, alerts and runbooks remain open. |
+| OPS-03 | Not started; depends on FND-03/OBJ-01 | Retention, purge and legal-hold executor remain open. |
+| OPS-04 | Not started; depends on OBJ-01/FND-03 | PITR, manifests and two restore drills remain open. |
+| OPS-05 | Not started; depends on FND-05/WRK-01 | Environment promotion, signed builds and clean-room recreation remain open. |
+| TST-01 | Not started; depends on PRF-01 | Corpus provenance, labels, manifests and licensing/privacy approval remain open. |
+| TST-02 | Not started; depends on WRK-02 | Adversarial parser/security corpus remains open. |
+| TST-03 | Not started; depends on TST-01/PRF-01 | Precision/recall confidence reporting remains open. |
+| TST-04 | Not started; depends on ING-02/FND-04/PRF-06 | Tenant/concurrency/load/E2E release suite remains open. |
+| UX-01 | Not started; depends on JOB-01/PRF-06 | Upload/scan/parse/Proof progress and typed failures remain open. |
+| UX-02 | Not started; depends on CAN-01 | Risk-based canonical review remains open. |
+| UX-03 | Not started; depends on EVD-02/PRF-06 | Explainable/actionable finding workflow remains open. |
+| UX-04 | Not started; depends on EXP-02/EXP-04 | Safe export selection/download remains open. |
 
 A package is not marked complete until its acceptance tests, security considerations, definition of done, and relevant full-suite gates pass.
 
 ## FND-02 transaction design
 
-- The provider-neutral adapter exposes `transaction(callback, options)`.
-- Managed Postgres acquires one pool client, issues `BEGIN` with an allow-listed isolation level, runs the callback on that same client, commits only after success, rolls back on every exception, and releases in `finally`.
-- PGlite delegates to its native transaction callback. Nested transactions are rejected rather than silently misrepresented as savepoints.
-- Matter creation now publishes its matter, mandate, active pointer, and audit row through one callback.
-- Document upload parses before acquiring a connection, then publishes the object metadata, document/version, canonicalisation rows, capabilities, current pointer, and audit row through one callback. A callback failure rolls back the relational publication; the existing compensation path remains as a safety net for legacy/incomplete rows.
-- Tenant/request context is deliberately deferred until the FND-04 runtime/RLS package.
-- Object-store operations remain outside the database transaction and require staged-object reconciliation in the later object/job plane.
+- The provider-neutral adapter exposes transaction(callback, options) with allow-listed isolation levels.
+- Managed Postgres pins one client, begins, runs all relational writes on that client, commits only after success, rolls back on every exception and releases in finally. PGlite uses its native transaction callback; nested transactions are rejected.
+- Matter creation publishes its matter, mandate, active pointer and audit row in one callback.
+- Document upload parses before acquiring a connection, then publishes metadata, document/version, canonicalisation rows, capabilities, current pointer and audit row atomically. External object writes remain outside the relational transaction and require later reconciliation.
+- Fault-injection/object reconciliation coverage remains a prerequisite for closing FND-02.
 
 See [ADR 0003](adr/0003-atomic-database-transaction-boundary.md).
 
@@ -52,31 +97,32 @@ See [ADR 0003](adr/0003-atomic-database-transaction-boundary.md).
 
 Expand:
 
-- Add nullable `tenant_id` columns and indexes to tenant-owned tables.
-- Create `agmt_tenant` and `agmt_tenant_member`; v1 identity is one tenant owner per existing verified user because no collaboration model has been approved.
-- Backfill only from existing owner/user identity. The principal foreign key fails closed when an owner has no `user_account` row.
-- Add composite parent keys and tenant-scoped foreign keys as `NOT VALID`; new non-null relationships cannot cross tenants while existing rows remain measurable.
+- Add nullable tenant_id columns and indexes to tenant-owned tables.
+- Create agmt_tenant and agmt_tenant_member; current bootstrap identity is one tenant owner per verified user.
+- Backfill only from existing owner/user identity and fail closed when a principal is missing.
+- Add composite parent keys and tenant-scoped foreign keys as NOT VALID so new non-null relationships cannot cross tenants while historical rows remain measurable.
 
 Contract:
 
-- Review and validate all existing composite relationships.
-- Stop on any ambiguous owner, missing principal, tenant mismatch, or unverifiable historical ciphertext/key.
-- Make tenant columns `NOT NULL`, install RLS and runtime roles, and remove owner-only fallbacks only after crossover tests pass.
+- Validate every existing composite relationship and stop on ambiguous owner, missing principal, tenant mismatch or unverifiable historical ciphertext/key.
+- Make tenant columns NOT NULL and remove owner-only fallbacks only after the runtime/RLS crossover matrix, historical review and security approval pass.
 
-The migration is additive but performs metadata backfill if someone applies it. It does not delete, decrypt, rewrite, re-key, or move document bytes. It was applied only to the confirmed empty test sandbox; no historical ciphertext or application rows were present.
+The expand migration is additive and was applied only to the empty sandbox. It did not delete, decrypt, rewrite, re-key or move document bytes.
 
 See [ADR 0004](adr/0004-tenant-integrity-expand-contract.md).
 
 ## Supabase sandbox migration receipt
 
-- Target: the user-selected Supabase Free project in Mumbai; the project identifier and URL are intentionally omitted from repository documentation.
-- Preflight: `ACTIVE_HEALTHY`, zero public tables, and zero recorded migrations immediately before the write.
-- Applied in order: `0001_auth`, `0002_slice0`, `0003_slice2`, `0003_tenant_integrity_expand`.
-- Postflight: Supabase migration history and the application `_migrations` ledger both contain all four entries; 32 public tables, zero user/document rows, four application-ledger rows, and 65 tenant foreign-key constraints were observed.
-- Security: all 32 public tables currently report RLS disabled, producing 32 security-advisor errors. This is an explicit FND-04 blocker; the sandbox is for synthetic/non-confidential testing only.
-- No AWS resources, external auth providers, storage buckets, or production services were changed.
+- Target: the user-selected Supabase Free project in Mumbai; its identifier and URL are intentionally omitted from repository documentation.
+- Preflight before FND-04: project healthy, four application migrations recorded, 32 public tables, four ledger rows, and zero users, accounts or documents.
+- Applied `0004_rls_runtime` from the exact repository file. The application ledger contains checksum `5d4001ff724b6d687486517337485424740d91c1a7a9ff86777e82f71d2f7e69` for `0004_rls_runtime.sql`.
+- Postflight: 32/32 public tables have RLS enabled and forced; 108 public policies exist; the four runtime roles are non-login, non-superuser, non-createdb, non-createrole, non-inherit, non-replication and non-bypassrls; application user/document counts remain zero.
+- The synthetic Supabase crossover probe passed same-tenant visibility, cross-tenant write denial, missing-context denial and support read-only behavior. Probe rows were rolled back.
+- The probe required temporary membership grants to the administrative postgres role. Those grants were non-effective because SET and INHERIT were false, but the managed grantor prevents the ordinary SQL channel from revoking them. A one-off sandbox cleanup record exists in Supabase management history; owner-level cleanup is still required and no application ledger row was added.
+- The security advisor no longer reports the prior RLS-disabled errors. It reports only an INFO for the intentionally release-only `_migrations` table having no policy. Performance INFOs identify unindexed foreign keys for later tuning; they are not a launch waiver.
+- No AWS resources, external auth providers, storage buckets, production services, ciphertext or object bytes were changed.
 
-See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md).
+See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md) and [ADR 0006](adr/0006-tenant-rls-runtime-context.md).
 
 ## Gate ownership map
 
@@ -92,7 +138,10 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md).
 
 ## Remaining stop conditions
 
-- FND-01, FND-03 contract, FND-04, and historical ciphertext disposition require human review before any non-empty or production schema/data action.
-- FND-02 still needs an injected-failure integration harness around the production publication path and the later object/job-plane reconciliation contract.
-- The full web test command is green at 213/213, but this only closes the repository/template test gate; it does not waive any blueprint security, evidence, tenant, parser, export, lifecycle, DR, or operational gate.
-- Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security, and operational gates pass.
+- Do not treat the Supabase sandbox as clean until the two temporary postgres role-membership rows are removed by an owner-level managed-admin action. Do not grant runtime roles to a shared administrator in a test or production environment.
+- FND-04 remains pending production role provisioning, connection-role review, non-empty crossover review and explicit security approval.
+- FND-02 still needs injected-failure integration coverage around the production publication path and the later object/job-plane reconciliation contract.
+- FND-03 contract work must stop on any ambiguous owner, missing principal, tenant mismatch or unverifiable historical ciphertext/key. No historical ciphertext migration has been attempted.
+- The green `224/224` repository suite closes only the repository/template gate. It does not waive the blueprint P0 precision/recall, exact evidence, parser, export, lifecycle, DR, operational or production-authentication gates.
+- The next dependency-ready repository lane is JOB-01 plus OBJ-01 design/implementation, followed by direct upload/quarantine and isolated worker controls. AWS account/resources are not required for this documentation or sandbox phase.
+- Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security and operational gates pass.

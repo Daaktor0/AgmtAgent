@@ -142,7 +142,6 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: [
         ...GROK_PROVIDERS.map((provider) => provider.providerId),
-        GATE_PROVIDER_ID,
       ],
       requireLocalEmailVerified: false,
     },

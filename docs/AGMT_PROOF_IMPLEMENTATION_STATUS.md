@@ -15,7 +15,7 @@
 
 ## Evidence from the latest code head
 
-At verified implementation code head `497854d7afffabb5ae53219195fb3ffbfb6ace26` (PR #19; OOXML capability batch):
+At verified implementation code head `497854d7afffabb5ae53219195fb3ffbfb6ace26` (merged into `main` via PR #19; OOXML capability batch):
 
 - Web Proof workflow `33338227000`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (104/104 full-suite tests).
 - Eval workflow `33338227015` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.

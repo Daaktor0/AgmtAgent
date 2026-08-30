@@ -3,6 +3,7 @@ import {
   pendingMigrations,
 } from "../../scripts/migration-plan.mjs";
 import { sha256Hex } from "../../scripts/migration-checksum.mjs";
+import { validateMigrationLedger } from "../../scripts/migration-ledger.mjs";
 import {
   beginStatement,
   createSql as createTransactionalSql,
@@ -154,26 +155,10 @@ async function createPgliteSql(): Promise<Sql> {
       name: string;
       checksum: string | null;
     }>("select name, checksum from _migrations");
-    for (const row of doneRows.rows) {
-      const migration = migrationByName.get(row.name);
-      if (!migration) {
-        throw new Error(
-          `Applied migration is missing from this release: ${row.name}`,
-        );
-      }
-      if (!row.checksum) {
-        throw new Error(
-          `Applied migration has no checksum; controlled ledger backfill is required: ${row.name}`,
-        );
-      }
-      if (row.checksum !== migration.checksum) {
-        throw new Error(
-          `Migration checksum mismatch; refusing to continue: ${row.name}`,
-        );
-      }
-    }
-
-    const done = doneRows.rows.map((row) => row.name);
+    const done = validateMigrationLedger(
+      doneRows.rows,
+      migrationByName.values(),
+    );
     for (const { name } of pendingMigrations(
       Object.keys(migrations),
       done,

@@ -15,6 +15,7 @@ import { XMLParser } from "fast-xml-parser";
 import type { ExtractedBlock, ExtractedDocument, SourceCapability } from "./types.ts";
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
+import { ZIP_LIMITS, inspectZipCentralDirectory } from "./zip-safety.ts";
 
 const objectParser = new XMLParser({
   ignoreAttributes: false,
@@ -36,11 +37,6 @@ const orderedParser = new XMLParser({
 
 type Obj = Record<string, unknown>;
 type OrderedNode = Record<string, unknown>;
-
-const MAX_ZIP_ENTRIES = 4096;
-const MAX_EXPANDED_BYTES = 150 * 1024 * 1024;
-const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
-const MAX_COMPRESSION_RATIO = 250;
 
 const HIDDEN_RE = /[\u200B\u200C\u200D\u200E\u200F\u202A-\u202E\u2060\u00AD\uFEFF]/g;
 const HIDDEN_KIND: Record<string, string> = {
@@ -265,33 +261,28 @@ function collectRevisions(node: unknown, output: ExtractedDocument["revisions"])
   }
 }
 
-function validateZipMetadata(zip: JSZip, compressedBytes: number): void {
-  const entries = Object.values(zip.files);
-  if (entries.length > MAX_ZIP_ENTRIES) {
-    throw Object.assign(new Error("package_too_complex"), { code: "package_too_complex" });
-  }
+type ZipEntryReader = {
+  async(type: "uint8array"): Promise<Uint8Array>;
+};
 
-  let expanded = 0;
-  for (const entry of entries) {
-    const name = entry.name.replace(/\\/g, "/");
-    if (name.startsWith("/") || name.split("/").some((segment) => segment === "..")) {
-      throw Object.assign(new Error("unsafe_package_path"), { code: "unsafe_package_path" });
-    }
-    const data = (entry as unknown as { _data?: { uncompressedSize?: number } })._data;
-    const size = Number(data?.uncompressedSize ?? 0);
-    if (Number.isFinite(size) && size > 0) {
-      if (size > MAX_ENTRY_BYTES) {
-        throw Object.assign(new Error("package_entry_too_large"), { code: "package_entry_too_large" });
-      }
-      expanded += size;
-    }
-  }
+function parserError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
 
-  if (expanded > MAX_EXPANDED_BYTES) {
-    throw Object.assign(new Error("package_expanded_too_large"), { code: "package_expanded_too_large" });
+async function readEntryText(entry: ZipEntryReader, expectedBytes: number): Promise<string> {
+  let data: Uint8Array;
+  try {
+    data = await entry.async("uint8array");
+  } catch {
+    throw parserError("corrupt", "ZIP entry could not be decompressed or failed its CRC");
   }
-  if (expanded > 0 && compressedBytes > 0 && expanded / compressedBytes > MAX_COMPRESSION_RATIO) {
-    throw Object.assign(new Error("suspicious_compression_ratio"), { code: "suspicious_compression_ratio" });
+  if (data.byteLength !== expectedBytes || data.byteLength > ZIP_LIMITS.MAX_ENTRY_BYTES) {
+    throw parserError("package_entry_size_mismatch", "ZIP entry size differs from its central-directory declaration");
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(data);
+  } catch {
+    throw parserError("invalid_xml_encoding", "XML entry is not valid UTF-8");
   }
 }
 
@@ -307,15 +298,21 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
     throw Object.assign(new Error("not_docx"), { code: "not_docx" });
   }
 
+  const manifest = inspectZipCentralDirectory(bytes);
   let zip: JSZip;
   try {
-    zip = await JSZip.loadAsync(bytes, { checkCRC32: true });
+    zip = await JSZip.loadAsync(bytes, { checkCRC32: true, createFolders: false });
   } catch {
     throw Object.assign(new Error("corrupt"), { code: "corrupt" });
   }
 
-  validateZipMetadata(zip, bytes.byteLength);
-  const names = Object.keys(zip.files);
+  for (const entry of manifest.entries) {
+    if (!entry.isDirectory && !zip.file(entry.name)) {
+      throw parserError("corrupt", "ZIP entry could not be loaded by the package reader");
+    }
+  }
+  const names = manifest.entries.map((entry) => entry.name);
+  const metadataByName = new Map(manifest.entries.map((entry) => [entry.name, entry]));
   if (names.some((name) => name.toLowerCase().includes("vbaproject"))) {
     throw Object.assign(new Error("macro"), { code: "macro" });
   }
@@ -328,12 +325,13 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
     });
   }
 
+  const documentMetadata = metadataByName.get("word/document.xml");
   const documentFile = zip.file("word/document.xml");
-  if (!documentFile) {
+  if (!documentFile || !documentMetadata || documentMetadata.isDirectory) {
     throw Object.assign(new Error("not_docx"), { code: "not_docx" });
   }
 
-  const documentXml = await documentFile.async("string");
+  const documentXml = await readEntryText(documentFile, documentMetadata.uncompressedSize);
   const orderedDocument = orderedParser.parse(documentXml) as OrderedNode[];
   const documentChildren = firstTag(orderedDocument, "w:document");
   const bodyChildren = firstTag(documentChildren, "w:body");
@@ -367,7 +365,12 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
     const match = name.match(/^word\/(header|footer)\d*\.xml$/i);
     if (!match) continue;
     const story = match[1].toLowerCase() === "footer" ? "footer" : "header";
-    const xml = await zip.file(name)!.async("string");
+    const headerMetadata = metadataByName.get(name);
+    const headerFile = zip.file(name);
+    if (!headerFile || !headerMetadata || headerMetadata.isDirectory) {
+      throw parserError("corrupt", "Header/footer entry could not be loaded");
+    }
+    const xml = await readEntryText(headerFile, headerMetadata.uncompressedSize);
     const ordered = orderedParser.parse(xml) as OrderedNode[];
     const root = firstTag(ordered, story === "header" ? "w:hdr" : "w:ftr");
     for (const paragraph of paragraphsInOrder(root, name)) {
@@ -388,7 +391,11 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
   const comments: ExtractedDocument["comments"] = [];
   const commentsFile = zip.file("word/comments.xml");
   if (commentsFile) {
-    const parsed = parseObject(await commentsFile.async("string"));
+    const commentsMetadata = metadataByName.get("word/comments.xml");
+    if (!commentsMetadata || commentsMetadata.isDirectory) {
+      throw parserError("corrupt", "Comments entry could not be loaded");
+    }
+    const parsed = parseObject(await readEntryText(commentsFile, commentsMetadata.uncompressedSize));
     const root = (parsed["w:comments"] ?? parsed) as Obj;
     for (const comment of asObjectArray(root["w:comment"])) {
       const text: string[] = [];
@@ -421,7 +428,11 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
   let appPages: number | null = null;
   const appFile = zip.file("docProps/app.xml");
   if (appFile) {
-    const xml = await appFile.async("string");
+    const appMetadata = metadataByName.get("docProps/app.xml");
+    if (!appMetadata || appMetadata.isDirectory) {
+      throw parserError("corrupt", "Application properties entry could not be loaded");
+    }
+    const xml = await readEntryText(appFile, appMetadata.uncompressedSize);
     const match = xml.match(/<Pages>(\d+)<\/Pages>/i);
     if (match) appPages = Number(match[1]);
   }

@@ -18,13 +18,12 @@ const env = (key: string): string | undefined => {
 const deployed = Boolean(env("VERCEL") || env("VERCEL_ENV"));
 const applicationDatabaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
-const authDatabaseUrl =
-  env("BETTER_AUTH_DATABASE_URL") ??
-  env("AUTH_DATABASE_URL") ??
-  applicationDatabaseUrl;
-if (deployed && !authDatabaseUrl) {
+const dedicatedAuthDatabaseUrl =
+  env("BETTER_AUTH_DATABASE_URL") ?? env("AUTH_DATABASE_URL");
+const authDatabaseUrl = dedicatedAuthDatabaseUrl ?? applicationDatabaseUrl;
+if (deployed && (!applicationDatabaseUrl || !dedicatedAuthDatabaseUrl)) {
   throw new Error(
-    "Agmt auth requires persistent Postgres on Vercel. Set BETTER_AUTH_DATABASE_URL or AUTH_DATABASE_URL.",
+    "Agmt requires separate application and Better Auth Postgres connections on Vercel.",
   );
 }
 

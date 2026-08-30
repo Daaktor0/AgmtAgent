@@ -15,11 +15,18 @@ const loginSource = await readFile(
   "utf8",
 );
 
+const agmtSource = await readFile(
+  new URL("../src/lib/fn/agmt.ts", import.meta.url),
+  "utf8",
+);
+
 test("production auth has no anonymous test-session path", () => {
   assert.doesNotMatch(sessionSource, /openAnonymousTestSession/);
   assert.doesNotMatch(sessionSource, /temporary_test_access/);
   assert.doesNotMatch(sessionSource, /test\.agmt\.local/);
   assert.doesNotMatch(loginSource, /test workspace/i);
+  assert.doesNotMatch(agmtSource, /export const (request|verify)MagicLink/);
+  assert.doesNotMatch(agmtSource, /previewToken/);
 });
 
 test("deployed auth does not derive or bake credentials", () => {

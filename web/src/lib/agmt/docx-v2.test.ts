@@ -35,8 +35,8 @@ function mutateZipEntry(
   mutation: (archive: Buffer, kind: "local" | "central", offset: number) => void,
 ): Buffer {
   const archive = Buffer.from(bytes);
-  const signature = Buffer.from("PK\x03\x04", "binary");
-  const centralSignature = Buffer.from("PK\x01\x02", "binary");
+  const signature = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+  const centralSignature = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
   let localFound = false;
   let centralFound = false;
   for (let offset = 0; (offset = archive.indexOf(signature, offset)) >= 0; offset += 4) {

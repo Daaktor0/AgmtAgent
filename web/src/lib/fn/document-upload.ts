@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { requireVerified } from "@/lib/server/account";
-import { putBlob } from "@/lib/server/blobs";
+import { deleteBlob, putBlob } from "@/lib/server/blobs";
 import { writeAudit } from "@/lib/server/audit";
 import { encryptText, sha256Hex } from "@/lib/agmt/crypto";
 import { newId } from "@/lib/agmt/ids";
@@ -64,6 +64,7 @@ async function cleanupIncompleteRows(sql: Sql, userId: string, matterId: string)
         where document_version_id = ${version.versionId} and owner_user_id = ${userId}
       `;
       if (version.objectKey) {
+        await deleteBlob(userId, version.objectKey, sql);
         await sql`
           delete from object_blob
           where object_key = ${version.objectKey} and owner_user_id = ${userId}
@@ -347,6 +348,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
           `;
         }
         if (originalObjectKey) {
+          await deleteBlob(context.userId, originalObjectKey, sql);
           await sql`
             delete from object_blob
             where object_key = ${originalObjectKey} and owner_user_id = ${context.userId}

@@ -1,8 +1,8 @@
 # Agmt Proof implementation status
 
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Latest merged main:** `07fe5b04f26ed5596630af4a5ea1ec0d7a160216` via PR #22  
-**Latest implementation branch:** `proof-production-hardening/wrk03-story-capabilities` at `3ebbc2036ed0ec71e07ee0880a5fd45ca7e73a32` (WRK-03 implementation; PR #23 open)  
+**Latest merged main:** `081d9a1cd7211ec86eaa391288b3f40017d793dd` via PR #24  
+**Latest implementation branch:** `proof-production-hardening/fnd02-adapter-regression` at `367a087fec2ea00397b9fa88249bbc70e42fee94` (FND-02 concrete blob reconciliation adapter regression; PR #24 merged)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification
@@ -15,13 +15,13 @@
 
 ## Evidence from the latest code head
 
-At verified implementation code head 3ebbc2036ed0ec71e07ee0880a5fd45ca7e73a32 (WRK-03 non-main story capability batch; PR #23 open):
+At verified implementation code head 367a087fec2ea00397b9fa88249bbc70e42fee94 (FND-02 concrete blob reconciliation adapter regression; PR #24 merged):
 
-- Web Proof workflow 33339789811: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed.
-- The full web test run reported 112/112 tests passed with 0 failures; Eval workflow 33339789841 passed.
-- The OOXML inventory now evaluates fields, revisions and bookmarks across the main document, headers/footers and note stories instead of silently treating non-main story features as absent.
-- Comments now require unique decimal identifiers and non-empty authors. Malformed metadata fails closed with a typed parser error before findings can be produced.
-- The prior FND-02 transaction/reconciliation evidence remains recorded below. No credentials, connection strings, private keys, production documents or environment files are present in the changed repository paths.
+- Web Proof workflow 33340354017: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed; Eval workflow 33340354044 passed.
+- The full web test run reported 115/115 tests passed with 0 failures.
+- `blobs.test.ts` exercises the real manifest/provider reconciliation boundary: confirmed rollback records then deletes the exact object, unknown outcomes record-only and retain bytes, and immutable manifest mismatches remain unresolved without deletion.
+- `db.ts` now uses explicit TypeScript module extensions, allowing the server-only adapter boundary to be loaded by the repository’s strip-types test runner without triggering a false local-bootstrap failure.
+- The prior WRK-03 story-capability and FND-02 transaction/reconciliation evidence remains recorded below. No credentials, connection strings, private keys, production documents or environment files are present in the changed repository paths.
 
 ## Package ledger
 
@@ -30,7 +30,7 @@ At verified implementation code head 3ebbc2036ed0ec71e07ee0880a5fd45ca7e73a32 (W
 | FND-01 | Implemented; human approval pending | Baseline ADR, supported DOCX matrix, invariants, state boundaries, non-goals, gate ownership and stop conditions are recorded. |
 | SEC-01 | Repository changes implemented; security review pending | Test-workspace access, preview secrets and legacy duplicate paths are removed; deployed auth requires explicit configuration. |
 | FND-05 | Implemented repository-side; release rehearsal pending | Builds are separated from manual forward-only migrations with SHA-256 ledger validation; least-privilege release credential rehearsal remains open. |
-| FND-02 | Repository transaction/reconciliation implemented; production rehearsal pending | Provider-neutral transactions, rollback/release behavior, atomic Matter/document publication, exact external artifacts and fail-closed reconciliation are tested. Managed Supabase/S3 fault rehearsal, worker reconciler and operational orphan scans remain open. |
+| FND-02 | Repository transaction/reconciliation implemented; production rehearsal pending | Provider-neutral transactions, rollback/release behavior, atomic Matter/document publication, exact external artifacts and fail-closed reconciliation are tested. The concrete manifest/provider adapter now has rollback, unknown-outcome and mismatch regressions. Managed Supabase/S3 fault rehearsal, worker reconciler and operational orphan scans remain open. |
 | FND-03 | Expand migration implemented; contract and historical review pending | Tenant/member tables, nullable tenant columns, composite keys/FKs and empty-sandbox rehearsal pass; validation and NOT NULL contract are intentionally deferred. |
 | FND-04 | Repository and empty-sandbox implementation complete; production security review pending | 32/32 public tables are forced-RLS with 108 policies; runtime roles are non-login/non-bypass; PGlite and real synthetic crossover probes pass. Login-role provisioning, managed sandbox probe-membership cleanup and owner review remain open. |
 | JOB-01 | Implemented repository-side; empty-sandbox schema verified; production worker review pending | Tenant-bound upload/job/outbox state machines, guarded transitions, leases, idempotency and RLS are implemented and tested. Isolated worker execution and production IAM remain open. |
@@ -118,7 +118,7 @@ A package is not marked complete until its acceptance tests, security considerat
 - The provider-neutral adapter exposes transaction callbacks with allow-listed isolation levels. Managed Postgres pins one client, configures tenant context, rolls back confirmed callback/configuration failures, releases in finally, and reports commit/rollback uncertainty instead of pretending it is safe to compensate. PGlite reports the same outcome class for local parity.
 - Matter creation publishes its Matter, mandate, active pointer and audit row in one callback. Document upload parses before acquiring a connection, then publishes metadata, document/version, canonicalisation rows, capabilities, current pointer and audit row atomically.
 - putBlob carries the exact external publication artifact. The upload catch path records that artifact outside the failed transaction; only a confirmed rollback permits exact provider cleanup. Unknown outcomes are record-only and never delete rows or bytes.
-- Web Proof workflow 33339154677 and Eval workflow 33339154680 passed at the code head above; the full web suite reported 111/111 tests.
+- Web Proof workflow 33340354017 and Eval workflow 33340354044 passed at the adapter-test code head; the full web suite reported 115/115 tests, including concrete provider/manifest reconciliation regressions.
 - This package remains open under the blueprint until the managed Supabase/S3 publication path has injected failure rehearsal, the durable worker reconciler handles staged/unreferenced objects idempotently, and production operational/security review passes. See ADR 0011.
 
 ## FND-03 expand/contract design
@@ -169,7 +169,7 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md), [ADR 0006](adr/000
 
 - Do not treat the Supabase sandbox as clean until the two temporary postgres role-membership rows are removed by an owner-level managed-admin action. Do not grant runtime roles to a shared administrator in a test or production environment.
 - FND-04 remains pending production role provisioning, connection-role review, non-empty crossover review and explicit security approval.
-- FND-02 repository-side injected-failure and exact object-reconciliation coverage is implemented. It remains a launch blocker until the managed Supabase/S3 path is rehearsed with injected failures and the later worker/object-job reconciler proves idempotent staged-orphan handling.
+- FND-02 repository-side transaction, injected-failure and exact object-reconciliation coverage is implemented, including the concrete manifest/provider adapter boundary. It remains a launch blocker until the managed Supabase/S3 path is rehearsed with injected failures and the later worker/object-job reconciler proves idempotent staged-orphan handling.
 - FND-03 contract work must stop on any ambiguous owner, missing principal, tenant mismatch or unverifiable historical ciphertext/key. No historical ciphertext migration has been attempted.
 - The green `229/229` repository suite closes only the repository/template gate. It does not waive the blueprint P0 precision/recall, exact evidence, parser, export, lifecycle, DR, operational or production-authentication gates.
 - WRK-02 and WRK-03 repository-side parser controls are implemented, but worker resource proof, adversarial/differential corpora and production security review remain open. The next dependency lane is ING-01 only after FND-02 transaction/reconciliation review; live OBJ-02/OBJ-03/WRK-01 wiring must still stop for owner-approved AWS/data-plane setup and review.

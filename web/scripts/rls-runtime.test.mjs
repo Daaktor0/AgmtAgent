@@ -55,3 +55,48 @@ test("FND-04 unauthenticated magic-link work is explicitly operation-scoped", ()
   assert.match(runtime, /Tenant membership is ambiguous/);
   assert.match(runtime, /Tenant membership is not usable/);
 });
+
+const [agmtWrites, documentUploadWrites, auditWrites] = await Promise.all([
+  readFile(new URL("../src/lib/fn/agmt.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/lib/fn/document-upload.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/lib/server/audit.ts", import.meta.url), "utf8"),
+]);
+
+function insertedColumnLists(source, table) {
+  return [...source.matchAll(new RegExp(
+    "insert\\\\s+into\\\\s+" + table + "\\\\s*\\\\(([\\\\s\\\\S]*?)\\\\)\\\\s+values",
+    "gi",
+  ))].map((match) => match[1]);
+}
+
+test("FND-04 application writes carry the server-derived tenant", () => {
+  const tenantOwnedWrites = [
+    ["matter", agmtWrites],
+    ["mandate_version", agmtWrites],
+    ["deletion_job", agmtWrites],
+    ["document", agmtWrites + "\\n" + documentUploadWrites],
+    ["document_version", agmtWrites + "\\n" + documentUploadWrites],
+    ["canonicalisation_map", agmtWrites + "\\n" + documentUploadWrites],
+    ["canonicalisation_entry", agmtWrites + "\\n" + documentUploadWrites],
+    ["canonical_projection", agmtWrites],
+    ["provision", agmtWrites],
+    ["definition", agmtWrites],
+    ["definition_use", agmtWrites],
+    ["deal_map_entry", agmtWrites],
+    ["source_capability", agmtWrites + "\\n" + documentUploadWrites],
+    ["proof_run", agmtWrites],
+    ["proof_check_execution", agmtWrites],
+    ["proof_hit", agmtWrites],
+    ["proof_feedback_ticket", agmtWrites],
+    ["review_entitlement", account],
+  ];
+  for (const [table, source] of tenantOwnedWrites) {
+    const lists = insertedColumnLists(source, table);
+    assert.ok(lists.length > 0, "no insert found for " + table);
+    assert.ok(
+      lists.every((columns) => /\\btenant_id\\b/i.test(columns)),
+      "insert into " + table + " omits tenant_id",
+    );
+  }
+  assert.match(auditWrites, /tenant_id/);
+});

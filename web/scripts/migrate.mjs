@@ -82,7 +82,7 @@ async function main() {
     ).rows;
     const appliedNames = validateMigrationLedger(
       appliedRows,
-      migrations.values(),
+      [...migrations.values()],
     );
 
     let count = 0;

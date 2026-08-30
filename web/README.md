@@ -28,3 +28,10 @@ upload a `.docx`. Confirm identifiers. Proof makes no model call.
 TanStack Start, React 19, Better Auth (Google via Grok broker + product-layer
 magic link), Supabase Postgres via standard `pg` / PGLite, AES-256-GCM blobs, OOXML ingest.
 The current sandbox uses Supabase only as managed Postgres; Supabase Auth and Storage are not used.
+
+For persistent Postgres, configure `DATABASE_URL` and the server-only
+`AGMT_DB_ROLE` (`agmt_app` for the web process). Deployed Better Auth must
+use a separate `BETTER_AUTH_DATABASE_URL` or `AUTH_DATABASE_URL`; never reuse
+the application login or accept tenant/role values from the browser. The
+migration creates non-login runtime group roles only; operators provision
+least-privilege login memberships outside the repository.

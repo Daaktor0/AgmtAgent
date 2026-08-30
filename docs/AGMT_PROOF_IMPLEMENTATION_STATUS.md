@@ -14,11 +14,11 @@
 
 ## Evidence from the latest code head
 
-At code head `239be9fbc1c30774e462bcdeadc7c4caf5e51a01`:
+At code head `8c9b4a236d4f713780750f82da774a89250fb42b`:
 
-- Web Proof workflow `33325866274`: development build, typecheck, production build, and proof golden corpus passed.
-- Eval workflow `33325866263`: Python corpus/evaluation checks passed.
-- Focused new checks passed inside the web test command: transaction commit/rollback, parser-before-transaction boundary, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection after the existing index-quality migration, checksum stability, and ledger drift failures.
+- Web Proof workflow `33326121240`: development build, typecheck, production build, and proof golden corpus passed.
+- Eval workflow `33326121257`: Python corpus/evaluation checks passed.
+- The explicit `DB transaction hardening tests` CI step and focused new checks passed: transaction commit/rollback, parser-before-transaction boundary, atomic Matter/document publication source checks, additive tenant migration checks, in-memory PGlite cross-tenant rejection after the existing index-quality migration, checksum stability, and ledger drift failures.
 - The full web test command remains red at 190/208 tests. The 18 failures are existing Grok fixture/app-env/PWA metadata expectations plus a stale migration-directory expectation; they are not treated as a launch waiver. The package ledger below therefore keeps final approval pending.
 
 ## Package ledger

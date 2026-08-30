@@ -232,8 +232,12 @@ begin
     alter table canonicalisation_entry add constraint agmt_entry_tenant_id_uq
       unique (tenant_id, entry_id);
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'agmt_proof_hit_tenant_id_uq') then
+    alter table proof_hit add constraint agmt_proof_hit_tenant_id_uq
+      unique (tenant_id, proof_hit_id);
+  end if;
 end
-$$;
+$;
 
 create index if not exists review_entitlement_tenant_idx
   on review_entitlement (tenant_id);

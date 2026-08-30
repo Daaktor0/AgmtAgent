@@ -561,7 +561,14 @@ function extractNotesStory(
   const ordered = orderedParser.parse(xml) as OrderedNode[];
   const root = firstTag(ordered, rootTag);
   if (!root.length) throw parserError("invalid_ooxml_package", rootTag + " root is missing");
-  const noteNodes = firstTag(root, noteTag);
+  const noteNodes: OrderedNode[] = [];
+  for (const node of root) {
+    const value = node[noteTag];
+    if (value == null) continue;
+    const noteNode: OrderedNode = { [noteTag]: value };
+    if (node[":@"] != null) noteNode[":@"] = node[":@"];
+    noteNodes.push(noteNode);
+  }
   const blocks: ExtractedBlock[] = [];
   const hidden: ExtractedDocument["hiddenChars"] = [];
   const notes: ExtractedNote[] = [];

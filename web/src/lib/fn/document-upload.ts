@@ -143,11 +143,11 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
     let phase = "inspect";
 
     try {
-      const transactionalResult = await sql.transaction(async (transactionSql) => {
-        // Do all CPU/parser work before creating a visible document row. A parser
-        // failure can therefore never surface as a fake "Uploaded" document.
-        const ingested = await ingestBuffer(bytes);
+      // Do all CPU/parser work before acquiring a database connection. A parser
+      // failure can therefore never surface as a fake "Uploaded" document.
+      const ingested = await ingestBuffer(bytes);
 
+      const transactionalResult = await sql.transaction(async (transactionSql) => {
         phase = "store_original";
         const original = await putBlob(context.userId, "original_docx", bytes, transactionSql);
         originalObjectKey = original.objectKey;
@@ -188,7 +188,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
             where document_id = ${documentId} and owner_user_id = ${context.userId}
           `;
           await writeAudit({
-          sql: transactionSql,
+            sql: transactionSql,
             ownerUserId: context.userId,
             userId: context.userId,
             matterId: data.matterId,

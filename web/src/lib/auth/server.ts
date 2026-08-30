@@ -16,11 +16,15 @@ const env = (key: string): string | undefined => {
 };
 
 const deployed = Boolean(env("VERCEL") || env("VERCEL_ENV"));
-const databaseUrl =
+const applicationDatabaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
-if (deployed && !databaseUrl) {
+const authDatabaseUrl =
+  env("BETTER_AUTH_DATABASE_URL") ??
+  env("AUTH_DATABASE_URL") ??
+  applicationDatabaseUrl;
+if (deployed && !authDatabaseUrl) {
   throw new Error(
-    "Agmt auth requires persistent Postgres on Vercel. Set DATABASE_URL or POSTGRES_URL.",
+    "Agmt auth requires persistent Postgres on Vercel. Set BETTER_AUTH_DATABASE_URL or AUTH_DATABASE_URL.",
   );
 }
 
@@ -104,9 +108,9 @@ const grokAuthorizationUrl = `${issuerBase}/api/auth/oauth2/authorize`;
 const grokTokenUrl = `${issuerBase}/api/auth/oauth2/token`;
 const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 
-const database = databaseUrl
+const database = authDatabaseUrl
   ? new Pool({
-      connectionString: databaseUrl,
+      connectionString: authDatabaseUrl,
       max: 4,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 5_000,

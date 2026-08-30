@@ -7,6 +7,7 @@ import {
   ObjectStoreError,
   S3ObjectStore,
   storageKeyFor,
+  type S3ObjectClient,
 } from "./object-store.ts";
 
 const objectKey = "obj_123e4567-e89b-12d3-a456-426614174000";
@@ -126,7 +127,7 @@ test("integrity mismatches fail closed before bytes are returned", async () => {
 
 test("S3 adapter checks immutable keys and validates downloaded bytes", async () => {
   const objects = new Map();
-  const client = {
+  const client: S3ObjectClient = {
     async headObject({ key }) {
       const value = objects.get(key);
       return value

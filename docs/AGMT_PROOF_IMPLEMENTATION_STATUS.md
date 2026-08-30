@@ -1,67 +1,68 @@
 # Agmt Proof implementation status
 
-**Baseline:** `main` at `a5718aec3facba3f4fba8f49728ff12acaff4986` (30 August 2026 audit)  
+**Baseline:** current `main` at `b2d48d6f52bf6afdad33821db5daf70c107f5e5f` (30 August 2026)  
 **Working branch:** `proof-production-hardening/fnd01-sec01-fnd05`  
-**Scope:** repository-side production hardening only. No infrastructure was provisioned, no production database was changed, and no external authentication provider was configured.
+**Scope:** repository-side production hardening only. No infrastructure was provisioned, no production database was changed, no migration was applied to Supabase, and no external authentication provider was configured.
 
 ## Baseline verification
 
-- `AGENTS.md`: absent from `main` (repository API returned 404); no repository-local agent instructions were available.
-- The production blueprint is present at `docs/AGMT_PROOF_PRODUCTION_LAUNCH_BLUEPRINT.md` and was read in full.
-- The audited findings are reproducible from the current source: automatic test-workspace access, baked preview OAuth credentials, database-derived deployed auth fallback, build-time migration coupling, synchronous/base64 ingestion, sequential persistence, and PostgreSQL document blobs.
+- `AGENTS.md`: absent from current `main` (repository API returned 404); no repository-local agent instructions were available.
+- `docs/AGMT_PROOF_PRODUCTION_LAUNCH_BLUEPRINT.md` is present and was read in full before code changes.
+- The audited findings are reproducible from current source: automatic test-workspace access, baked preview OAuth credentials, database-derived deployed auth fallback, build-time migration coupling, synchronous/base64 ingestion, sequential persistence, and PostgreSQL document blobs.
 - Current baseline is not launch-ready for confidential documents.
+- A user-owned Supabase Free project exists for the future database target. This branch has not connected to it or changed it. No credentials, connection strings, private keys, or production documents are stored in the repository.
+
+## Evidence from the latest code head
+
+At code head `f526f826f81d51743bd85cc5079a680cd27155fa`:
+
+- Web Proof workflow `33325366767`: development build, typecheck, production build, and proof golden corpus passed.
+- Eval workflow `33325366801`: Python corpus/evaluation checks passed.
+- Focused new checks passed inside the web test command: transaction commit/rollback, additive tenant migration checks, in-memory PGlite cross-tenant rejection, checksum stability, and ledger drift failures.
+- The full web test command remains red at 187/205 tests. The 18 failures are existing Grok fixture/app-env/PWA metadata expectations plus a stale migration-directory expectation; they are not treated as a launch waiver. The package ledger below therefore keeps final approval pending.
 
 ## Package ledger
 
-| Package | Status | Evidence |
+| Package | Status | Evidence and remaining work |
 |---|---|---|
-| FND-01 | Implemented; human approval pending | Added baseline ADRs, supported-document matrix, invariants, non-goals, state boundaries and gate ownership. |
-| SEC-01 | Implemented in branch; test execution pending | Removed automatic test-workspace route/UI, removed gate-session and preview-secret source paths, and made deployed auth require explicit `BETTER_AUTH_SECRET`. |
-| FND-05 | Implemented in branch; test execution pending | `npm run build` no longer runs migrations; added explicit `db:migrate:release` command, manual release workflow and regression test. |
-| FND-02 | Design drafted; blocked on review | Transaction boundary design is recorded below. No migration or production data action was taken. |
-| FND-03 | Design drafted; blocked on review | Tenant/FK/RLS migration design is recorded below. No migration was added or run. |
+| FND-01 | Implemented; human approval pending | Added baseline ADR, supported DOCX matrix, invariants, state boundaries, non-goals, gate ownership, and review stop conditions. See ADRs 0001 and 0002. |
+| SEC-01 | Repository changes implemented; security review pending | Removed automatic test-workspace access, deleted gate-session/preview-secret source paths, made deployed auth require an explicit secret/provider configuration, and kept sign-in unavailable when unconfigured. Relevant builds and auth checks pass; final full-suite/security review is pending. |
+| FND-05 | Implemented repository-side; release rehearsal pending | Builds no longer run migrations; `db:migrate:release` is manual-only; the runner and PGlite ledger store/verify SHA-256 checksums and fail closed on unknown, edited, or legacy unchecksummed rows. No live migration was run. |
+| FND-02 | Adapter implemented; publication integration pending | Added provider-neutral `Sql.transaction`, dedicated Postgres connection handling, PGlite transaction mapping, allow-listed isolation, rollback/release behavior, and forced-failure regression tests. Document-generation publication still must move behind this boundary after tenant/runtime context is ready. |
+| FND-03 | Expand migration implemented; contract and review pending | Added `0003_tenant_integrity_expand.sql`, tenant/member tables, tenant columns, supporting composite keys, tenant-scoped foreign keys, and a PGlite rehearsal proving cross-tenant document relationships fail. Columns remain temporarily nullable; validation, NOT NULL contract, runtime context, RLS, and historical-data review remain blocked. |
+| FND-04 | Blocked by FND-03 contract | RLS/runtime-role implementation has not started. It must follow validated composite tenant constraints and an approved request/worker/support role model. |
 
-A package is not marked complete until its acceptance tests, security review and definition of done pass.
+A package is not marked complete until its acceptance tests, security considerations, definition of done, and relevant full-suite gates pass.
 
-## FND-02/FND-03 review gate
+## FND-02 transaction design
 
-Before implementing schema changes, a human must approve:
+- The provider-neutral adapter exposes `transaction(callback, options)`.
+- Managed Postgres acquires one pool client, issues `BEGIN` with an allow-listed isolation level, runs the callback on that same client, commits only after success, rolls back on every exception, and releases in `finally`.
+- PGlite delegates to its native transaction callback. Nested transactions are rejected rather than silently misrepresented as savepoints.
+- Database publication will persist one complete generation and advance `document.current_version_id` last. A forced failure must leave readers on the prior complete generation.
+- Object-store operations remain outside the database transaction and require staged-object reconciliation in the later object/job plane.
+- Tenant/request context is deliberately deferred until the FND-04 runtime/RLS package.
 
-1. the target production data region/provider;
-2. whether historical rows and ciphertext are retained, migrated, or declared unrecoverable;
-3. the expand/migrate/contract sequence and maintenance/rollback window; and
-4. the runtime-role and RLS ownership model.
+See [ADR 0003](adr/0003-atomic-database-transaction-boundary.md).
 
-### Proposed FND-02 transaction design
-
-- Add a small `withTransaction` adapter over the existing PostgreSQL connection interface.
-- Acquire one connection, issue `BEGIN`, apply `SET LOCAL` tenant/request context, run the callback, and `COMMIT`; rollback on every exception and release in `finally`.
-- Keep PGLite's transaction adapter separate from managed Postgres. Do not make application code depend on provider-specific transaction APIs.
-- Move publication of a document generation behind one transaction. Advance `document.current_version_id` last.
-- Add fault-injection tests after each publication phase. Readers must observe the prior complete generation or the new complete generation, never a partial generation.
-- Keep object-store operations outside the database transaction and use an outbox/reconciler for staged objects. Do not claim distributed atomicity.
-
-### Proposed FND-03 migration design
+## FND-03 expand/contract design
 
 Expand:
 
-- Add nullable `tenant_id` columns and required supporting indexes to every tenant-owned table.
-- Add tenant-scoped state checks and composite unique keys needed by foreign keys.
-- Add a migration ledger/checksum and schema version gate; do not rewrite or delete historical document bytes.
-
-Migrate:
-
-- Backfill tenant identity from existing owner/matter relationships in bounded, auditable batches.
-- Stop if any row is ambiguous or if a historical ciphertext/key cannot be verified. Produce a metadata-only exception report.
-- Add composite foreign keys using `NOT VALID`, validate them, then make new writes require the columns.
+- Add nullable `tenant_id` columns and indexes to tenant-owned tables.
+- Create `agmt_tenant` and `agmt_tenant_member`; v1 identity is one tenant owner per existing verified user because no collaboration model has been approved.
+- Backfill only from existing owner/user identity. The principal foreign key fails closed when an owner has no `user_account` row.
+- Add composite parent keys and tenant-scoped foreign keys as `NOT VALID`; new non-null relationships cannot cross tenants while existing rows remain measurable.
 
 Contract:
 
-- Make tenant columns `NOT NULL` only after the backfill and validation gates pass.
-- Enable RLS and create policies for web/worker/support roles after runtime context is deployed and tested.
-- Remove or restrict owner-level fallbacks only after crossover tests pass.
+- Review and validate all existing composite relationships.
+- Stop on any ambiguous owner, missing principal, tenant mismatch, or unverifiable historical ciphertext/key.
+- Make tenant columns `NOT NULL`, install RLS and runtime roles, and remove owner-only fallbacks only after crossover tests pass.
 
-These steps are intentionally design-only in this batch. No destructive migration, historical ciphertext rewrite, production database change, or external service configuration is authorized by this work item.
+The migration is additive but performs metadata backfill if someone applies it. It does not delete, decrypt, rewrite, re-key, or move document bytes. It has not been applied anywhere.
+
+See [ADR 0004](adr/0004-tenant-integrity-expand-contract.md).
 
 ## Gate ownership map
 
@@ -77,5 +78,6 @@ These steps are intentionally design-only in this batch. No destructive migratio
 
 ## Remaining stop conditions
 
-- FND-02/FND-03 implementation awaits explicit review of the design and historical ciphertext disposition.
-- Production use remains blocked until the blueprint's P0, evidence, tenant, export, lifecycle, DR, security and operational gates pass.
+- FND-01, FND-02 publication integration, FND-03 contract, and FND-04 require human review of the ADRs and historical ciphertext disposition before any live schema/data action.
+- The current full web test command has 18 failures and must be reconciled or explicitly dispositioned; no numerical or security gate is being weakened.
+- Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security, and operational gates pass.

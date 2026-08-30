@@ -1,5 +1,11 @@
+// @ts-check
+
 const encoder = new TextEncoder();
 
+/**
+ * @param {string} value
+ * @returns {Promise<string>}
+ */
 export async function sha256Hex(value) {
   if (!globalThis.crypto?.subtle) {
     throw new Error("Web Crypto SHA-256 is unavailable");

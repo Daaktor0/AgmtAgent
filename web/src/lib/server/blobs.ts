@@ -180,7 +180,9 @@ type BlobManifestRow = {
 
 function stableJson(value: unknown): string {
   if (value === undefined) return "undefined";
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "undefined";
+  };
   if (Array.isArray(value)) return "[" + value.map(stableJson).join(",") + "]";
   return (
     "{" +

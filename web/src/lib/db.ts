@@ -136,7 +136,7 @@ async function createPgliteSql(): Promise<Sql> {
     }) as Record<string, string>;
     const migrationByName = new Map<
       string,
-      { path: string; text: string; checksum: string }
+      { name: string; path: string; text: string; checksum: string }
     >();
     for (const path of Object.keys(migrations)) {
       const name = migrationName(path);
@@ -145,6 +145,7 @@ async function createPgliteSql(): Promise<Sql> {
       }
       const text = migrations[path];
       migrationByName.set(name, {
+        name,
         path,
         text,
         checksum: await sha256Hex(text),

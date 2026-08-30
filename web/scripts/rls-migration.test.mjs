@@ -118,7 +118,8 @@ test("FND-04 policies fail closed for missing context and include checks", () =>
   assert.match(migration, /current_tenant_id\(\) is not null/i);
   assert.match(migration, /support_ticket\(\) is not null/i);
   assert.match(migration, /auth_insert/i);
-  assert.match(migration, /revoke all[\\s\\S]+from anon, authenticated/i);
+  assert.match(migration, /array\['anon', 'authenticated'\]/i);
+  assert.match(migration, /revoke all on all tables in schema public/i);
 });
 
 test("FND-04 migration has no destructive or secret-bearing operation", () => {

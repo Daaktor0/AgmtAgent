@@ -53,3 +53,21 @@ test("context settings contain only server-derived values", () => {
     ["agmt.operation", ""],
   ]);
 });
+
+test("authentication operation context is explicit and tenantless", () => {
+  assert.deepEqual(databaseContextSettings({
+    userId: "auth-flow",
+    tenantId: null,
+    runtimeRole: "app",
+    operation: "auth_magic_link_request",
+  }), [
+    ["agmt.user_id", "auth-flow"],
+    ["agmt.tenant_id", ""],
+    ["agmt.support_ticket", ""],
+    ["agmt.operation", "auth_magic_link_request"],
+  ]);
+  assert.throws(() => databaseContextSettings({
+    ...appContext,
+    operation: "auth_magic_link_verify",
+  }), /cannot be combined with a tenant context/);
+});

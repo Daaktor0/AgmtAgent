@@ -46,6 +46,56 @@ export function beginStatement(options?: TransactionOptions): string {
   return `BEGIN ISOLATION LEVEL ${level}`;
 }
 
+export interface PostgresClientLike {
+  query(text: string, params?: unknown[]): Promise<{ rows: unknown[] }>;
+  release(): void;
+}
+
+export interface PostgresPoolLike {
+  query(text: string, params?: unknown[]): Promise<{ rows: unknown[] }>;
+  connect(): Promise<PostgresClientLike>;
+}
+
+export function createPostgresSql(pool: PostgresPoolLike): Sql {
+  const run = async <T>(text: string, params: unknown[]) => {
+    const result = await pool.query(text, params);
+    return result.rows as T[];
+  };
+
+  const transaction = async <T>(
+    callback: (transactionSql: Sql) => Promise<T>,
+    options?: TransactionOptions,
+  ): Promise<T> => {
+    const client = await pool.connect();
+    try {
+      await client.query(beginStatement(options));
+      const transactionSql = createSql(
+        async <R>(text: string, params: unknown[]) => {
+          const result = await client.query(text, params);
+          return result.rows as R[];
+        },
+        async () => {
+          throw new Error("Nested database transactions are not supported");
+        },
+      );
+      const result = await callback(transactionSql);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original transaction error.
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
+  return createSql(run, transaction);
+}
+
 export function createSql(
   run: QueryRunner,
   transaction: TransactionRunner,

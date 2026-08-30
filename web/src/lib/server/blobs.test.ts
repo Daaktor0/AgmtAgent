@@ -132,7 +132,7 @@ function manifestSql(seed: StoredManifest | null = null): {
 
   return {
     sql: createSql(
-      async <T = Record<string, unknown>>(text, params) => run<T>(text, params),
+      async <T = Record<string, unknown>>(text: string, params: unknown[]) => run<T>(text, params),
       async () => {
         throw new Error("nested transaction is not expected in this test");
       },

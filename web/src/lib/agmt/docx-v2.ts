@@ -12,7 +12,7 @@
  */
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
-import type { ExtractedBlock, ExtractedDocument, SourceCapability } from "./types.ts";
+import type { ExtractedBlock, ExtractedBookmark, ExtractedDocument, ExtractedNote, PackageRelationship, SourceCapability } from "./types.ts";
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
 import { ZIP_LIMITS, inspectZipCentralDirectory } from "./zip-safety.ts";
@@ -136,7 +136,7 @@ function extractOrderedParagraph(
   paragraphNodes: OrderedNode[],
   index: number,
   path: string,
-  story: "body" | "header" | "footer",
+  story: "body" | "header" | "footer" | "footnote" | "endnote",
   isTable: boolean,
 ): { block: ExtractedBlock; hidden: ExtractedDocument["hiddenChars"] } {
   const parts: string[] = [];
@@ -290,6 +290,307 @@ function parseObject(xml: string): Obj {
   return objectParser.parse(xml) as Obj;
 }
 
+type PackageEntryMetadata = {
+  name: string;
+  isDirectory: boolean;
+  uncompressedSize: number;
+};
+
+type InspectedRelationship = PackageRelationship & {
+  resolvedTarget: string;
+};
+
+function packageText(value: unknown, field: string, maximumLength = 512): string {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    value.length > maximumLength ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
+    throw parserError("invalid_ooxml_package", field + " is invalid");
+  }
+  return value.trim();
+}
+
+function packageEntryType(
+  value: unknown,
+  field: string,
+): string {
+  return packageText(value, field, 256);
+}
+
+function inspectContentTypes(
+  xml: string,
+  entries: PackageEntryMetadata[],
+): Map<string, string> {
+  const parsed = parseObject(xml);
+  const root = parsed["Types"];
+  if (!root || typeof root !== "object" || Array.isArray(root)) {
+    throw parserError("invalid_content_types", "Content types root is missing");
+  }
+  const types = root as Obj;
+  const defaults = new Map<string, string>();
+  for (const item of asObjectArray(types["Default"])) {
+    const extension = packageText(item["@_Extension"], "content type extension", 64).toLowerCase();
+    const contentType = packageEntryType(item["@_ContentType"], "content type");
+    const prior = defaults.get(extension);
+    if (prior && prior !== contentType) {
+      throw parserError("invalid_content_types", "Content type defaults conflict");
+    }
+    defaults.set(extension, contentType);
+  }
+
+  const overrides = new Map<string, string>();
+  for (const item of asObjectArray(types["Override"])) {
+    const partName = packageText(item["@_PartName"], "content type part name", 1024);
+    if (!partName.startsWith("/") || partName.length === 1) {
+      throw parserError("invalid_content_types", "Content type part name must be absolute");
+    }
+    const name = partName.slice(1);
+    const contentType = packageEntryType(item["@_ContentType"], "content type");
+    if (!entries.some((entry) => entry.name === name && !entry.isDirectory)) {
+      throw parserError("missing_content_type", "Content type override targets a missing part");
+    }
+    const prior = overrides.get(name);
+    if (prior && prior !== contentType) {
+      throw parserError("invalid_content_types", "Content type overrides conflict");
+    }
+    overrides.set(name, contentType);
+  }
+
+  const contentTypes = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+    const extension = entry.name.includes(".")
+      ? entry.name.slice(entry.name.lastIndexOf(".") + 1).toLowerCase()
+      : "";
+    const contentType = overrides.get(entry.name) ?? defaults.get(extension);
+    if (!contentType) {
+      throw parserError("missing_content_type", "Package part has no declared content type");
+    }
+    if (/macroEnabled|vbaProject|activeX/i.test(contentType)) {
+      throw parserError("unsupported_active_content", "Active or macro content is not supported");
+    }
+    contentTypes.set(entry.name, contentType);
+  }
+
+  const mainContentType = contentTypes.get("word/document.xml");
+  if (mainContentType !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml") {
+    throw parserError("invalid_content_types", "Main document content type is invalid");
+  }
+  return contentTypes;
+}
+
+function relationshipSourceName(name: string): string {
+  if (name === "_rels/.rels") return "";
+  const marker = "/_rels/";
+  const markerIndex = name.indexOf(marker);
+  if (markerIndex <= 0 || !name.endsWith(".rels")) {
+    throw parserError("invalid_relationships", "Relationship part name is invalid");
+  }
+  const source = name.slice(0, markerIndex) + "/" + name.slice(markerIndex + marker.length, -5);
+  if (!source) throw parserError("invalid_relationships", "Relationship source is missing");
+  return source;
+}
+
+function resolveInternalRelationship(
+  source: string,
+  target: string,
+  names: Set<string>,
+): string {
+  if (
+    !target ||
+    target.startsWith("/") ||
+    target.startsWith("\\") ||
+    /^[A-Za-z]:[\\/]/.test(target) ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(target) ||
+    /[\u0000-\u001f\u007f]/.test(target)
+  ) {
+    throw parserError("unsafe_relationship_target", "Internal relationship target is unsafe");
+  }
+
+  const segments = source ? source.slice(0, source.lastIndexOf("/") + 1).split("/").filter(Boolean) : [];
+  let usedParent = false;
+  for (const segment of target.split("/")) {
+    if (!segment || segment === ".") {
+      throw parserError("unsafe_relationship_target", "Internal relationship target is unsafe");
+    }
+    if (segment === "..") {
+      usedParent = true;
+      if (!segments.length) {
+        throw parserError("unsafe_relationship_target", "Internal relationship target escapes the package");
+      }
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  const resolved = segments.join("/");
+  if (!names.has(resolved)) {
+    throw parserError(
+      usedParent ? "unsafe_relationship_target" : "missing_relationship_target",
+      "Internal relationship target is not a package part",
+    );
+  }
+  return resolved;
+}
+
+function externalRelationshipTarget(target: string): boolean {
+  return /^(https?|mailto):/i.test(target);
+}
+
+async function inspectRelationships(
+  zip: JSZip,
+  entries: PackageEntryMetadata[],
+  names: Set<string>,
+): Promise<InspectedRelationship[]> {
+  const relationships: InspectedRelationship[] = [];
+  for (const entry of entries.filter((item) => item.name.endsWith(".rels")).sort((left, right) => left.name.localeCompare(right.name))) {
+    const source = relationshipSourceName(entry.name);
+    if (source && !names.has(source)) {
+      throw parserError("missing_relationship_source", "Relationship part has no source part");
+    }
+    const relationshipFile = zip.file(entry.name);
+    if (!relationshipFile || entry.isDirectory) {
+      throw parserError("invalid_relationships", "Relationship part could not be loaded");
+    }
+    const parsed = parseObject(await readEntryText(relationshipFile, entry.uncompressedSize));
+    const root = parsed["Relationships"];
+    if (!root || typeof root !== "object" || Array.isArray(root)) {
+      throw parserError("invalid_relationships", "Relationships root is missing");
+    }
+    const relationItems = asObjectArray((root as Obj)["Relationship"]);
+    const seenIds = new Set<string>();
+    for (const item of relationItems) {
+      const id = packageText(item["@_Id"], "relationship id", 256);
+      const type = packageText(item["@_Type"], "relationship type", 512);
+      const target = packageText(item["@_Target"], "relationship target", 4096);
+      if (seenIds.has(id)) {
+        throw parserError("invalid_relationships", "Relationship IDs must be unique within a part");
+      }
+      seenIds.add(id);
+      const rawTargetMode = item["@_TargetMode"];
+      const targetMode =
+        rawTargetMode == null || String(rawTargetMode).trim() === ""
+          ? "Internal"
+          : String(rawTargetMode).trim().toLowerCase() === "external"
+            ? "External"
+            : String(rawTargetMode).trim().toLowerCase() === "internal"
+              ? "Internal"
+              : null;
+      if (!targetMode) {
+        throw parserError("invalid_relationships", "Relationship target mode is invalid");
+      }
+
+      if (targetMode === "External") {
+        if (!externalRelationshipTarget(target)) {
+          throw parserError("unsupported_external_content", "External relationship target is not allowed");
+        }
+        if (/oleObject|attachedTemplate|control|activeX|vbaProject/i.test(type)) {
+          throw parserError("unsupported_external_content", "External active content is not supported");
+        }
+        relationships.push({
+          source,
+          id,
+          type,
+          target,
+          targetMode,
+          external: true,
+          resolvedTarget: target,
+        });
+      } else {
+        const resolvedTarget = resolveInternalRelationship(targetMode === "Internal" ? source : "", target, names);
+        relationships.push({
+          source,
+          id,
+          type,
+          target,
+          targetMode,
+          external: false,
+          resolvedTarget,
+        });
+      }
+    }
+  }
+  return relationships;
+}
+
+function countOrderedTag(nodes: OrderedNode[], tag: string): number {
+  let count = 0;
+  for (const node of nodes) {
+    for (const [key, value] of Object.entries(node)) {
+      if (key === ":@" || key === "#text") continue;
+      if (key === tag) count += 1;
+      count += countOrderedTag(orderedArray(value), tag);
+    }
+  }
+  return count;
+}
+
+function collectBookmarks(node: unknown, output: ExtractedBookmark[]): void {
+  if (node == null || typeof node !== "object") return;
+  const object = node as Obj;
+  for (const bookmark of asObjectArray(object["w:bookmarkStart"])) {
+    const id = packageText(bookmark["@_w:id"], "bookmark id", 64);
+    const name = packageText(bookmark["@_w:name"], "bookmark name", 256);
+    if (!/^-?\d+$/.test(id)) {
+      throw parserError("invalid_bookmarks", "Bookmark ID is invalid");
+    }
+    output.push({ id, name });
+  }
+  for (const [key, value] of Object.entries(object)) {
+    if (key.startsWith("@_") || key === "w:bookmarkStart") continue;
+    collectBookmarks(value, output);
+  }
+}
+
+function extractNotesStory(
+  xml: string,
+  fileName: string,
+  rootTag: "w:footnotes" | "w:endnotes",
+  noteTag: "w:footnote" | "w:endnote",
+  story: "footnote" | "endnote",
+  startIndex: number,
+): {
+  blocks: ExtractedBlock[];
+  hidden: ExtractedDocument["hiddenChars"];
+  notes: ExtractedNote[];
+  nextIndex: number;
+} {
+  const ordered = orderedParser.parse(xml) as OrderedNode[];
+  const root = firstTag(ordered, rootTag);
+  if (!root.length) throw parserError("invalid_ooxml_package", rootTag + " root is missing");
+  const noteNodes = firstTag(root, noteTag);
+  const blocks: ExtractedBlock[] = [];
+  const hidden: ExtractedDocument["hiddenChars"] = [];
+  const notes: ExtractedNote[] = [];
+  let blockIndex = startIndex;
+  for (const noteNode of noteNodes) {
+    const id = packageText(attrs(noteNode)["@_w:id"], story + " id", 64);
+    if (!/^-?\d+$/.test(id)) {
+      throw parserError("invalid_ooxml_package", story + " ID is invalid");
+    }
+    const noteParagraphs = paragraphsInOrder([noteNode], fileName + "/" + noteTag + "[" + id + "]");
+    const noteText: string[] = [];
+    for (const paragraph of noteParagraphs) {
+      const extracted = extractOrderedParagraph(
+        paragraph.nodes,
+        blockIndex,
+        paragraph.path,
+        story,
+        false,
+      );
+      blocks.push(extracted.block);
+      hidden.push(...extracted.hidden);
+      noteText.push(extracted.block.text);
+      blockIndex += 1;
+    }
+    notes.push({ type: story, id, text: noteText.join("\n") });
+  }
+  return { blocks, hidden, notes, nextIndex: blockIndex };
+}
+
 export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
   if (bytes.byteLength > FILE_BYTE_CAP) {
     throw Object.assign(new Error("file_too_large"), { code: "file_too_large" });
@@ -313,6 +614,26 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
   }
   const names = manifest.entries.map((entry) => entry.name);
   const metadataByName = new Map(manifest.entries.map((entry) => [entry.name, entry]));
+  const packageNames = new Set(names);
+  const contentTypesFile = zip.file("[Content_Types].xml");
+  const contentTypesMetadata = metadataByName.get("[Content_Types].xml");
+  if (!contentTypesFile || !contentTypesMetadata || contentTypesMetadata.isDirectory) {
+    throw parserError("invalid_content_types", "Content types part is missing");
+  }
+  const contentTypes = inspectContentTypes(
+    await readEntryText(contentTypesFile, contentTypesMetadata.uncompressedSize),
+    manifest.entries,
+  );
+  const relationships = await inspectRelationships(zip, manifest.entries, packageNames);
+  const officeDocumentRelationship = relationships.find(
+    (relationship) =>
+      relationship.source === "" &&
+      //officeDocument$/i.test(relationship.type) &&
+      relationship.resolvedTarget === "word/document.xml",
+  );
+  if (!officeDocumentRelationship) {
+    throw parserError("invalid_relationships", "Package root does not identify word/document.xml");
+  }
   if (names.some((name) => name.toLowerCase().includes("vbaproject"))) {
     throw Object.assign(new Error("macro"), { code: "macro" });
   }
@@ -345,6 +666,10 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
 
   const blocks: ExtractedBlock[] = [];
   const hiddenChars: ExtractedDocument["hiddenChars"] = [];
+  const notes: ExtractedNote[] = [];
+  const bookmarks: ExtractedBookmark[] = [];
+  const sectionCount = countOrderedTag(bodyChildren, "w:sectPr");
+  collectBookmarks(bodyObject, bookmarks);
   let blockIndex = 0;
 
   for (const paragraph of paragraphsInOrder(bodyChildren, "/w:document/w:body")) {
@@ -386,6 +711,40 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
       hiddenChars.push(...extracted.hidden);
       blockIndex += 1;
     }
+  }
+
+  for (const noteSpec of [
+    {
+      name: "word/footnotes.xml",
+      rootTag: "w:footnotes" as const,
+      noteTag: "w:footnote" as const,
+      story: "footnote" as const,
+    },
+    {
+      name: "word/endnotes.xml",
+      rootTag: "w:endnotes" as const,
+      noteTag: "w:endnote" as const,
+      story: "endnote" as const,
+    },
+  ]) {
+    const noteMetadata = metadataByName.get(noteSpec.name);
+    const noteFile = zip.file(noteSpec.name);
+    if (!noteMetadata && !noteFile) continue;
+    if (!noteMetadata || !noteFile || noteMetadata.isDirectory) {
+      throw parserError("invalid_ooxml_package", noteSpec.name + " could not be loaded");
+    }
+    const extractedNotes = extractNotesStory(
+      await readEntryText(noteFile, noteMetadata.uncompressedSize),
+      noteSpec.name,
+      noteSpec.rootTag,
+      noteSpec.noteTag,
+      noteSpec.story,
+      blockIndex,
+    );
+    blocks.push(...extractedNotes.blocks);
+    hiddenChars.push(...extractedNotes.hidden);
+    notes.push(...extractedNotes.notes);
+    blockIndex = extractedNotes.nextIndex;
   }
 
   const comments: ExtractedDocument["comments"] = [];
@@ -457,17 +816,73 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
 
   const capabilities: SourceCapability[] = [
     {
+      name: "content_types",
+      available: contentTypes.size > 0,
+      state: contentTypes.size > 0 ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-content-types",
+      suppressionReason: null,
+    },
+    {
+      name: "relationships",
+      available: relationships.length > 0,
+      state: relationships.length > 0 ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-relationships",
+      suppressionReason: null,
+    },
+    {
+      name: "external_relationships",
+      available: relationships.some((relationship) => relationship.external),
+      state: relationships.some((relationship) => relationship.external) ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-relationships",
+      suppressionReason: null,
+    },
+    {
+      name: "active_content",
+      available: false,
+      state: "evaluated_absent",
+      detectorVersion: "ooxml-v3-reject",
+      suppressionReason: null,
+    },
+    {
       name: "comments",
-      available: comments.length > 0,
-      state: comments.length > 0 ? "evaluated_present" : "evaluated_absent",
-      detectorVersion: "ooxml-v2",
+      available: commentsFile != null,
+      state: commentsFile != null ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3",
       suppressionReason: null,
     },
     {
       name: "revisions",
       available: revisions.length > 0,
       state: revisions.length > 0 ? "evaluated_present" : "evaluated_absent",
-      detectorVersion: "ooxml-v2-final",
+      detectorVersion: "ooxml-v3-final",
+      suppressionReason: null,
+    },
+    {
+      name: "footnotes",
+      available: names.includes("word/footnotes.xml"),
+      state: names.includes("word/footnotes.xml") ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-notes",
+      suppressionReason: null,
+    },
+    {
+      name: "endnotes",
+      available: names.includes("word/endnotes.xml"),
+      state: names.includes("word/endnotes.xml") ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-notes",
+      suppressionReason: null,
+    },
+    {
+      name: "bookmarks",
+      available: bookmarks.length > 0,
+      state: bookmarks.length > 0 ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-bookmarks",
+      suppressionReason: null,
+    },
+    {
+      name: "sections",
+      available: sectionCount > 0,
+      state: sectionCount > 0 ? "evaluated_present" : "evaluated_absent",
+      detectorVersion: "ooxml-v3-sections",
       suppressionReason: null,
     },
     {
@@ -481,14 +896,16 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
       name: "tables",
       available: blocks.some((block) => block.isTable),
       state: blocks.some((block) => block.isTable) ? "evaluated_present" : "evaluated_absent",
-      detectorVersion: "ooxml-v2-ordered",
+      detectorVersion: "ooxml-v3-ordered",
       suppressionReason: null,
     },
     {
       name: "headers_footers",
-      available: headersFooters.length > 0,
-      state: headersFooters.length > 0 ? "evaluated_present" : "evaluated_absent",
-      detectorVersion: "ooxml-v2-story",
+      available: names.some((name) => /^word\/(header|footer)\d*\.xml$/i.test(name)),
+      state: names.some((name) => /^word\/(header|footer)\d*\.xml$/i.test(name))
+        ? "evaluated_present"
+        : "evaluated_absent",
+      detectorVersion: "ooxml-v3-story",
       suppressionReason: null,
     },
   ];
@@ -508,6 +925,10 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
     headersFooters,
     hiddenChars,
     capabilities,
+    relationships: relationships.map(({ resolvedTarget: _resolvedTarget, ...relationship }) => relationship),
+    notes,
+    bookmarks,
+    sectionCount,
     sourceQualityHint: "ok",
   };
 }

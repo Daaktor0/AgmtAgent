@@ -1275,7 +1275,7 @@ export const verifyMagicLink = createServerFn({ method: "POST" })
     await sql`update magic_link_token set used_at = ${nowIso()} where token_id = ${t.token_id}`;
 
     const { openVerifiedEmailSession } = await import("@/lib/server/session");
-    const opened = await openVerifiedEmailSession(t.email_normalised);
+    const opened = await openVerifiedEmailSession(t.email_normalised, { source: "delivered_magic_link" });
 
     await sql`
       insert into user_account (user_id, email_normalised, email_verified_at, display_name, status)

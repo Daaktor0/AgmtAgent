@@ -35,7 +35,7 @@ const databaseUrl =
 const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
 
 const RLS_CONTEXT_SQL =
-  "select set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true)";
+  "select set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true), set_config($7, $8, true)";
 
 const DATABASE_RUNTIME_ROLES = {
   agmt_app: '"agmt_app"',

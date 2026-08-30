@@ -28,10 +28,6 @@ begin
   end loop;
 end
 $client_acl$;
-revoke all on schema agmt_private from anon, authenticated;
-revoke all on schema public from anon, authenticated;
-revoke all on all tables in schema public from anon, authenticated;
-revoke all on all sequences in schema public from anon, authenticated;
 
 do $role$
 declare

@@ -96,7 +96,7 @@ test("FND-04 defines non-login, non-bypass runtime roles", () => {
   }
   assert.match(
     migration,
-    /create role %I no login no superuser no createdb no createrole no inherit no replication no bypassrls/i,
+    /create role %i nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls/i,
   );
   assert.match(migration, /rolbypassrls/);
   assert.match(migration, /role attributes are checked/i);

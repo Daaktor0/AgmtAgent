@@ -6,8 +6,8 @@
  */
 
 /**
- * @param {Iterable<AppliedMigration>} appliedRows
- * @param {Iterable<KnownMigration>} knownMigrations
+ * @param {Array<AppliedMigration>} appliedRows
+ * @param {Array<KnownMigration>} knownMigrations
  * @returns {string[]}
  */
 export function validateMigrationLedger(appliedRows, knownMigrations) {

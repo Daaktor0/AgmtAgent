@@ -224,7 +224,11 @@ export class S3ObjectStore implements ObjectStore {
   readonly provider = "s3" as const;
   private readonly deletedKeys = new Set<string>();
 
-  private readonly client: S3ObjectClient;\n\n  constructor(client: S3ObjectClient) {\n    this.client = client;\n  }
+  private readonly client: S3ObjectClient;
+
+  constructor(client: S3ObjectClient) {
+    this.client = client;
+  }
 
   async put(input: ObjectStorePutInput): Promise<ObjectStoreReceipt> {
     const normalized = normalizedPut(input);

@@ -15,7 +15,7 @@
 
 ## Evidence from the latest code head
 
-At verified implementation code head `f76e646e1a6fbfa57a7779af3b580eaac4074b33` (PR #17; parser-safety batch):
+At verified implementation code head `f76e646e1a6fbfa57a7779af3b580eaac4074b33` (merged into `main` via PR #17; parser-safety batch):
 
 - Web Proof workflow `33337574208`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (102/102 full-suite tests).
 - Eval workflow `33337574224` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.

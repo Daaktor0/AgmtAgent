@@ -5,6 +5,7 @@ import {
   beginStatement,
   createPostgresSql,
   createSql,
+  TransactionOutcomeError,
   withTransaction,
   type Sql,
 } from "./db-transaction.ts";
@@ -207,4 +208,70 @@ test("managed Postgres query rolls back when context setup fails", async () => {
   await assert.rejects(sql.query("select protected"), /context setup failed/);
   assert.deepEqual(events, ["SET ROLE", "BEGIN", "SET LOCAL context", "ROLLBACK"]);
   assert.equal(released, 1);
+});
+
+
+test("callback failures report a confirmed rollback outcome", async () => {
+  const events: string[] = [];
+  let released = 0;
+  const client = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(text);
+      return { rows: [] };
+    },
+    release: () => {
+      released += 1;
+    },
+  };
+  const pool = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push("pool:" + text);
+      return { rows: [] };
+    },
+    connect: async () => client,
+  };
+  const sql = createPostgresSql(pool);
+
+  await assert.rejects(
+    sql.transaction(async () => {
+      throw new Error("forced callback failure");
+    }),
+    (error) =>
+      error instanceof TransactionOutcomeError &&
+      error.outcome === "rolled_back" &&
+      error.stage === "callback" &&
+      /forced callback failure/.test(error.message),
+  );
+  assert.deepEqual(events, ["BEGIN", "ROLLBACK"]);
+  assert.equal(released, 1);
+});
+
+test("commit transport failures report an unknown outcome and never claim rollback", async () => {
+  const events: string[] = [];
+  const client = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push(text);
+      if (text === "COMMIT") throw new Error("commit transport failure");
+      return { rows: [] };
+    },
+    release: () => undefined,
+  };
+  const pool = {
+    query: async (text: string): Promise<{ rows: unknown[] }> => {
+      events.push("pool:" + text);
+      return { rows: [] };
+    },
+    connect: async () => client,
+  };
+  const sql = createPostgresSql(pool);
+
+  await assert.rejects(
+    sql.transaction(async () => undefined),
+    (error) =>
+      error instanceof TransactionOutcomeError &&
+      error.outcome === "unknown" &&
+      error.stage === "commit" &&
+      /commit transport failure/.test(error.message),
+  );
+  assert.deepEqual(events, ["BEGIN", "COMMIT", "ROLLBACK"]);
 });

@@ -1,8 +1,8 @@
 # Agmt Proof implementation status
 
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Latest merged main:** `b03bf06b0d16b9dd1ddbdfdcb9ed7978b479d608` via PR #20  
-**Latest implementation branch:** `proof-production-hardening/fnd02-reconciliation` at `3b3436d5ae07119a3cb98d8490f548f0bd5ff946` (FND-02 implementation; PR #21 open)  
+**Latest merged main:** `0a020084d1ef67beb9e48656bf885386b304be15` via PR #21  
+**Latest implementation branch:** `proof-production-hardening/fnd02-reconciliation` at `3b3436d5ae07119a3cb98d8490f548f0bd5ff946` (FND-02 implementation; merged via PR #21)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 
 ## Baseline verification

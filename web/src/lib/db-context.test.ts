@@ -19,19 +19,20 @@ test("database context is absent outside a request", () => {
 });
 
 test("database context is restored after nested work", async () => {
-  assert.equal(
-    await withDatabaseContext(appContext, async () => {
-      assert.deepEqual(currentDatabaseContext(), appContext);
-      return withDatabaseContext(
-        { ...appContext, tenantId: null },
-        async () => {
-          assert.deepEqual(currentDatabaseContext(), { ...appContext, tenantId: null });
-          return currentDatabaseContext();
-        },
-      );
-    }),
-    null,
-  );
+  const nestedResult = await withDatabaseContext(appContext, async () => {
+    assert.deepEqual(currentDatabaseContext(), appContext);
+    const result = await withDatabaseContext(
+      { ...appContext, tenantId: null },
+      async () => {
+        assert.deepEqual(currentDatabaseContext(), { ...appContext, tenantId: null });
+        return currentDatabaseContext();
+      },
+    );
+    assert.deepEqual(currentDatabaseContext(), appContext);
+    return result;
+  });
+
+  assert.deepEqual(nestedResult, { ...appContext, tenantId: null });
   assert.equal(currentDatabaseContext(), null);
 });
 

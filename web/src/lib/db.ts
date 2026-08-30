@@ -8,6 +8,7 @@ import {
   beginStatement,
   createPostgresSql,
   createSql as createTransactionalSql,
+  TransactionOutcomeError,
   type PostgresClientLike,
   type PostgresPoolLike,
   type Sql,
@@ -202,26 +203,38 @@ async function createPgliteSql(): Promise<Sql> {
   const transaction = async <T>(
     callback: (transactionSql: Sql) => Promise<T>,
     options?: TransactionOptions,
-  ): Promise<T> =>
-    pg.transaction(async (transaction) => {
-      if (options?.isolationLevel) {
-        await transaction.exec(beginStatement(options).replace(/^BEGIN/, "SET TRANSACTION"));
-      }
-      const context = currentDatabaseContext();
-      if (context) {
-        await transaction.query(RLS_CONTEXT_SQL, databaseContextSettings(context).flat());
-      }
-      const transactionSql = createTransactionalSql(
-        async <R>(text: string, params: unknown[]) => {
-          const result = await transaction.query<R>(text, params);
-          return result.rows;
-        },
-        async () => {
-          throw new Error("Nested database transactions are not supported");
-        },
+  ): Promise<T> => {
+    let commitAttempted = false;
+    try {
+      return await pg.transaction(async (transaction) => {
+        if (options?.isolationLevel) {
+          await transaction.exec(beginStatement(options).replace(/^BEGIN/, "SET TRANSACTION"));
+        }
+        const context = currentDatabaseContext();
+        if (context) {
+          await transaction.query(RLS_CONTEXT_SQL, databaseContextSettings(context).flat());
+        }
+        const transactionSql = createTransactionalSql(
+          async <R>(text: string, params: unknown[]) => {
+            const result = await transaction.query<R>(text, params);
+            return result.rows;
+          },
+          async () => {
+            throw new Error("Nested database transactions are not supported");
+          },
+        );
+        const result = await callback(transactionSql);
+        commitAttempted = true;
+        return result;
+      });
+    } catch (error) {
+      throw new TransactionOutcomeError(
+        commitAttempted ? "unknown" : "rolled_back",
+        commitAttempted ? "commit" : "callback",
+        error,
       );
-      return callback(transactionSql);
-    });
+    }
+  };
 
   return createTransactionalSql(run, transaction);
 }

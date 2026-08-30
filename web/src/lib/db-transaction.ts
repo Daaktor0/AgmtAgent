@@ -31,6 +31,37 @@ export type TransactionRunner = <T>(
   options?: TransactionOptions,
 ) => Promise<T>;
 
+export type TransactionOutcome = "not_started" | "rolled_back" | "unknown";
+export type TransactionFailureStage =
+  | "configure"
+  | "begin"
+  | "configure_transaction"
+  | "callback"
+  | "commit";
+
+export class TransactionOutcomeError extends Error {
+  readonly outcome: TransactionOutcome;
+  readonly stage: TransactionFailureStage;
+  readonly causeError: unknown;
+
+  constructor(
+    outcome: TransactionOutcome,
+    stage: TransactionFailureStage,
+    causeError: unknown,
+  ) {
+    const message = causeError instanceof Error ? causeError.message : String(causeError);
+    super(message);
+    this.name = "TransactionOutcomeError";
+    this.outcome = outcome;
+    this.stage = stage;
+    this.causeError = causeError;
+  }
+}
+
+export function transactionOutcome(error: unknown): TransactionOutcome | null {
+  return error instanceof TransactionOutcomeError ? error.outcome : null;
+}
+
 const ISOLATION_LEVELS: Record<TransactionIsolation, string> = {
   "read committed": "READ COMMITTED",
   "repeatable read": "REPEATABLE READ",
@@ -116,10 +147,13 @@ export function createPostgresSql(
   ): Promise<T> => {
     const client = await pool.connect();
     let began = false;
+    let phase: TransactionFailureStage = "configure";
     try {
       await options.configureClient?.(client);
+      phase = "begin";
       await client.query(beginStatement(optionsForTransaction));
       began = true;
+      phase = "configure_transaction";
       await options.configureTransaction?.(client);
       const transactionSql = createSql(
         async <R>(text: string, params: unknown[]) => {
@@ -130,19 +164,33 @@ export function createPostgresSql(
           throw new Error("Nested database transactions are not supported");
         },
       );
+      phase = "callback";
       const result = await callback(transactionSql);
+      phase = "commit";
       await client.query("COMMIT");
       began = false;
       return result;
     } catch (error) {
+      const transactionHadBegun = began;
+      let rollbackSucceeded = false;
       if (began) {
         try {
           await client.query("ROLLBACK");
+          began = false;
+          rollbackSucceeded = true;
         } catch {
-          // Preserve the original transaction error.
+          // The connection outcome is unknown if rollback itself failed.
         }
       }
-      throw error;
+      const outcome: TransactionOutcome =
+        phase === "commit"
+          ? "unknown"
+          : !transactionHadBegun
+            ? "not_started"
+            : rollbackSucceeded
+              ? "rolled_back"
+              : "unknown";
+      throw new TransactionOutcomeError(outcome, phase, error);
     } finally {
       client.release();
     }

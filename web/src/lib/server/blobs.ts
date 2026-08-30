@@ -11,6 +11,10 @@ import {
   getObjectStore,
   ObjectStoreError,
 } from "./object-store.ts";
+import {
+  reconcileExternalPublication,
+  type ReconciliationResult,
+} from "./object-reconciliation.ts";
 
 function requireBlobScope(ownerUserId: string): { tenantId: string } {
   const context = currentDatabaseContext();
@@ -27,11 +31,56 @@ function requireBlobScope(ownerUserId: string): { tenantId: string } {
   return { tenantId: context.tenantId };
 }
 
+export type BlobPublicationArtifact = {
+  tenantId: string;
+  ownerUserId: string;
+  kind: string;
+  objectKey: string;
+  contentType: string;
+  storageProvider: "memory" | "s3";
+  storageKey: string;
+  sha256: string;
+  byteSize: number;
+  ciphertextSha256: string;
+  ciphertextByteSize: number;
+  wrappedDataKey: string;
+  cipherMetadata: Envelope["cipherMetadata"];
+};
+
 export type PutBlobResult = {
   objectKey: string;
   sha256: string;
   envelope: Envelope;
+  artifact: BlobPublicationArtifact;
 };
+
+export class BlobPublicationError extends ObjectStoreError {
+  readonly artifact: BlobPublicationArtifact;
+  readonly causeError: unknown;
+
+  constructor(artifact: BlobPublicationArtifact, causeError: unknown) {
+    super(
+      "object_manifest_publication_failed",
+      "The external object was written but its relational manifest could not be published",
+    );
+    this.name = "BlobPublicationError";
+    this.artifact = artifact;
+    this.causeError = causeError;
+  }
+}
+
+export function blobPublicationArtifactFromError(
+  error: unknown,
+): BlobPublicationArtifact | null {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if (current instanceof BlobPublicationError) return current.artifact;
+    current = (current as { causeError?: unknown }).causeError;
+  }
+  return null;
+}
 
 export async function putBlob(
   ownerUserId: string,
@@ -60,6 +109,21 @@ export async function putBlob(
     contentType: "application/octet-stream",
     metadata: { agmt_envelope: "agmt-envelope-v1" },
   });
+  const artifact: BlobPublicationArtifact = {
+    tenantId,
+    ownerUserId,
+    kind: kind.trim(),
+    objectKey,
+    contentType: "application/octet-stream",
+    storageProvider: receipt.provider,
+    storageKey: receipt.storageKey,
+    sha256: sha256Hex(bytes),
+    byteSize: bytes.byteLength,
+    ciphertextSha256: receipt.sha256,
+    ciphertextByteSize: receipt.byteSize,
+    wrappedDataKey: envelope.wrappedDataKey,
+    cipherMetadata: envelope.cipherMetadata,
+  };
 
   const sql = transactionSql ?? (await getSql());
   try {
@@ -70,31 +134,228 @@ export async function putBlob(
         "wrapped_data_key, cipher_metadata" +
         ") values ($1, $2, $3, $4, $5, $6, 'staged', $7, $8, $9, $10, $11, $12, $13)",
       [
-        objectKey,
-        tenantId,
-        ownerUserId,
-        kind.trim(),
-        receipt.provider,
-        receipt.storageKey,
-        "application/octet-stream",
-        sha256Hex(bytes),
-        receipt.sha256,
-        bytes.byteLength,
-        receipt.byteSize,
-        envelope.wrappedDataKey,
-        JSON.stringify(envelope.cipherMetadata),
+        artifact.objectKey,
+        artifact.tenantId,
+        artifact.ownerUserId,
+        artifact.kind,
+        artifact.storageProvider,
+        artifact.storageKey,
+        artifact.contentType,
+        artifact.sha256,
+        artifact.ciphertextSha256,
+        artifact.byteSize,
+        artifact.ciphertextByteSize,
+        artifact.wrappedDataKey,
+        JSON.stringify(artifact.cipherMetadata),
       ],
     );
   } catch (error) {
-    try {
-      await store.delete({ tenantId, objectKey });
-    } catch {
-      // The reconciler will detect a provider object without a relational manifest.
-    }
-    throw error;
+    throw new BlobPublicationError(artifact, error);
   }
 
-  return { objectKey, sha256: sha256Hex(bytes), envelope };
+  return {
+    objectKey: artifact.objectKey,
+    sha256: artifact.sha256,
+    envelope,
+    artifact,
+  };
+}
+
+
+type BlobManifestRow = {
+  tenantId: string;
+  ownerUserId: string;
+  kind: string;
+  contentType: string;
+  storageProvider: string;
+  storageKey: string;
+  state: string;
+  sha256: string;
+  ciphertextSha256: string;
+  byteSize: number | string;
+  ciphertextByteSize: number | string;
+  wrappedDataKey: string;
+  cipherMetadata: unknown;
+};
+
+function stableJson(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "undefined";
+  }
+  if (Array.isArray(value)) return "[" + value.map(stableJson).join(",") + "]";
+  return (
+    "{" +
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => JSON.stringify(key) + ":" + stableJson(item))
+      .join(",") +
+    "}"
+  );
+}
+
+function manifestMatches(
+  row: BlobManifestRow,
+  artifact: BlobPublicationArtifact,
+): boolean {
+  let rowMetadata: unknown = row.cipherMetadata;
+  if (typeof rowMetadata === "string") {
+    try {
+      rowMetadata = JSON.parse(rowMetadata);
+    } catch {
+      return false;
+    }
+  }
+  return (
+    row.tenantId === artifact.tenantId &&
+    row.ownerUserId === artifact.ownerUserId &&
+    row.kind === artifact.kind &&
+    row.contentType === artifact.contentType &&
+    row.storageProvider === artifact.storageProvider &&
+    row.storageKey === artifact.storageKey &&
+    row.sha256 === artifact.sha256 &&
+    row.ciphertextSha256 === artifact.ciphertextSha256 &&
+    Number(row.byteSize) === artifact.byteSize &&
+    Number(row.ciphertextByteSize) === artifact.ciphertextByteSize &&
+    row.wrappedDataKey === artifact.wrappedDataKey &&
+    stableJson(rowMetadata) === stableJson(artifact.cipherMetadata)
+  );
+}
+
+async function findBlobManifest(
+  sql: Sql,
+  objectKey: string,
+): Promise<BlobManifestRow | null> {
+  const rows = await sql.query<BlobManifestRow>(
+    "select tenant_id as \"tenantId\", owner_user_id as \"ownerUserId\", kind, " +
+      "content_type as \"contentType\", storage_provider as \"storageProvider\", " +
+      "storage_key as \"storageKey\", state, sha256, " +
+      "ciphertext_sha256 as \"ciphertextSha256\", byte_size as \"byteSize\", " +
+      "ciphertext_byte_size as \"ciphertextByteSize\", " +
+      "wrapped_data_key as \"wrappedDataKey\", cipher_metadata as \"cipherMetadata\" " +
+      "from object_manifest where object_key = $1",
+    [objectKey],
+  );
+  return rows[0] ?? null;
+}
+
+async function recordStagedBlobManifest(
+  sql: Sql,
+  artifact: BlobPublicationArtifact,
+): Promise<void> {
+  await sql.query(
+    "insert into object_manifest (" +
+      "object_key, tenant_id, owner_user_id, kind, storage_provider, storage_key, " +
+      "state, content_type, sha256, ciphertext_sha256, byte_size, ciphertext_byte_size, " +
+      "wrapped_data_key, cipher_metadata" +
+      ") values ($1, $2, $3, $4, $5, $6, 'staged', $7, $8, $9, $10, $11, $12, $13) " +
+      "on conflict (object_key) do nothing",
+    [
+      artifact.objectKey,
+      artifact.tenantId,
+      artifact.ownerUserId,
+      artifact.kind,
+      artifact.storageProvider,
+      artifact.storageKey,
+      artifact.contentType,
+      artifact.sha256,
+      artifact.ciphertextSha256,
+      artifact.byteSize,
+      artifact.ciphertextByteSize,
+      artifact.wrappedDataKey,
+      JSON.stringify(artifact.cipherMetadata),
+    ],
+  );
+
+  const row = await findBlobManifest(sql, artifact.objectKey);
+  if (!row || !manifestMatches(row, artifact) || row.state !== "staged") {
+    throw new ObjectStoreError(
+      "object_reconciliation_conflict",
+      "The existing object manifest does not exactly match the failed publication",
+    );
+  }
+}
+
+async function deleteExactBlob(
+  sql: Sql,
+  artifact: BlobPublicationArtifact,
+): Promise<void> {
+  const existing = await findBlobManifest(sql, artifact.objectKey);
+  if (existing && (!manifestMatches(existing, artifact) || existing.state !== "staged")) {
+    throw new ObjectStoreError(
+      "object_reconciliation_conflict",
+      "Refusing to delete an object with an ambiguous manifest",
+    );
+  }
+
+  const store = getObjectStore();
+  if (store.provider !== artifact.storageProvider) {
+    throw new ObjectStoreError(
+      "object_provider_mismatch",
+      "The configured object provider does not match the failed publication",
+    );
+  }
+
+  const ciphertext = await store.get({
+    tenantId: artifact.tenantId,
+    objectKey: artifact.objectKey,
+    expectedSha256: artifact.ciphertextSha256,
+    expectedByteSize: artifact.ciphertextByteSize,
+  });
+  if (ciphertext !== null) {
+    await store.delete({
+      tenantId: artifact.tenantId,
+      objectKey: artifact.objectKey,
+    });
+  }
+
+  if (existing) {
+    const updated = await sql.query(
+      "update object_manifest set state = 'deleted', deleted_at = now() " +
+        "where object_key = $1 and tenant_id = $2 and owner_user_id = $3 " +
+        "and storage_provider = $4 and storage_key = $5 " +
+        "and sha256 = $6 and ciphertext_sha256 = $7 " +
+        "and byte_size = $8 and ciphertext_byte_size = $9 " +
+        "and state = 'staged' returning object_key",
+      [
+        artifact.objectKey,
+        artifact.tenantId,
+        artifact.ownerUserId,
+        artifact.storageProvider,
+        artifact.storageKey,
+        artifact.sha256,
+        artifact.ciphertextSha256,
+        artifact.byteSize,
+        artifact.ciphertextByteSize,
+      ],
+    );
+    if (!updated[0]) {
+      throw new ObjectStoreError(
+        "object_reconciliation_conflict",
+        "The object manifest changed during reconciliation",
+      );
+    }
+  }
+}
+
+export async function reconcileBlobAfterTransactionFailure(
+  sql: Sql,
+  artifact: BlobPublicationArtifact,
+  options: { allowDeletion: boolean },
+): Promise<ReconciliationResult> {
+  const scope = requireBlobScope(artifact.ownerUserId);
+  if (scope.tenantId !== artifact.tenantId) {
+    throw new ObjectStoreError(
+      "database_context_required",
+      "The failed publication tenant does not match the database context",
+    );
+  }
+
+  return reconcileExternalPublication({
+    allowDeletion: options.allowDeletion,
+    record: () => recordStagedBlobManifest(sql, artifact),
+    deleteExact: () => deleteExactBlob(sql, artifact),
+  });
 }
 
 export async function markBlobClean(

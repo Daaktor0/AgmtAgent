@@ -39,7 +39,7 @@ test("JOB-01 and OBJ-01 create additive durable state tables", () => {
 
 test("OBJ-01 stores object metadata only and leaves legacy ciphertext untouched", () => {
   const manifestBlock = migration.match(
-    /create\s+table\s+if\s+not\s+exists\s+object_manifest\s*\(([\s\S]*?)\);/i,
+    /create\s+table\s+if\s+not\s+exists\s+(?:public\.)?object_manifest\s*\(([\s\S]*?)\);/i,
   )?.[1] ?? "";
   assert.ok(manifestBlock);
   assert.doesNotMatch(manifestBlock, /\bciphertext\b|\bbytea\b/i);

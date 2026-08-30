@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import JSZip from "jszip";
 import { extractDocx } from "./docx-v2.ts";
+import { ZipSafetyError, ZIP_LIMITS, inspectZipCentralDirectory } from "./zip-safety.ts";
 
 async function docx(documentXml: string): Promise<Buffer> {
   const zip = new JSZip();
@@ -28,6 +29,46 @@ async function docx(documentXml: string): Promise<Buffer> {
 const OPEN = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`;
 const CLOSE = `<w:sectPr/></w:body></w:document>`;
+function mutateZipEntry(
+  bytes: Buffer,
+  name: string,
+  mutation: (archive: Buffer, kind: "local" | "central", offset: number) => void,
+): Buffer {
+  const archive = Buffer.from(bytes);
+  const centralSignature = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+  let centralOffset = -1;
+  let localOffset = -1;
+  for (let offset = 0; (offset = archive.indexOf(centralSignature, offset)) >= 0; offset += 4) {
+    const nameLength = archive.readUInt16LE(offset + 28);
+    const extraLength = archive.readUInt16LE(offset + 30);
+    const commentLength = archive.readUInt16LE(offset + 32);
+    const entryName = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
+    if (entryName === name) {
+      centralOffset = offset;
+      localOffset = archive.readUInt32LE(offset + 42);
+      mutation(archive, "central", centralOffset);
+      break;
+    }
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  const localSignature = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+  assert.equal(centralOffset >= 0, true, "fixture central entry was not found");
+  assert.equal(localOffset >= 0 && archive.subarray(localOffset, localOffset + 4).equals(localSignature), true, "fixture local entry was not found");
+  mutation(archive, "local", localOffset);
+  return archive;
+}
+function renameZipEntry(bytes: Buffer, oldName: string, newName: string): Buffer {
+  assert.equal(Buffer.byteLength(oldName), Buffer.byteLength(newName));
+  return mutateZipEntry(bytes, oldName, (archive, kind, offset) => {
+    const nameOffset = kind === "local" ? offset + 30 : offset + 46;
+    Buffer.from(newName).copy(archive, nameOffset);
+  });
+}
+
+function errorCode(code: string): (error: unknown) => boolean {
+  return (error: unknown) => error instanceof ZipSafetyError && error.code === code;
+}
+
 
 function p(text: string): string {
   return `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
@@ -72,4 +113,27 @@ test("feature absence is recorded as evaluated absence", async () => {
   const extracted = await extractDocx(bytes);
   assert.equal(extracted.capabilities.find((capability) => capability.name === "comments")?.state, "evaluated_absent");
   assert.equal(extracted.capabilities.find((capability) => capability.name === "revisions")?.state, "evaluated_absent");
+});
+
+
+test("WRK-02 rejects central-directory expansion claims before ZIP extraction", async () => {
+  const bytes = await docx(`${OPEN}${p("small")}${CLOSE}`);
+  const bomb = mutateZipEntry(bytes, "word/document.xml", (archive, kind, offset) => {
+    if (kind === "central") archive.writeUInt32LE(ZIP_LIMITS.MAX_ENTRY_BYTES + 1, offset + 24);
+  });
+  assert.throws(() => inspectZipCentralDirectory(bomb), errorCode("package_entry_too_large"));
+});
+
+test("WRK-02 rejects traversal names before OOXML parsing", async () => {
+  const bytes = await docx(`${OPEN}${p("small")}${CLOSE}`);
+  const traversal = renameZipEntry(bytes, "[Content_Types].xml", "../evil/12345678901");
+  await assert.rejects(() => extractDocx(traversal), errorCode("unsafe_package_path"));
+});
+
+test("WRK-02 rejects unsupported compression methods from central and local headers", async () => {
+  const bytes = await docx(`${OPEN}${p("small")}${CLOSE}`);
+  const unsupported = mutateZipEntry(bytes, "word/document.xml", (archive, kind, offset) => {
+    archive.writeUInt16LE(99, offset + (kind === "local" ? 8 : 10));
+  });
+  assert.throws(() => inspectZipCentralDirectory(unsupported), errorCode("unsupported_compression"));
 });

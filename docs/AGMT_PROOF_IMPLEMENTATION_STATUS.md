@@ -15,10 +15,10 @@
 
 ## Evidence from the latest code head
 
-At verified implementation code head `f76e646e1a6fbfa57a7779af3b580eaac4074b33` (merged into `main` via PR #17; parser-safety batch):
+At verified implementation code head `497854d7afffabb5ae53219195fb3ffbfb6ace26` (PR #19; OOXML capability batch):
 
-- Web Proof workflow `33337574208`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (102/102 full-suite tests).
-- Eval workflow `33337574224` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
+- Web Proof workflow `33338227000`: route/build verification, typecheck, DB transaction hardening, production build, Proof golden corpus, and the full web suite all passed (104/104 full-suite tests).
+- Eval workflow `33338227015` passed. The full web suite includes the JOB-01/OBJ-01 object-store, job-state, RLS and migration regression tests.
 - The deterministic DOCX fixture now uses fixed entry metadata and uncompressed ZIP entries, so byte hashes are stable across repeated CI runs.
 - FND-04 tenant-bound write repairs cover the existing Matter/document/audit paths required by forced RLS; the static regression test rejects any tenant-owned insert that omits `tenant_id`.
 - JOB-01/OBJ-01 tests cover immutable object keys, tenant-hashed storage paths, byte/hash integrity, S3 adapter boundaries, job transitions, lease expiry, idempotency, additive migration safety, and PGlite RLS crossover behavior.
@@ -39,7 +39,7 @@ At verified implementation code head `f76e646e1a6fbfa57a7779af3b580eaac4074b33` 
 | OBJ-03 | Repository contract implemented; live integration pending | Exact clean-result acceptance, fail-closed threat/failure handling and duplicate/conflict behavior are tested. GuardDuty/EventBridge authenticity and quarantine wiring remain open. |
 | WRK-01 | Repository contract implemented; live integration pending | Strict metadata-only worker envelope and bounded duplicate/crash/timeout/fatal dispositions are tested. Lambda/SQS/DLQ isolation, IAM, egress and image controls remain open. |
 | WRK-02 | Repository-side boundary implemented; worker/resource proof pending | Central-directory preflight, bounded extraction, path/record validation and hostile ZIP regressions are implemented. Isolated-worker CPU/memory proof, adversarial corpus, image and IAM controls remain open. |
-| WRK-03 | Not started; depends on WRK-02 | Full OOXML relationship/capability model is not implemented. |
+| WRK-03 | Repository-side capability inventory implemented; differential review pending | Content types, relationship targets, external-target policy, notes, bookmarks and sections are inventoried with fail-closed parsing. Word/differential golden coverage and broader external/active-content review remain open. |
 | ING-01 | Not started; depends on FND-02/WRK-03/OBJ-01 | Generation staging, validation, atomic publication and reconciliation are not implemented. |
 | ING-02 | Not started; depends on ING-01 | Concurrent source/parser uniqueness, locking and idempotent reuse are not implemented. |
 | ING-03 | Not started; depends on JOB-01/ING-01 | Lease expiry, age scans and safe orphan/stuck-work reconciliation are not implemented. |
@@ -106,6 +106,13 @@ A package is not marked complete until its acceptance tests, security considerat
 - Web Proof workflow `33337574208` and Eval workflow `33337574224` passed at the code head above; the full web suite reported 102/102 tests, including the new expansion-bomb, traversal and unsupported-compression regressions.
 - WRK-02 is not complete under the blueprint until the isolated worker demonstrates CPU/memory/scratch/timeout bounds against the adversarial corpus and production image/IAM controls are reviewed. No migration or external service changed. See [ADR 0009](adr/0009-pre-expansion-zip-safety.md).
 
+## WRK-03 implementation evidence
+
+- `docx-v2.ts` validates content types and relationship parts before extracting the main story, never follows external targets, resolves internal targets within the package and rejects missing/escaping relationships and active-content types.
+- The extracted document now reports evaluated capability states for package metadata, relationships, external relationships, active content, comments, revisions, fields, tables, headers/footers, footnotes, endnotes, bookmarks and sections. Footnote/endnote paragraphs carry story-specific source anchors.
+- Web Proof workflow `33338227000` and Eval workflow `33338227015` passed at the code head above; the full web suite reported 104/104 tests. The new regressions cover external relationship inventory, note extraction, bookmarks, sections and relationship traversal.
+- WRK-03 remains open under the blueprint until differential Word/golden inventories and the broader external/active-content corpus pass, and until worker isolation/resource controls are reviewed. This batch made no migration or external-service change. See [ADR 0010](adr/0010-ooxml-capability-inventory.md).
+
 ## FND-02 transaction design
 
 - The provider-neutral adapter exposes transaction(callback, options) with allow-listed isolation levels.
@@ -167,5 +174,5 @@ See [ADR 0005](adr/0005-supabase-mumbai-sandbox-database.md), [ADR 0006](adr/000
 - FND-02 still needs injected-failure integration coverage around the production publication path and the later object/job-plane reconciliation contract.
 - FND-03 contract work must stop on any ambiguous owner, missing principal, tenant mismatch or unverifiable historical ciphertext/key. No historical ciphertext migration has been attempted.
 - The green `229/229` repository suite closes only the repository/template gate. It does not waive the blueprint P0 precision/recall, exact evidence, parser, export, lifecycle, DR, operational or production-authentication gates.
-- WRK-02 repository-side pre-expansion controls are implemented, but worker resource proof and the adversarial corpus remain open. The next parser lane is WRK-03 capability/relationship coverage; live OBJ-02/OBJ-03/WRK-01 wiring must still stop for owner-approved AWS/data-plane setup and review.
+- WRK-02 and WRK-03 repository-side parser controls are implemented, but worker resource proof, adversarial/differential corpora and production security review remain open. The next dependency lane is ING-01 only after FND-02 transaction/reconciliation review; live OBJ-02/OBJ-03/WRK-01 wiring must still stop for owner-approved AWS/data-plane setup and review.
 - Production use remains blocked until the blueprint's P0, evidence, tenant, parser, export, lifecycle, DR, security and operational gates pass.

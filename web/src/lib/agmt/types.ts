@@ -68,7 +68,7 @@ export type UserDecision = (typeof USER_DECISIONS)[number];
 export type ExtractedBlock = {
   index: number;
   text: string;
-  xmlAnchor: { kind: "paragraph" | "cell" | "header" | "footer"; path: string };
+  xmlAnchor: { kind: "paragraph" | "cell" | "header" | "footer" | "footnote" | "endnote"; path: string };
   styleId: string | null;
   /** Computed visible Word label, e.g. `1`, `1.2` or `(a)`. */
   numbering: string | null;
@@ -101,6 +101,26 @@ export type SourceCapability = {
   suppressionReason: string | null;
 };
 
+export type PackageRelationship = {
+  source: string;
+  id: string;
+  type: string;
+  target: string;
+  targetMode: "Internal" | "External";
+  external: boolean;
+};
+
+export type ExtractedNote = {
+  type: "footnote" | "endnote";
+  id: string;
+  text: string;
+};
+
+export type ExtractedBookmark = {
+  id: string;
+  name: string;
+};
+
 export type ExtractedDocument = {
   mimeType: string;
   wordCount: number;
@@ -116,6 +136,11 @@ export type ExtractedDocument = {
   headersFooters: string[];
   hiddenChars: { blockIndex: number; start: number; end: number; kind: string }[];
   capabilities: SourceCapability[];
+  /** Package-level inventories are optional for legacy extracted fixtures. */
+  relationships?: PackageRelationship[];
+  notes?: ExtractedNote[];
+  bookmarks?: ExtractedBookmark[];
+  sectionCount?: number;
   sourceQualityHint: "ok" | "encrypted" | "corrupt" | "macro";
 };
 

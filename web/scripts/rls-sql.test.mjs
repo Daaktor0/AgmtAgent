@@ -230,7 +230,7 @@ test("JOB-01 and OBJ-01 state tables remain tenant-scoped under runtime roles", 
       ["tenant-2"],
     );
     assert.deepEqual(crossTenant.rows, []);
-    await database.exec("rollback");
+    await database.exec("commit");
 
     await database.exec("begin");
     const noContext = await database.query("select * from job_outbox");

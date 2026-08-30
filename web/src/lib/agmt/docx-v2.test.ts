@@ -34,35 +34,35 @@ async function richDocx(
   const zip = new JSZip();
   zip.file(
     "[Content_Types].xml",
-    \`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>\`,
+</Types>`,
   );
   zip.file(
     "_rels/.rels",
-    \`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>\`,
+</Relationships>`,
   );
   zip.file("word/document.xml", documentXml);
   zip.file(
     "word/_rels/document.xml.rels",
-    \`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdHyperlink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="\${relationshipTarget}" TargetMode="\${relationshipTargetMode}"/>
-</Relationships>\`,
+  <Relationship Id="rIdHyperlink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${relationshipTarget}" TargetMode="${relationshipTargetMode}"/>
+</Relationships>`,
   );
   zip.file(
     "word/footnotes.xml",
-    \`<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="1">\${p("Footnote text")}</w:footnote></w:footnotes>\`,
+    `<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="1">${p("Footnote text")}</w:footnote></w:footnotes>`,
   );
   zip.file(
     "word/endnotes.xml",
-    \`<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2">\${p("Endnote text")}</w:endnote></w:endnotes>\`,
+    `<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2">${p("Endnote text")}</w:endnote></w:endnotes>`,
   );
   return Buffer.from(await zip.generateAsync({ type: "uint8array" }));
 }

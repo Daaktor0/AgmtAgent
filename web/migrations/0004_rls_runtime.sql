@@ -38,7 +38,7 @@ begin
   loop
     if not exists (select 1 from pg_roles where rolname = role_name) then
       execute format(
-        'create role %I no login no superuser no createdb no createrole no inherit no replication no bypassrls',
+        'create role %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
         role_name
       );
     end if;

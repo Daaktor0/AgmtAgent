@@ -8,7 +8,7 @@ import {
   deleteBlob,
   putBlob,
   reconcileBlobAfterTransactionFailure,
-  type PutBlobResult,
+  type BlobPublicationArtifact,
 } from "@/lib/server/blobs";
 import { writeAudit } from "@/lib/server/audit";
 import { encryptText, sha256Hex } from "@/lib/agmt/crypto";
@@ -145,7 +145,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
     const documentId = newId();
     const versionId = newId();
     let mapId: string | null = null;
-    let originalObject: PutBlobResult | null = null;
+    let originalArtifact: BlobPublicationArtifact | undefined;
     let phase = "inspect";
 
     try {
@@ -156,7 +156,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
       const transactionalResult = await sql.transaction(async (transactionSql) => {
         phase = "store_original";
         const original = await putBlob(context.userId, "original_docx", bytes, transactionSql);
-        originalObject = original;
+        originalArtifact = original.artifact;
 
         phase = "create_document";
         await transactionSql`
@@ -320,7 +320,7 @@ export const uploadDocumentSafe = createServerFn({ method: "POST" })
       const code = safeErrorCode(error);
       const outcome = transactionOutcome(error);
       const artifact =
-        originalObject?.artifact ?? blobPublicationArtifactFromError(error);
+        originalArtifact ?? blobPublicationArtifactFromError(error);
 
       if (artifact) {
         try {

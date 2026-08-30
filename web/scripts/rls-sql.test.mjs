@@ -74,6 +74,9 @@ test("FND-04 denies cross-tenant app operations and missing context", async () =
   const database = new PGlite();
   await database.waitReady;
   try {
+    await database.exec(
+      "create table _migrations (name text primary key, checksum text not null, applied_at timestamptz not null default now())",
+    );
     for (const migration of migrations) await database.exec(migration);
     await seed(database);
 

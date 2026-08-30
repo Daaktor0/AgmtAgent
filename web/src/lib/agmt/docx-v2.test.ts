@@ -54,6 +54,7 @@ async function richDocx(
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHyperlink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${relationshipTarget}" TargetMode="${relationshipTargetMode}"/>
+  <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
 </Relationships>`,
   );
   zip.file(
@@ -63,6 +64,15 @@ async function richDocx(
   zip.file(
     "word/endnotes.xml",
     `<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="2">${p("Endnote text")}</w:endnote></w:endnotes>`,
+  );
+  zip.file(
+    "word/header1.xml",
+    '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:p><w:bookmarkStart w:id="9" w:name="HeaderTerm"/>' +
+        '<w:r><w:instrText>PAGE</w:instrText><w:t>1</w:t></w:r>' +
+        '<w:ins w:id="10"><w:r><w:t>HEADER-INSERT</w:t></w:r></w:ins>' +
+        '<w:bookmarkEnd w:id="9"/></w:p>' +
+      '</w:hdr>',
   );
   return Buffer.from(await zip.generateAsync({ type: "uint8array" }));
 }
@@ -203,8 +213,10 @@ test("WRK-03 inventories relationships, notes, bookmarks and sections", async ()
     { type: "footnote", id: "1", text: "Footnote text" },
     { type: "endnote", id: "2", text: "Endnote text" },
   ]);
-  assert.deepEqual(inventory.bookmarks, [{ id: "1", name: "DefinedTerm" }]);
+  assert.deepEqual(inventory.bookmarks, [{ id: "1", name: "DefinedTerm" }, { id: "9", name: "HeaderTerm" }]);
   assert.equal(inventory.sectionCount, 1);
+  assert.equal(extracted.fields.some((field) => field.instr === "PAGE"), true);
+  assert.equal(extracted.revisions.some((revision) => revision.type === "ins" && revision.text === "HEADER-INSERT"), true);
   assert.equal(inventory.relationships?.some((relationship) => relationship.external && relationship.target === "https://example.test"), true);
 });
 
@@ -213,5 +225,25 @@ test("WRK-03 rejects internal relationship traversal instead of resolving outsid
   await assert.rejects(
     () => extractDocx(bytes),
     (error: unknown) => error instanceof Error && "code" in error && error.code === "unsafe_relationship_target",
+  );
+});
+
+
+test("WRK-03 rejects malformed comment identity instead of inventing provenance", async () => {
+  const source = await richDocx(OPEN + p("Body") + CLOSE);
+  const zip = await JSZip.loadAsync(source);
+  zip.file(
+    "word/comments.xml",
+    '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:comment w:id="not-a-number" w:author="Author"><w:p><w:r><w:t>Comment</w:t></w:r></w:p></w:comment>' +
+      "</w:comments>",
+  );
+  const bytes = Buffer.from(await zip.generateAsync({ type: "uint8array" }));
+  await assert.rejects(
+    () => extractDocx(bytes),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "invalid_comments",
   );
 });

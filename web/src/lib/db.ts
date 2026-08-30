@@ -1,4 +1,8 @@
-import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import {
+  migrationName,
+  pendingMigrations,
+} from "../../scripts/migration-plan.mjs";
+import { sha256Hex } from "../../scripts/migration-checksum.mjs";
 import {
   beginStatement,
   createSql as createTransactionalSql,
@@ -111,7 +115,10 @@ async function createPgliteSql(): Promise<Sql> {
     });
     await pg.waitReady;
     await pg.exec(
-      "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
+      "create table if not exists _migrations (name text primary key, checksum text not null, applied_at timestamptz not null default now())",
+    );
+    await pg.exec(
+      "alter table _migrations add column if not exists checksum text",
     );
     return pg;
   })().catch((error) => {
@@ -126,12 +133,59 @@ async function createPgliteSql(): Promise<Sql> {
       import: "default",
       eager: true,
     }) as Record<string, string>;
-    const doneRows = await pg.query<{ name: string }>("select name from _migrations");
+    const migrationByName = new Map<
+      string,
+      { path: string; text: string; checksum: string }
+    >();
+    for (const path of Object.keys(migrations)) {
+      const name = migrationName(path);
+      if (migrationByName.has(name)) {
+        throw new Error(`Duplicate migration basename: ${name}`);
+      }
+      const text = migrations[path];
+      migrationByName.set(name, {
+        path,
+        text,
+        checksum: await sha256Hex(text),
+      });
+    }
+
+    const doneRows = await pg.query<{
+      name: string;
+      checksum: string | null;
+    }>("select name, checksum from _migrations");
+    for (const row of doneRows.rows) {
+      const migration = migrationByName.get(row.name);
+      if (!migration) {
+        throw new Error(
+          `Applied migration is missing from this release: ${row.name}`,
+        );
+      }
+      if (!row.checksum) {
+        throw new Error(
+          `Applied migration has no checksum; controlled ledger backfill is required: ${row.name}`,
+        );
+      }
+      if (row.checksum !== migration.checksum) {
+        throw new Error(
+          `Migration checksum mismatch; refusing to continue: ${row.name}`,
+        );
+      }
+    }
+
     const done = doneRows.rows.map((row) => row.name);
-    for (const { name, path } of pendingMigrations(Object.keys(migrations), done)) {
+    for (const { name } of pendingMigrations(
+      Object.keys(migrations),
+      done,
+    )) {
+      const migration = migrationByName.get(name);
+      if (!migration) throw new Error(`Migration disappeared: ${name}`);
       await pg.transaction(async (transaction) => {
-        await transaction.exec(migrations[path]);
-        await transaction.query("insert into _migrations (name) values ($1)", [name]);
+        await transaction.exec(migration.text);
+        await transaction.query(
+          "insert into _migrations (name, checksum) values ($1, $2)",
+          [name, migration.checksum],
+        );
       });
     }
   };

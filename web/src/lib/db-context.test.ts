@@ -44,10 +44,12 @@ test("context settings contain only server-derived values", () => {
     ["agmt.user_id", "user-1"],
     ["agmt.tenant_id", "tenant-1"],
     ["agmt.support_ticket", "ticket-123"],
+    ["agmt.operation", ""],
   ]);
   assert.deepEqual(databaseContextSettings({ ...appContext, tenantId: null }), [
     ["agmt.user_id", "user-1"],
     ["agmt.tenant_id", ""],
     ["agmt.support_ticket", ""],
+    ["agmt.operation", ""],
   ]);
 });

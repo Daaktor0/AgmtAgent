@@ -204,7 +204,7 @@ async function createPgliteSql(): Promise<Sql> {
     callback: (transactionSql: Sql) => Promise<T>,
     options?: TransactionOptions,
   ): Promise<T> => {
-    let phase: "callback" | "commit" = "callback";
+    let commitAttempted = false;
     try {
       return await pg.transaction(async (transaction) => {
         if (options?.isolationLevel) {
@@ -224,13 +224,13 @@ async function createPgliteSql(): Promise<Sql> {
           },
         );
         const result = await callback(transactionSql);
-        phase = "commit";
+        commitAttempted = true;
         return result;
       });
     } catch (error) {
       throw new TransactionOutcomeError(
-        phase === "commit" ? "unknown" : "rolled_back",
-        phase,
+        commitAttempted ? "unknown" : "rolled_back",
+        commitAttempted ? "commit" : "callback",
         error,
       );
     }

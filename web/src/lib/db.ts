@@ -8,10 +8,15 @@ import {
   beginStatement,
   createPostgresSql,
   createSql as createTransactionalSql,
+  type PostgresClientLike,
   type PostgresPoolLike,
   type Sql,
   type TransactionOptions,
 } from "./db-transaction";
+import {
+  currentDatabaseContext,
+  databaseContextSettings,
+} from "./db-context.server";
 
 export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction";
 
@@ -28,6 +33,32 @@ const env = (key: string): string | undefined => {
 const databaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
 const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
+
+const RLS_CONTEXT_SQL =
+  "select set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true)";
+
+const DATABASE_RUNTIME_ROLES = {
+  agmt_app: '"agmt_app"',
+  agmt_worker: '"agmt_worker"',
+  agmt_support: '"agmt_support"',
+} as const;
+
+function databaseRuntimeRole(): keyof typeof DATABASE_RUNTIME_ROLES {
+  const value = env("AGMT_DB_ROLE");
+  if (!value || !(value in DATABASE_RUNTIME_ROLES)) {
+    throw new Error(
+      "AGMT_DB_ROLE must be agmt_app, agmt_worker, or agmt_support when persistent Postgres is configured.",
+    );
+  }
+  return value as keyof typeof DATABASE_RUNTIME_ROLES;
+}
+
+async function configureTransactionContext(client: PostgresClientLike): Promise<void> {
+  const context = currentDatabaseContext();
+  if (!context) return;
+  const values = databaseContextSettings(context).flat();
+  await client.query(RLS_CONTEXT_SQL, values);
+}
 
 export const dbSource: DbSource = databaseUrl ? "postgres" : "pglite";
 
@@ -50,6 +81,7 @@ function persistentDatabaseRequired(): never {
 
 function createManagedPostgresSql(): Promise<Sql> {
   if (!databaseUrl) return Promise.reject(new Error("DATABASE_URL is not configured"));
+  const role = databaseRuntimeRole();
   globalRef.__pgSqlPromise__ ??= (async () => {
     const { Pool, types } = await import("pg");
     types.setTypeParser(OID_INT8, Number);
@@ -62,14 +94,19 @@ function createManagedPostgresSql(): Promise<Sql> {
       connectionTimeoutMillis: 5_000,
       allowExitOnIdle: true,
     });
-    return createPostgresSql(pool as unknown as PostgresPoolLike);
+    return createPostgresSql(pool as unknown as PostgresPoolLike, {
+      configureClient: async (client) => {
+        await client.query(`set role ${DATABASE_RUNTIME_ROLES[role]}`);
+      },
+      configureTransaction: configureTransactionContext,
+      useTransactionForQuery: () => currentDatabaseContext() !== null,
+    });
   })().catch((error) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw error;
   });
   return globalRef.__pgSqlPromise__;
 }
-
 async function createPgliteSql(): Promise<Sql> {
   if (deployedServerless) persistentDatabaseRequired();
 
@@ -151,8 +188,16 @@ async function createPgliteSql(): Promise<Sql> {
   await pass;
 
   const run = async <T>(text: string, params: unknown[]) => {
-    const result = await pg.query<T>(text, params);
-    return result.rows;
+    const context = currentDatabaseContext();
+    if (!context) {
+      const result = await pg.query<T>(text, params);
+      return result.rows;
+    }
+    return pg.transaction(async (transaction) => {
+      await transaction.query(RLS_CONTEXT_SQL, databaseContextSettings(context).flat());
+      const result = await transaction.query<T>(text, params);
+      return result.rows;
+    });
   };
   const transaction = async <T>(
     callback: (transactionSql: Sql) => Promise<T>,
@@ -161,6 +206,10 @@ async function createPgliteSql(): Promise<Sql> {
     pg.transaction(async (transaction) => {
       if (options?.isolationLevel) {
         await transaction.exec(beginStatement(options).replace(/^BEGIN/, "SET TRANSACTION"));
+      }
+      const context = currentDatabaseContext();
+      if (context) {
+        await transaction.query(RLS_CONTEXT_SQL, databaseContextSettings(context).flat());
       }
       const transactionSql = createTransactionalSql(
         async <R>(text: string, params: unknown[]) => {

@@ -1,4 +1,12 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import {
+  beginStatement,
+  createSql,
+  type Sql,
+  type TransactionOptions,
+} from "./db-transaction";
+
+export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction";
 
 export type DbSource = "neon" | "pglite";
 
@@ -16,14 +24,6 @@ const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
 
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
-export interface Sql {
-  <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]>;
-  query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
-}
-
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
@@ -34,24 +34,6 @@ const OID_INT8 = 20;
 const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
 const identity = (value: string) => value;
-
-type Run = <T>(text: string, params: unknown[]) => Promise<T[]>;
-
-function toSql(run: Run): Sql {
-  const sql = (async <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]> => {
-    let text = strings[0];
-    for (let index = 0; index < values.length; index += 1) {
-      text += `$${index + 1}${strings[index + 1]}`;
-    }
-    return run<T>(text, values);
-  }) as unknown as Sql;
-  sql.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
-    run<T>(text, params);
-  return sql;
-}
 
 function persistentDatabaseRequired(): never {
   throw new Error(
@@ -73,10 +55,41 @@ function createNeonSql(): Promise<Sql> {
       connectionTimeoutMillis: 5_000,
       allowExitOnIdle: true,
     });
-    return toSql(async <T>(text: string, params: unknown[]) => {
+    const run = async <T>(text: string, params: unknown[]) => {
       const result = await pool.query(text, params);
       return result.rows as T[];
-    });
+    };
+    const transaction = async <T>(
+      callback: (transactionSql: Sql) => Promise<T>,
+      options?: TransactionOptions,
+    ): Promise<T> => {
+      const client = await pool.connect();
+      try {
+        await client.query(beginStatement(options));
+        const transactionSql = createSql(
+          async <R>(text: string, params: unknown[]) => {
+            const result = await client.query<R>(text, params);
+            return result.rows;
+          },
+          async () => {
+            throw new Error("Nested database transactions are not supported");
+          },
+        );
+        const result = await callback(transactionSql);
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // Preserve the original transaction error.
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+    return createSql(run, transaction);
   })().catch((error) => {
     globalRef.__pgSqlPromise__ = undefined;
     throw error;
@@ -129,10 +142,31 @@ async function createPgliteSql(): Promise<Sql> {
   globalRef.__pgliteMigrateChain__ = pass;
   await pass;
 
-  return toSql(async <T>(text: string, params: unknown[]) => {
+  const run = async <T>(text: string, params: unknown[]) => {
     const result = await pg.query<T>(text, params);
     return result.rows;
-  });
+  };
+  const transaction = async <T>(
+    callback: (transactionSql: Sql) => Promise<T>,
+    options?: TransactionOptions,
+  ): Promise<T> =>
+    pg.transaction(async (transaction) => {
+      if (options?.isolationLevel) {
+        await transaction.exec(beginStatement(options).replace(/^BEGIN/, "SET TRANSACTION"));
+      }
+      const transactionSql = createSql(
+        async <R>(text: string, params: unknown[]) => {
+          const result = await transaction.query<R>(text, params);
+          return result.rows;
+        },
+        async () => {
+          throw new Error("Nested database transactions are not supported");
+        },
+      );
+      return callback(transactionSql);
+    });
+
+  return createSql(run, transaction);
 }
 
 let sqlPromise: Promise<Sql> | null = null;
@@ -145,6 +179,14 @@ async function createSql(): Promise<Sql> {
   }
   if (deployedServerless && !databaseUrl) persistentDatabaseRequired();
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
+}
+
+export async function withTransaction<T>(
+  callback: (transactionSql: Sql) => Promise<T>,
+  options?: TransactionOptions,
+): Promise<T> {
+  const sql = await getSql();
+  return sql.transaction(callback, options);
 }
 
 export function getSql(): Promise<Sql> {

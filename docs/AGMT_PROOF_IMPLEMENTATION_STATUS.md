@@ -1,7 +1,7 @@
 # Agmt Proof implementation status
 
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
-**Latest merged main:** `081d9a1cd7211ec86eaa391288b3f40017d793dd` via PR #24  
+**Latest merged main:** `ebe8504b4f9673cc1e36fd9772c7a64e51eff220` via PR #26  
 **Latest implementation branch:** `proof-production-hardening/fnd02-adapter-regression` at `367a087fec2ea00397b9fa88249bbc70e42fee94` (FND-02 concrete blob reconciliation adapter regression; PR #24 merged)  
 **Scope:** repository-side production hardening plus one explicitly authorized schema migration to an empty, non-confidential Supabase Mumbai sandbox. No AWS resources, production database, confidential documents, live authentication provider, or object bytes were changed.
 

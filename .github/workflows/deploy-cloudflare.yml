@@ -22,8 +22,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          if ! npx wrangler r2 bucket list --json | jq -e 'any((.buckets // .)[]; .name == "agmt-proof-objects")' >/dev/null; then
-            npx wrangler r2 bucket create agmt-proof-objects
+          set +e
+          bucket_output="$(npx wrangler r2 bucket create agmt-proof-objects 2>&1)"
+          bucket_status=$?
+          set -e
+          if [ "$bucket_status" -ne 0 ] && ! grep -q "already exists, and you own it" <<<"$bucket_output"; then
+            echo "$bucket_output"
+            exit "$bucket_status"
           fi
       - name: Ensure production encryption secrets
         env:

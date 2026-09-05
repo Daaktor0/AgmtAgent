@@ -2,18 +2,108 @@ name: Deploy Cloudflare
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - "src/worker.ts"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - "web/**"
+      - ".github/workflows/deploy-cloudflare.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "src/worker.ts"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - "web/**"
+      - ".github/workflows/deploy-cloudflare.yml"
+
+permissions:
+  contents: read
 
 jobs:
+  validate-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Build Cloudflare container web runtime
+        run: npm run build -- --config vite.cloudflare.config.ts
+        env:
+          VITE_AUTH_ENABLED: "true"
+      - run: npm run typecheck
+
   deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate-web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+
+      # Copy only secrets that are already managed in GitHub. Empty/missing
+      # values are deliberately skipped: the web runtime then fails closed
+      # instead of inventing production credentials.
+      - name: Sync available Agmt runtime secrets
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          POSTGRES_PRISMA_URL: ${{ secrets.POSTGRES_PRISMA_URL }}
+          BETTER_AUTH_DATABASE_URL: ${{ secrets.BETTER_AUTH_DATABASE_URL }}
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          AGMT_ENCRYPTION_KEY: ${{ secrets.AGMT_ENCRYPTION_KEY }}
+          GROK_AUTH_ISSUER: ${{ secrets.GROK_AUTH_ISSUER }}
+          GROK_AUTH_CLIENT_ID: ${{ secrets.GROK_AUTH_CLIENT_ID }}
+          GROK_AUTH_CLIENT_SECRET: ${{ secrets.GROK_AUTH_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
+          AUTH_SUPPORT_EMAIL: ${{ secrets.AUTH_SUPPORT_EMAIL }}
+        run: |
+          sync_secret() {
+            name="$1"
+            value="$2"
+            if [ -n "$value" ]; then
+              printf '%s' "$value" | npx wrangler secret put "$name" >/dev/null
+              echo "Synced $name"
+            fi
+          }
+
+          sync_secret DATABASE_URL "$DATABASE_URL"
+          sync_secret POSTGRES_URL "$POSTGRES_URL"
+          sync_secret POSTGRES_PRISMA_URL "$POSTGRES_PRISMA_URL"
+          sync_secret BETTER_AUTH_DATABASE_URL "$BETTER_AUTH_DATABASE_URL"
+          sync_secret AUTH_DATABASE_URL "$AUTH_DATABASE_URL"
+          sync_secret BETTER_AUTH_SECRET "$BETTER_AUTH_SECRET"
+          sync_secret AGMT_ENCRYPTION_KEY "$AGMT_ENCRYPTION_KEY"
+          sync_secret GROK_AUTH_ISSUER "$GROK_AUTH_ISSUER"
+          sync_secret GROK_AUTH_CLIENT_ID "$GROK_AUTH_CLIENT_ID"
+          sync_secret GROK_AUTH_CLIENT_SECRET "$GROK_AUTH_CLIENT_SECRET"
+          sync_secret RESEND_API_KEY "$RESEND_API_KEY"
+          sync_secret AUTH_EMAIL_FROM "$AUTH_EMAIL_FROM"
+          sync_secret AUTH_SUPPORT_EMAIL "$AUTH_SUPPORT_EMAIL"

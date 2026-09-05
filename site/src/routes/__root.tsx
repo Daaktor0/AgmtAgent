@@ -5,7 +5,7 @@ import appCss from "../styles.css?url";
 
 const NAME = "Agmt";
 const DESCRIPTION =
-  "Free agreement proofing for Indian transaction teams. Catch broken references, drifting defined terms, numbering gaps and leftover blanks before the next review.";
+  "Practical tools for modern legal work. Agmt is building room for judgment, starting with Proof: focused proofreading for Word agreements.";
 
 const THEME_SCRIPT = `
   (() => {
@@ -28,15 +28,15 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: NAME },
       { name: "description", content: DESCRIPTION },
-      { name: "theme-color", content: "#101419" },
+      { name: "theme-color", content: "#f5f2ea" },
       { name: "color-scheme", content: "light dark" },
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: NAME },
-      { property: "og:title", content: "Agmt — Proofing should not take another evening." },
+      { property: "og:title", content: "Agmt — More room for judgment." },
       { property: "og:description", content: DESCRIPTION },
-      { property: "og:image", content: "/og.jpg" },
+      { property: "og:image", content: "https://agmt.legal/og-overhaul.png" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "/og.jpg" },
+      { name: "twitter:image", content: "https://agmt.legal/og-overhaul.png" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

@@ -201,6 +201,10 @@ export const getPublicSeatStatus = createServerFn({ method: "GET" }).handler(
 export const submitSignup = createServerFn({ method: "POST" })
   .validator((input: unknown) => signupSchema.parse(input))
   .handler(async ({ data }): Promise<SignupResult | Failure> => {
+    // A public deployment must never confirm a signup into ephemeral memory.
+    if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL?.trim()) {
+      return { ok: false, error: "Updates are temporarily unavailable. Please try again later." };
+    }
     const email = data.email.trim();
     const key = email.toLowerCase();
     const firm = data.firm.trim() || null;
@@ -346,7 +350,7 @@ async function updateExisting(
       name          = ${next.name},
       firm          = coalesce(${next.firm}, firm),
       role          = coalesce(${next.role}, role),
-      interest      = ${next.interest},
+      interest      = ${next.intent === "remind" ? row.interest : next.interest},
       remind_beta   = remind_beta or ${next.remindBeta},
       remind_launch = remind_launch or ${next.remindLaunch}
     where id = ${row.id}

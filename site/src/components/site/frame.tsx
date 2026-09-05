@@ -1,17 +1,9 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { ArrowUpRight, Menu, X } from "lucide-react";
 import { Wordmark } from "@/brand/wordmark";
-import { FOOTER } from "@/brand/copy";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { cn } from "@/lib/utils";
-
-const NAV = [
-  { href: "/#problem", label: "The problem" },
-  { href: "/#proof", label: "Proof" },
-  { href: "/#review", label: "Review" },
-  { href: "/#beta", label: "Beta" },
-] as const;
 
 export function SiteFrame({
   children,
@@ -19,76 +11,79 @@ export function SiteFrame({
   children: ReactNode;
   current?: "/what" | "/how" | "/beta" | "/legal";
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="flex min-h-dvh flex-col bg-paper">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:text-ink"
-      >
+    <div className="site-shell">
+      <a href="#main" className="skip-link">
         Skip to content
       </a>
-
-      <header className="site-nav sticky top-0 z-50 border-b border-white/10">
-        <div className="mx-auto flex h-[4.75rem] max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
-          <Wordmark inverse />
-          <nav className="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
-            {NAV.map((item) => (
-              <a key={item.href} href={item.href} className="nav-link">
-                {item.label}
-              </a>
-            ))}
+      <header className="masthead">
+        <div className="site-container masthead-inner">
+          <Wordmark />
+          <nav className="desktop-nav" aria-label="Main navigation">
+            <Link to="/what">The idea</Link>
+            <Link to="/how">Meet Proof</Link>
+            <Link to="/beta">Dispatch</Link>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="nav-actions">
             <ThemeToggle />
-            <Link
-              to="/beta"
-              className="group inline-flex min-h-10 items-center gap-2 bg-accent px-4 text-sm font-medium text-accent-ink no-underline transition-colors hover:bg-accent-hover"
-            >
-              Book a seat
-              <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+            <Link className="nav-cta" to="/beta">
+              Keep me posted <ArrowUpRight size={16} aria-hidden />
             </Link>
+            <button
+              className="menu-toggle"
+              type="button"
+              onClick={() => setOpen(!open)}
+              aria-expanded={open}
+              aria-controls="mobile-nav"
+              aria-label={open ? "Close navigation" : "Open navigation"}
+            >
+              {open ? <X /> : <Menu />}
+            </button>
           </div>
         </div>
+        {open && (
+          <nav
+            id="mobile-nav"
+            className="mobile-nav"
+            aria-label="Mobile navigation"
+            onClick={() => setOpen(false)}
+          >
+            <Link to="/what">The idea</Link>
+            <Link to="/how">Meet Proof</Link>
+            <Link to="/beta">Agmt Dispatch</Link>
+          </nav>
+        )}
       </header>
-
-      <main id="main" className="flex-1">
-        {children}
-      </main>
-
-      <footer className="border-t border-white/10 bg-hero text-on-hero">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] md:items-end">
-          <div>
-            <Wordmark inverse />
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-on-hero-muted">{FOOTER}</p>
+      <main id="main">{children}</main>
+      <footer className="site-footer">
+        <div className="site-container">
+          <div className="footer-top">
+            <p>
+              Less repetition.
+              <br />
+              <em>More possibility.</em>
+            </p>
+            <div className="footer-links">
+              <Link to="/what">The idea</Link>
+              <Link to="/how">Meet Proof</Link>
+              <Link to="/beta">Dispatch</Link>
+              <Link to="/legal">Legal & updates</Link>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-on-hero-muted">
-            <Link to="/what" className="no-underline hover:text-on-hero">
-              What
-            </Link>
-            <Link to="/how" className="no-underline hover:text-on-hero">
-              How
-            </Link>
-            <Link to="/beta" className="no-underline hover:text-on-hero">
-              Beta
-            </Link>
-            <Link to="/legal" className="no-underline hover:text-on-hero">
-              Legal
-            </Link>
+          <div className="footer-bottom">
+            <Wordmark />
+            <span>Practical tools for modern legal work.</span>
+            <a href="#main">Back to top ↑</a>
           </div>
         </div>
       </footer>
     </div>
   );
 }
-
 export function Page({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cn("mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-24", className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn("site-container inner-page", className)}>{children}</div>;
 }
-
 export function Clause({
   n,
   title,
@@ -105,22 +100,16 @@ export function Clause({
       <p className="clause-n" aria-hidden>
         {n.padStart(2, "0")}
       </p>
-      <div className="max-w-[var(--measure)]">
-        {title ? <h2 className="text-[1.5rem] leading-snug text-ink">{title}</h2> : null}
+      <div>
+        {title && <h2 className="text-2xl">{title}</h2>}
         {children}
       </div>
     </section>
   );
 }
-
 export function Prose({ children, className }: { children: ReactNode; className?: string }) {
   return <p className={cn("max-w-[var(--measure)] text-ink-2", className)}>{children}</p>;
 }
-
 export function Aside({ children }: { children: ReactNode }) {
-  return (
-    <p className="max-w-[var(--measure)] border-l-2 border-accent pl-4 text-[0.9375rem] text-muted">
-      {children}
-    </p>
-  );
+  return <p className="border-l-2 border-accent pl-4 text-muted">{children}</p>;
 }

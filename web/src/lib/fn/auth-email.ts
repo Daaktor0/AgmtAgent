@@ -15,6 +15,7 @@ import {
 } from "@/lib/agmt/config";
 
 const AUTH_FLOW_USER_ID = "auth-flow";
+const RESEND_REQUEST_TIMEOUT_MS = 10_000;
 
 function authOperationContext(operation: "auth_magic_link_request" | "auth_magic_link_verify") {
   return {
@@ -104,20 +105,31 @@ async function sendVerificationEmail(to: string, token: string): Promise<void> {
   const from = serverEnv("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
   const verifyUrl = `${publicOrigin()}/verify?token=${encodeURIComponent(token)}`;
   const email = verificationEmail(verifyUrl);
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: MAGIC_LINK_SUBJECT,
-      html: email.html,
-      text: email.text,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: MAGIC_LINK_SUBJECT,
+        html: email.html,
+        text: email.text,
+      }),
+      signal: AbortSignal.timeout(RESEND_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    console.error(
+      `[auth.email] provider request failed name=${error instanceof Error ? error.name : "unknown"}`,
+    );
+    throw Object.assign(new Error("We could not send the sign-in email. Try again."), {
+      code: "email_delivery_failed",
+    });
+  }
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 500);

@@ -46,6 +46,11 @@ jobs:
           if ! jq -e 'any(.[]; .name == "AGMT_ENCRYPTION_KEY")' >/dev/null <<<"$secrets_json"; then
             openssl rand -base64 48 | tr -d '\n' | npx wrangler versions secret put AGMT_ENCRYPTION_KEY --config "$config"
           fi
+
+          if ! jq -e 'any(.[]; .name == "RESEND_API_KEY")' >/dev/null <<<"$secrets_json"; then
+            echo "::error::RESEND_API_KEY is missing from the production Worker. Add it as a Cloudflare secret before deploying."
+            exit 1
+          fi
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -6,6 +6,7 @@ type VerificationUser = {
 };
 
 const VERIFICATION_SUBJECT = "Verify your email for Agmt";
+const RESEND_REQUEST_TIMEOUT_MS = 10_000;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
@@ -69,20 +70,31 @@ export async function sendResendVerificationEmail(data: {
 
   const from = serverEnv("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
   const email = verificationEmail(data.url, data.user.name);
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [data.user.email],
-      subject: VERIFICATION_SUBJECT,
-      html: email.html,
-      text: email.text,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [data.user.email],
+        subject: VERIFICATION_SUBJECT,
+        html: email.html,
+        text: email.text,
+      }),
+      signal: AbortSignal.timeout(RESEND_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    console.error(
+      `[auth.email] provider request failed name=${error instanceof Error ? error.name : "unknown"}`,
+    );
+    throw Object.assign(new Error("We could not send the verification email."), {
+      code: "email_delivery_failed",
+    });
+  }
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 500);

@@ -84,7 +84,10 @@ function createAuth() {
     throw new Error("BETTER_AUTH_SECRET is required in deployed environments.");
   }
   const authSecret = configuredAuthSecret ?? randomBytes(32).toString("hex");
-  const explicitBaseURL = serverEnv("BETTER_AUTH_URL") ?? serverEnv("AGMT_PUBLIC_URL");
+  // AGMT_PUBLIC_URL is the canonical public app URL. Keep the older
+  // BETTER_AUTH_URL variable as a backwards-compatible fallback, but do not
+  // let an old Worker URL override the current custom domain.
+  const explicitBaseURL = serverEnv("AGMT_PUBLIC_URL") ?? serverEnv("BETTER_AUTH_URL");
   const vercelHosts = [
     hostOnly(serverEnv("VERCEL_PROJECT_PRODUCTION_URL")),
     hostOnly(serverEnv("VERCEL_URL")),
@@ -94,6 +97,7 @@ function createAuth() {
   // Public production alias for the app. Keep this exact rather than trusting
   // a wildcard such as *.vercel.app, which would weaken sibling-app isolation.
   const AGMT_PRODUCTION_HOSTS = [
+    "app.agmt.legal",
     "agmt-web.vercel.app",
     "agmt.dexterinlab.workers.dev",
   ];

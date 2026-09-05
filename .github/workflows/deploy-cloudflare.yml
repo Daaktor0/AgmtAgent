@@ -1,6 +1,9 @@
 name: Deploy Cloudflare
 
 on:
+  push:
+    branches:
+      - codex/platform-proof-t00
   workflow_dispatch:
 
 jobs:

@@ -37,6 +37,8 @@ test("Cloudflare deploy builds and serves the current web app", () => {
   assert.match(vite, /rollupConfig:\s*\{ output: \{ inlineDynamicImports: true \} \}/);
   assert.match(db, /cloudflareWorkerRuntime/);
   assert.match(auth, /agmt\.dexterinlab\.workers\.dev/);
+  assert.match(auth, /serverEnv\("AGMT_PUBLIC_URL"\) \?\? serverEnv\("BETTER_AUTH_URL"\)/);
+  assert.match(auth, /"app\.agmt\.legal"/);
   assert.ok(pwa.includes('path === "/taskpane.html"'));
   assert.ok(pwa.includes('Response.redirect(new URL("/", event.url), 302)'));
   assert.match(cloudflareExports, /export \{ AgmtContainer \} from "\.\.\/src\/worker\.ts"/);

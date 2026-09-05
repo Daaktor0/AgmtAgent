@@ -199,6 +199,18 @@ python -m agent.eval checks --corpus eval/corpus   # 29/29 must-finds
 
 ### Deployment
 
-Docker (non-root user, healthcheck on `/api/health`) and a Render blueprint
-(`render.yaml`) are included. Set `OPENROUTER_API_KEY` or let users paste keys
-in the pane; set `AGMT_PAIRING_TOKEN` to require paired clients.
+The current Agmt platform is the TanStack app in `web/`. Cloudflare deployment
+must build that directory with Nitro's `cloudflare_module` preset; the root
+Worker no longer deploys the legacy Python task pane. From the repository root:
+
+```
+npm run build
+npx wrangler deploy --config web/.output/server/wrangler.json --keep-vars
+```
+
+`npm run deploy` performs both commands. Configure the server-only Postgres,
+Better Auth and encryption secrets in Cloudflare before enabling authenticated
+workflows. The generated Worker fails closed when those values are absent.
+
+The Docker image and Render blueprint remain available for the legacy local
+task-pane service; they are not the current web product deployment.

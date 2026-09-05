@@ -23,7 +23,10 @@ function env(key: string): string | undefined {
 }
 
 function isDeployed(): boolean {
-  return Boolean(env("VERCEL") || env("VERCEL_ENV"));
+  return Boolean(
+    env("VERCEL") || env("VERCEL_ENV") || env("CF_PAGES") || env("CLOUDFLARE_ENV") ||
+      (typeof navigator === "object" && navigator !== null && navigator.userAgent === "Cloudflare-Workers"),
+  );
 }
 
 function temporaryTestSecret(): string | undefined {

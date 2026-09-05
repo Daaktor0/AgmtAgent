@@ -1,5 +1,7 @@
 # Agmt — brand and interface system
 
+> **Proof scope supersession — 5 September 2026:** `docs/AGMT_PLATFORM_PROOF_SPEC.md` (repository root) controls the temporary Proof release: Agmt platform, upload → tracked/commented DOCX, immutable two-hour content retention, verified accounts and zero LLM calls. Mandatory Matter/mandate/map steps, Review/Mail, historical vault migration, document backups and legal holds are not prerequisites for this path. Preserve unrelated security and design rules. Current tasks and evidence are in `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`. Historical requirements below remain context, not the current Proof launch checklist.
+
 The design reference for both front ends: `site/` (marketing) and `web/` (the
 product). It is the source of truth for the wordmark, the colour tokens, the
 type scale, component anatomy, and the seven-step user flow.

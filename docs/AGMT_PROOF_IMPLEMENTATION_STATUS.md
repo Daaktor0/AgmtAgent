@@ -1,5 +1,123 @@
 # Agmt Proof implementation status
 
+## Current temporary Proof release — 5 September 2026
+
+Contract: [AGMT_PLATFORM_PROOF_SPEC.md](AGMT_PLATFORM_PROOF_SPEC.md). This section supersedes the historical package sequence and next-task statements below for new temporary Proof runs. Historical evidence and unresolved security gates remain intact.
+
+### T00 reconciliation evidence
+
+- Remote default branch `main` and branch list inspected using GitHub API; head `18f13fdeae935bd85796d5e80d481acb8bff42fb`. No existing Git checkout or working changes in this task workspace. Older scratch snapshot was not reused. Authenticated API reconstruction verified all 512 blobs, complete tree `c58666a52bdcb2c2299186478a39b6c9e049f3db`, and the signed commit hash. Clean shallow checkout; implementation branch `codex/platform-proof-t00`.
+- Applicable instructions: `web/AGENTS.md`; no root or deeper AGENTS.md in remote tree. Read scoped Open Graph skill; `node scripts/brand-check.mjs --placeholder-ok` passes with zero warnings. No brand changes needed.
+- Installed pinned lockfile via `npm ci --ignore-scripts --no-audit --no-fund`, Node 24.19.0. `npm test`: 229 script tests plus 115 application tests, all pass. `npm run build`: pass. Initial pre-build typecheck failed only because generated route tree was absent; regenerated using existing build workflow, then typecheck passed. `npm run check:auth` without a running dev server is indeterminate (exit 2), not a live authentication test.
+- Actual code has Matter-bound synchronous/base64 ingestion and content writes in `web/src/lib/fn/{agmt,document-upload}.ts`; no temporary product run route or marked-DOCX exporter. `proof/runner.ts::validateHit` currently verifies substring presence only. `proof/checks.ts` uses fallback provision anchors. These cannot publish new Proof markup.
+- `agmt/crypto.ts` still contains a legacy deployed test-derived wrapping fallback despite historical hardening wording. New Proof must not import that persistence path. Track removal/route closure in T12 without rewriting historical ciphertext.
+- No live environment credentials, provider configuration or current deployed state verified. Historical sandbox receipts are not current live evidence. No migration, historical-data operation, cloud spending or deployment performed.
+
+### Reuse and scope map
+
+| Existing implementation / old packages | New task and treatment |
+|---|---|
+| `web/src/lib/auth/*`, `db-context.server.ts`, `db-transaction.ts`; SEC-01/FND-02/FND-04 | T05/T06/T12: preserve verified session, tenant context, transactions and RLS; provision/rehearse runtime roles later. |
+| `agmt/docx-v2.ts`, `zip-safety.ts`, `numbering.ts`, `types.ts`; WRK-02/03, CAN/EVD | T02: extend existing extraction with exact node mapping and complete scope evidence; no confirmation wizard or anonymising rewrite. |
+| `agmt/proof/{registry,checks,runner,product}.ts`; PRF | T01/T03: six-rule pinned launch selection; retain experimental rules/tests without launch promotion. |
+| `server/{object-store,direct-upload,malware-gate}.ts`; OBJ | T07/T09: implement real providers through existing boundaries; no filename persistence. |
+| `server/{jobs,worker-contract,object-reconciliation}.ts`, migration 0005; JOB/ING/WRK-01 | T06/T08/T10: extend ownership, deadlines, cancellation and outbox; no second job system. |
+| `agmt/export/` absent; EXP | T04: real Word revisions/comments and local demonstration before infrastructure. |
+| Existing routes/components, `docs/brand`; UX | T05/T11: product run UI, preserve design, remove compulsory Matter/mandate/map for Proof. |
+| CRY historical key/vault migration, document backup/legal-hold OPS, Review/Mail | Deferred/out of scope for new Proof; no historical migration or cleanup authorized. SSE-KMS and metadata recovery remain relevant. |
+| OPS retention/security/release, TST | T08/T12–T16: independent deletion, content-free metadata, frozen corpus, Word and live retention/release gates. |
+
+### T01 evidence
+
+- Changed `web/src/lib/products/contracts.ts`, `server/retention{,.test}.ts`, `agmt/proof/{contracts,contracts.test,typo-allowlist,registry}.ts`, `agmt/corpus/launch-fixtures.ts` and package test scripts.
+- Millisecond clock origin and immutable 15-minute upload, 110-minute processing, 115-minute access and 120-minute purge deadlines; grants floor remaining seconds. Attempts require a full 300-second runtime plus an explicit initial 60-second cleanup budget strictly before processing cutoff. Retry/read helpers never extend clocks.
+- Strict source/finding/export schemas reject invalid lengths, unknown fields, absent absence evidence and non-launch rules. Schema acceptance alone is expressly insufficient for source validity (T02).
+- Five reproducible synthetic DOCX variants: ordinary body, split styled runs, table, prior anchored comment plus unrelated insertion/deletion, and Recieve party name trap. Exact half-open UTF-16 quote offsets and expected two corrections/two comments are frozen, not yet claimed as engine output.
+- `node --experimental-strip-types --test src/lib/server/retention.test.ts src/lib/agmt/proof/contracts.test.ts`: 5/5 pass. `npm run typecheck`: pass. Existing regression suite remains enabled, and new tests included in scripts.
+- No new dependency, database, auth, content-storage or cloud change. Next: T02 exact original-package source mapping and scope validation.
+
+### T02 evidence
+
+- Changed `web/src/lib/agmt/docx-v2.ts`, `source-map{,.test}.ts` and test scripts. Extended the current preserve-order parser through an optional memory-only callback; existing durable ingestion receives no new content fields.
+- Source maps retain immutable original XML and numeric node paths, reconstruct split-node quotes, distinguish repeated occurrences, preserve exact UTF-16 including astral/combining characters, and record final-view revision/field edit exclusions. Table cells remain independently anchored. The launch lane does not call the historical fallback hit validator.
+- Main-body/schedule inventory refuses absence evidence when unsupported text containers, unbalanced fields or complex revisions make it incomplete. Non-main story coverage remains an explicit T03/T13 limitation; no fake body anchor is generated.
+- Hardened current bounded XML reads to reject malformed XML and DTD/entity declarations before parsing. Existing ZIP/capability regressions remain unchanged.
+- Targeted source-map + docx-v2 suite: 13/13 pass. Full suite: 229 script + 124 application tests pass. Typecheck and production build pass. Source buffers unchanged; original insertions/deletions preserved and deletion text excluded from the new projection.
+- Next T03: use these exact nodes and scope inventory for six launch predicates; validate predicate and source together before output. No live infrastructure or Word claims.
+
+### T03 evidence
+
+- Added `web/src/lib/agmt/proof/{launch-checks,launch,launch.test}.ts`; kept historical registry/checks/runner callers and tests intact. New launch orchestration uses existing `docx-v2` and `resolveExtractedNumbering`, with no Matter, mandate, anonymisation or page-count gate.
+- Four demonstration variants each yield exactly the frozen four findings. Six launch rules report actual outcomes; missing/ambiguous numbering or definition scope is suppressed. Exact validator can replay a predicate to reject tampered comment/action/scope evidence. More than 500 findings explicitly fails.
+- Negatives cover Recieve party names, valid `that that`/`had had`, quotes, URL/email tokens, external statute references, valid brackets, existing comments, and schedules restarting numbering/definitions. Existing tracked text is comment-only when safe; complex review structures/protection refuse.
+- Network-instrumented engine test blocks fetch, net connect/createConnection and HTTP(S) request; observed calls 0. No LLM/provider dependency introduced. Four focused tests pass; full suite 229 script + 128 application tests, typecheck and production build pass.
+- Remaining corpus limitations are explicit: non-main stories produce limited coverage; more sophisticated scope/language boundaries and native numbering/export corpus remain T13 gates. No public accuracy claim or real-file deployment made. Next T04: real marked DOCX and automated structural/accept-reject validation.
+
+### T04 evidence and reviewable Word fixtures
+
+- Added `web/src/lib/agmt/export/{docx,docx.test,ooxml}.ts`, `web/scripts/proof-demo.ts`, generated synthetic `web/src/lib/agmt/corpus/launch-demo/*` and test/demo scripts.
+- `npm run proof:demo` generates original/marked pairs and SHA-256 evidence for body, styled split runs, table, prior review and party-name cases. Each positive output has two logical corrections (three revision elements) and two exact anchored comments. Party-name negative output equals the original byte-for-byte.
+- Planner deduplicates identical findings and blocks conflicting/overlapping edits. Minimal paragraph replacements retain untouched document XML bytes and untouched ZIP entries. Original run formatting is preserved through split deletions and insertions; IDs are allocated without collision and previous authors' review is not accepted/rejected.
+- Every marked output reopens, validates XML/package relationships, checks exact comment text/range and revision identifiers, compares untouched parts, reconstructs rejected Agmt-only edits against original semantic XML, and compares accepted text to the exact plan. Negative tests corrupt anchors/comment text/untouched entries/source binding and fail validation. Coverage gaps create a persistent explicit document notice; clean zero-findings output stays unchanged.
+- Focused exporter suite 4/4 passes. Full suite 229 script + 132 application tests; typecheck and production build pass. `proof:demo` passes all five variants. Generated evidence records Word/SDK as `not_run`.
+- Microsoft Word, LibreOffice and dotnet/Open XML SDK are absent locally. Microsoft documentation for comment records/ranges/references and w:ins/w:del was checked; that is implementation guidance, not fidelity validation. Word no-repair/All Markup checks and SDK validation remain release blockers. Existing tracked-text correction intersections currently fail export when exact safe markup is unavailable; expanded support remains T13, not a claimed capability.
+- Next independent task: T05 product shell. No live DOCX processing, cloud spending, production-data change or two-hour storage deletion verified.
+
+### T05 evidence
+
+- Added product registry/guard, server handler map, pure run-view states, `/proof` selection screen and typed result component. Existing `Shell` and visual tokens reused; former home Matter UI moved to `/matters` without changing its functions. Home now introduces Agmt and links to Proof. Planned/unknown/disabled products cannot resolve a handler.
+- Login return path accepts only `/proof` or `/`; provider callback and post-login navigation use the validated value. No guest, test-workspace or auth bypass added. Proof rejects dev-fallback identity for its sign-in copy and does not issue any upload grant.
+- Local file selection validates extension and 25 MiB cap, preserves name only in component memory, exposes a disabled Proofread button and explicitly states beta upload is unavailable. Result component prioritizes download, carries coverage/deadline copy, and never says files deleted without a verification timestamp. Fixture data is confined to tests, not fake server jobs.
+- Product/state tests 2/2 pass, including all ten states, expired download denial, unsafe redirects, invalid files and planned/disabled handler rejection. Full suite 229 script + 134 application tests; production build and typecheck pass.
+- Dev server requires explicit localhost binding in this container (wildcard binding raised `uv_interface_addresses`); no auth/configuration override was used. Browser phone/desktop verification pending Chromium availability; no visual pass claimed. Existing auth-invariant can be tested against the localhost server. T06 metadata work is independent of that visual gate.
+
+### T06 evidence
+
+- Added forward-only `web/migrations/0006_product_runs.sql` with independent `product_run` and `product_artifact` metadata tables. The temporary Proof plane stores tenant/owner, immutable server-derived deadlines, pinned parser/rule/exporter versions, idempotency and integrity metadata plus opaque storage keys; it has no filename, document text, comment text, source bytes, ciphertext or Matter/document/object-blob foreign key.
+- Deadlines are database checks and an update trigger: retention is exactly upload + 2 hours, access is 5 minutes earlier, processing is 10 minutes earlier, and the upload grant is capped at 15 minutes. Both tables use forced RLS with app-owner, worker-tenant and support-ticket read policies. The app role cannot see another tenant and cross-tenant writes fail closed.
+- Added `web/src/lib/server/product-runs.ts`: server-context-only input validation, executable-product guard, 25 MiB/integrity checks, idempotent creation, immutable deadline hydration, explicit uploading→scanning→…→deleted state transitions and cancellation-generation fencing. It never accepts client deadlines, bytes, filenames or legacy Matter identifiers.
+- Focused checks: migration static + PGlite constraint/RLS rehearsal 2/2; product-run validation/transition tests 2/2. Full suite now reports 231 script + 136 application tests, all passing; typecheck and production build pass. The PGlite rehearsal is synthetic only; no live migration, production data, cloud spending, deployment or two-hour deletion claim was made.
+- Matter compatibility decision: legacy Matter-bound `upload_intent` and `proof_run` remain untouched for historical workflows. Temporary Proof uses the independent product-run plane and creates no empty Matter, mandate or map. Next: T07 concrete storage/provider plan and bounded upload seam.
+
+### T07 progress
+
+- Added reviewable, no-credentials `infra/proof/README.md` defining separate private quarantine/temporary buckets, per-environment SSE-KMS, least-privilege scan/worker/purge boundaries, checksum-aware multipart behavior, opaque key rules, queue/DLQ separation, fail-closed configuration and a $70–150/month planning allowance. No provider, billing account, bucket, queue, KMS key or secret was created.
+- Existing `S3ObjectStore` synthetic tests already cover put/get/delete, immutable keys and integrity checks. T07 is not complete: current AWS API/pricing verification, concrete SDK client wiring, list/abort tests, Terraform plan and synthetic-account IAM rehearsal remain pending. Uploads stay disabled.
+
+### Cloudflare deployment reconciliation
+
+- The supplied `https://agmt.dexterinlab.workers.dev/taskpane.html` URL was traced to the repository root `src/worker.ts` and Dockerfile, which serve the legacy Python task pane and redirect `/` to `taskpane.html`. It was not serving the current `web/` application.
+- Added a Cloudflare Worker build/deploy path: `web` selects Nitro `cloudflare_module` in `cloudflare` mode; root `build:web` installs/builds that app and deploys the generated `.output/server/wrangler.json`; root `wrangler.jsonc` now points at the current web output instead of the legacy Container/Durable Object. Cloudflare runtime detection and the supplied Worker hostname were added to the deployed auth/encryption/database guards. A static deployment-config test passes 1/1, and the Cloudflare build completed locally.
+- A redirect-only compatibility patch now sends the former `/taskpane.html` bookmark to the current platform root; it does not serve the legacy pane. A fresh dependency install, typecheck, full regression suite (232 script + 136 application tests), Cloudflare build, generated-output inspection and deployment-config test (1/1) now pass after that patch. The local and GitHub Actions deploy paths both build the current `web/` output, use the generated Wrangler config and preserve dashboard-managed public variables with `--keep-vars`; the workflow regression is covered by the same 1/1 test. Authoritative live checks at 2026-09-05 returned HTTP 500 with `{"status":500,"unhandled":true,"message":"HTTPError"}` for both `/` and `/taskpane.html`, confirming the old Worker is still serving. A Wrangler device-login flow was attempted after user authorization, but the workspace network policy blocked its OAuth polling callback and persisted no credentials; a follow-up `wrangler whoami` still reports no authenticated session. The Cloudflare connector/plugin is not available, so no replacement deployment was attempted or claimed. Configure Cloudflare access plus the server-only runtime values (separate application/auth Postgres URLs, `BETTER_AUTH_SECRET`, `AGMT_ENCRYPTION_KEY`, `AGMT_PUBLIC_URL`, and OAuth values) before authenticated workflows can run; do not use a temporary preview account. Next action is an authenticated deploy followed by live 302→200 verification of `/taskpane.html` and `/`.
+
+### Current ordered checklist
+
+| Task | Status | Next acceptance / blocker |
+|---|---|---|
+| T00 | Complete | Reconciliation and baseline above; imported exact supplied contract and marked superseded scope in historical documents. |
+| T01 | Complete | 5 targeted tests pass; contracts, deadlines, allowlist and five synthetic fixture variants frozen. |
+| T02 | Complete (core body/table mapping) | 13 focused parser/source tests; source/quote reconstruction, UTF-16 and incomplete-scope denial pass. |
+| T03 | Implemented; corpus promotion pending T13 | Four focused tests pass across demo, exclusions, duplicates and 501-finding rejection; six pinned execution outcomes. |
+| T04 | Repository implementation complete; Word/SDK unverified | Four export tests pass; synthetic marked DOCX files generated and validated. |
+| T05 | Repository implementation complete; browser check pending | Product catalogue, local selection and typed run views; upload deliberately disabled pending T08/T09. |
+| T06 | Complete | Metadata-only product runs/artifacts, immutable deadlines, RLS and explicit transitions implemented; 2/2 migration checks, 2/2 service checks, full suite/build/typecheck pass. No live migration or retention drill claimed. |
+| T07 | In progress (plan drafted) | `infra/proof/README.md` is reviewable and no-spend; provider/API verification, concrete client/list/abort adapter, Terraform and synthetic IAM evidence remain. |
+| T08 | Pending | Purge, independent sweep, writer fencing and verified absence. |
+| T09 | Pending | Authenticated direct upload and authoritative scanning. |
+| T10 | Pending | Isolated async worker and conditional publication. |
+| T11 | Pending | Actual download, truthful coverage and verified manual deletion. |
+| T12 | Pending | Content marker audit, old route closure, quotas and real auth. |
+| T13 | Pending | 24-document corpus, SDK/Word verification. |
+| T14 | Pending | Real two-hour drill, delayed writes, outage and recovery evidence. |
+| T15 | Pending | Measured capacity and concrete release/rollback evidence. |
+| T16 | Pending | Authorized beta release and actual independent tester completion. |
+
+Only one task is active. Unavailable human Word/provider gates must remain explicit; continue independent repository work. No local test constitutes live Word fidelity or two-hour deletion evidence.
+
+---
+
+## Historical hardening ledger (preserved)
+
 **Baseline:** current `main` before JOB-01/OBJ-01 at `c75ef227eb0ee8e7745de4d625de2ff5123bfa82` (30 August 2026)  
 **Latest merged main:** `ebe8504b4f9673cc1e36fd9772c7a64e51eff220` via PR #26  
 **Latest implementation branch:** `proof-production-hardening/fnd02-adapter-regression` at `367a087fec2ea00397b9fa88249bbc70e42fee94` (FND-02 concrete blob reconciliation adapter regression; PR #24 merged)  

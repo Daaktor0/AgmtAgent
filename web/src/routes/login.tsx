@@ -2,23 +2,25 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { authEnabled, GROK_PROVIDERS, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { safeProofReturn } from "@/lib/products/registry";
 import { Card } from "@/components/ui/card";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({ validateSearch: (s: Record<string, unknown>): { returnTo?: "/" | "/proof" } => ({ returnTo: safeProofReturn(s.returnTo) }), component: Login });
 
 function Login() {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
+  const returnTo = safeProofReturn(Route.useSearch().returnTo);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isPending && user) void navigate({ to: "/" });
-  }, [isPending, navigate, user]);
+    if (!isPending && user) void navigate({ to: returnTo });
+  }, [isPending, navigate, user, returnTo]);
 
   async function beginSignIn(providerId: string) {
     setError(null);
     try {
-      await signIn(providerId);
+      await signIn(providerId, { callbackURL: returnTo });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
     }
@@ -35,7 +37,7 @@ function Login() {
           <div>
             <h1 className="font-display text-xl font-medium">Sign in to Agmt</h1>
             <p className="mt-2 text-sm leading-6 text-ink-muted">
-              A verified account is required to access Matter documents.
+              A verified account is required to upload and access documents.
             </p>
           </div>
           {!authEnabled ? (

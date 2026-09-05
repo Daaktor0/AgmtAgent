@@ -1,5 +1,17 @@
 import { sha256Hex } from "../crypto.ts";
 import type { Severity } from "../types.ts";
+import type { LaunchRuleId } from "./contracts.ts";
+
+/** Explicit new Proof selection; CHECKS below remains the historical regression registry. */
+export const LAUNCH_RULE_SET_VERSION = "proof-launch-v1";
+export const LAUNCH_CHECKS: readonly Readonly<{ checkId: LaunchRuleId; version: 1 }>[] = Object.freeze([
+  { checkId: "language.typo_allowlist", version: 1 },
+  { checkId: "language.duplicate_word", version: 1 },
+  { checkId: "completion.placeholder", version: 1 },
+  { checkId: "references.missing_target", version: 1 },
+  { checkId: "references.duplicate_number", version: 1 },
+  { checkId: "definitions.duplicate", version: 1 },
+].map((spec) => Object.freeze(spec)) as { checkId: LaunchRuleId; version: 1 }[]);
 
 export type CheckSpec = {
   checkId: string;

@@ -15,7 +15,10 @@ const env = (key: string): string | undefined => {
   return value ? value : undefined;
 };
 
-const deployed = Boolean(env("VERCEL") || env("VERCEL_ENV"));
+const deployed = Boolean(
+  env("VERCEL") || env("VERCEL_ENV") || env("CF_PAGES") || env("CLOUDFLARE_ENV") ||
+    (typeof navigator === "object" && navigator !== null && navigator.userAgent === "Cloudflare-Workers"),
+);
 const applicationDatabaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
 const dedicatedAuthDatabaseUrl =
@@ -67,7 +70,7 @@ const explicitHost = hostOnly(explicitBaseURL);
 
 // Public production alias for the app. Keep this exact rather than trusting a
 // wildcard such as *.vercel.app, which would weaken sibling-app isolation.
-const AGMT_PRODUCTION_HOSTS = ["agmt-web.vercel.app"];
+const AGMT_PRODUCTION_HOSTS = ["agmt-web.vercel.app", "agmt.dexterinlab.workers.dev"];
 
 const deployedAllowedHosts = [...new Set([
   ...vercelHosts,

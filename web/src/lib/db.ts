@@ -33,7 +33,13 @@ const env = (key: string): string | undefined => {
 // back to an embedded database.
 const databaseUrl =
   env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
-const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
+function cloudflareWorkerRuntime(): boolean {
+  return typeof navigator === "object" && navigator !== null && navigator.userAgent === "Cloudflare-Workers";
+}
+
+const deployedServerless = Boolean(
+  env("VERCEL") || env("VERCEL_ENV") || env("CF_PAGES") || env("CLOUDFLARE_ENV") || cloudflareWorkerRuntime(),
+);
 
 const RLS_CONTEXT_SQL =
   "select set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true), set_config($7, $8, true)";

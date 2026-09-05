@@ -1,5 +1,7 @@
 # Agmt Proof Production Launch Blueprint
 
+> **Proof scope supersession — 5 September 2026:** `docs/AGMT_PLATFORM_PROOF_SPEC.md` (repository root) controls the temporary Proof release: Agmt platform, upload → tracked/commented DOCX, immutable two-hour content retention, verified accounts and zero LLM calls. Mandatory Matter/mandate/map steps, Review/Mail, historical vault migration, document backups and legal holds are not prerequisites for this path. Preserve unrelated security and design rules. Current tasks and evidence are in `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`. Historical requirements below remain context, not the current Proof launch checklist.
+
 - **Status:** Implementation-ready engineering plan
 - **Audit date:** 30 August 2026
 - **Audited source:** `main` at `a5718aec3facba3f4fba8f49728ff12acaff4986`

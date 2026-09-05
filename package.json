@@ -3,7 +3,9 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev",
-		"deploy": "wrangler deploy",
+		"build": "npm run build:web",
+		"build:web": "npm --prefix web ci --ignore-scripts --no-audit --no-fund && npm --prefix web run build:cloudflare",
+		"deploy": "npm run build:web && wrangler deploy --config web/.output/server/wrangler.json --keep-vars",
 		"types": "wrangler types"
 	},
 	"devDependencies": {

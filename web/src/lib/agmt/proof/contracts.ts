@@ -1,0 +1,67 @@
+import { z } from "zod";
+
+const offset = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const path = z.array(offset).min(1).max(128);
+const segment = z.strictObject({ nodePath: path, start: offset, end: offset })
+  .refine((s) => s.end > s.start, "empty_node_segment");
+export const SourceSpanSchema = z.strictObject({
+  partUri: z.string().regex(/^\/word\/[a-zA-Z0-9_-]+\.xml$/),
+  paragraphPath: path,
+  textStart: offset,
+  textEnd: offset,
+  projection: z.literal("final"),
+  nodeSegments: z.array(segment).min(1),
+}).refine((s) => s.textEnd > s.textStart && s.nodeSegments.reduce((n, x) => n + x.end - x.start, 0) === s.textEnd - s.textStart, "invalid_span_length");
+export type SourceSpan = z.infer<typeof SourceSpanSchema>;
+
+export const LaunchRuleIdSchema = z.enum([
+  "language.typo_allowlist", "language.duplicate_word", "completion.placeholder",
+  "references.missing_target", "references.duplicate_number", "definitions.duplicate",
+]);
+export type LaunchRuleId = z.infer<typeof LaunchRuleIdSchema>;
+export const ProofFindingSchema = z.strictObject({
+  id: z.string().min(1),
+  ruleId: LaunchRuleIdSchema,
+  ruleVersion: z.literal(1),
+  kind: z.enum(["correction", "comment"]),
+  category: z.enum(["language", "definitions", "references", "completion"]),
+  severity: z.enum(["attention", "suggestion"]),
+  primarySpan: SourceSpanSchema,
+  relatedSpans: z.array(SourceSpanSchema),
+  exactQuote: z.string().min(1),
+  replacement: z.string().nullable(),
+  comment: z.string().min(1),
+  scopeEvidence: z.strictObject({
+    evaluatedScopes: z.array(z.string().min(1)).min(1),
+    inventoryDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    matchCount: offset,
+  }).nullable(),
+}).refine((f) => f.exactQuote.length === f.primarySpan.textEnd - f.primarySpan.textStart, "quote_length")
+  .refine((f) => f.kind === "correction" ? f.replacement !== null && f.category === "language" : f.replacement === null, "invalid_markup_action")
+  .refine((f) => f.ruleId !== "references.missing_target" || f.scopeEvidence?.matchCount === 0, "missing_absence_evidence");
+export type ProofFinding = z.infer<typeof ProofFindingSchema>;
+
+/** Content contract only; schema validation is followed by immutable-package evidence validation. */
+export const ExportPlanSchema = z.strictObject({
+  sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  ruleSetVersion: z.literal("proof-launch-v1"),
+  exporterVersion: z.literal("proof-ooxml-v1"),
+  author: z.literal("Agmt Proof"),
+  initials: z.literal("AP"),
+  findings: z.array(ProofFindingSchema).max(500),
+  notices: z.array(z.strictObject({
+    anchorMode: z.literal("document_notice"),
+    presentationSpan: SourceSpanSchema,
+    comment: z.string().min(1),
+  })),
+});
+export type ExportPlan = z.infer<typeof ExportPlanSchema>;
+
+export const EXPORT_INVARIANTS = Object.freeze({
+  untouchedEntries: "identical_uncompressed_bytes",
+  existingRevisions: "preserve_without_accept_reject_or_nesting",
+  rejectingAgmt: "restore_source_semantics",
+  acceptingAgmt: "exact_planned_text_only",
+  sourcePackage: "immutable",
+  offsets: "half_open_utf16_no_surrogate_splits",
+} as const);

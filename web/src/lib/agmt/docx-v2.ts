@@ -11,7 +11,8 @@
  * Open XML SDK oracle.
  */
 import JSZip from "jszip";
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { mapProofSource, type ProofSource } from "./source-map.ts";
 import type { ExtractedBlock, ExtractedBookmark, ExtractedDocument, ExtractedNote, PackageRelationship, SourceCapability } from "./types.ts";
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
@@ -279,11 +280,16 @@ async function readEntryText(entry: ZipEntryReader, expectedBytes: number): Prom
   if (data.byteLength !== expectedBytes || data.byteLength > ZIP_LIMITS.MAX_ENTRY_BYTES) {
     throw parserError("package_entry_size_mismatch", "ZIP entry size differs from its central-directory declaration");
   }
+  let xml: string;
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(data);
+    xml = new TextDecoder("utf-8", { fatal: true }).decode(data);
   } catch {
     throw parserError("invalid_xml_encoding", "XML entry is not valid UTF-8");
   }
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml) || XMLValidator.validate(xml) !== true) {
+    throw parserError("invalid_xml", "Malformed XML or forbidden declaration");
+  }
+  return xml;
 }
 
 function parseObject(xml: string): Obj {
@@ -598,7 +604,7 @@ function extractNotesStory(
   return { blocks, hidden, notes, nextIndex: blockIndex };
 }
 
-export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
+export async function extractDocx(bytes: Buffer, captureProofSource?: (source: ProofSource) => void): Promise<ExtractedDocument> {
   if (bytes.byteLength > FILE_BYTE_CAP) {
     throw Object.assign(new Error("file_too_large"), { code: "file_too_large" });
   }
@@ -661,6 +667,8 @@ export async function extractDocx(bytes: Buffer): Promise<ExtractedDocument> {
 
   const documentXml = await readEntryText(documentFile, documentMetadata.uncompressedSize);
   const orderedDocument = orderedParser.parse(documentXml) as OrderedNode[];
+  // Optional memory-only source map. Existing durable ingestion never receives or persists it.
+  if (captureProofSource) captureProofSource(mapProofSource(documentXml, orderedDocument));
   const documentChildren = firstTag(orderedDocument, "w:document");
   const bodyChildren = firstTag(documentChildren, "w:body");
   if (!bodyChildren.length) {

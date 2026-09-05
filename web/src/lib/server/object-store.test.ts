@@ -5,6 +5,7 @@ import { sha256Hex } from "../agmt/crypto.ts";
 import {
   MemoryObjectStore,
   ObjectStoreError,
+  R2ObjectStore,
   S3ObjectStore,
   storageKeyFor,
   type S3ObjectClient,
@@ -170,4 +171,36 @@ test("S3 adapter checks immutable keys and validates downloaded bytes", async ()
     }),
     (error) => error instanceof ObjectStoreError && error.code === "object_integrity_mismatch",
   );
+});
+
+test("R2 adapter stores and verifies immutable object bytes", async () => {
+  const objects = new Map<string, { body: Buffer; metadata: Record<string, string> }>();
+  const bucket = {
+    async head(key: string) {
+      const value = objects.get(key);
+      return value ? { customMetadata: value.metadata } : null;
+    },
+    async get(key: string) {
+      const value = objects.get(key);
+      return value ? { async arrayBuffer() { return value.body.buffer.slice(value.body.byteOffset, value.body.byteOffset + value.body.byteLength); } } : null;
+    },
+    async put(key: string, body: Uint8Array, options?: { customMetadata?: Record<string, string> }) {
+      objects.set(key, { body: Buffer.from(body), metadata: { ...(options?.customMetadata ?? {}) } });
+    },
+    async delete(key: string) { objects.delete(key); },
+  };
+  const env = globalThis as typeof globalThis & { __env__?: unknown };
+  const previous = env.__env__;
+  env.__env__ = { AGMT_OBJECTS: bucket };
+  try {
+    const store = new R2ObjectStore();
+    const input = request();
+    const receipt = await store.put(input);
+    assert.equal(receipt.provider, "r2");
+    assert.deepEqual(await store.get({ tenantId, objectKey, expectedSha256: input.sha256, expectedByteSize: input.byteSize }), input.bytes);
+    await store.delete({ tenantId, objectKey });
+    assert.equal(await store.get({ tenantId, objectKey, expectedSha256: input.sha256, expectedByteSize: input.byteSize }), null);
+  } finally {
+    env.__env__ = previous;
+  }
 });

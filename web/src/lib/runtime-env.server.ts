@@ -21,6 +21,11 @@ function cloudflareEnvironment(): RuntimeEnvironment | undefined {
     : undefined;
 }
 
+/** Resolve a Cloudflare binding only after a request has entered the Worker. */
+export function runtimeBinding<T = unknown>(key: string): T | undefined {
+  return cloudflareEnvironment()?.[key] as T | undefined;
+}
+
 export function serverEnv(key: string): string | undefined {
   const processValue =
     typeof process !== "undefined" ? process.env[key]?.trim() : undefined;

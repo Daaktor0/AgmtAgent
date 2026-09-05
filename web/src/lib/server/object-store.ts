@@ -1,7 +1,7 @@
 import { sha256Hex } from "../agmt/crypto.ts";
-import { serverEnv } from "../runtime-env.server.ts";
+import { runtimeBinding, serverEnv } from "../runtime-env.server.ts";
 
-export type ObjectStoreProvider = "memory" | "s3";
+export type ObjectStoreProvider = "memory" | "s3" | "r2";
 
 export type ObjectStorePutInput = {
   tenantId: string;
@@ -290,6 +290,97 @@ export class S3ObjectStore implements ObjectStore {
   }
 }
 
+type R2ObjectLike = {
+  arrayBuffer(): Promise<ArrayBuffer>;
+  size?: number;
+  customMetadata?: Readonly<Record<string, string>>;
+};
+
+type R2BucketLike = {
+  head(key: string): Promise<R2ObjectLike | null>;
+  get(key: string): Promise<R2ObjectLike | null>;
+  put(key: string, value: Uint8Array, options?: {
+    httpMetadata?: { contentType?: string | null };
+    customMetadata?: Readonly<Record<string, string>>;
+  }): Promise<unknown>;
+  delete(key: string): Promise<void>;
+};
+
+/** Cloudflare R2 adapter. The bucket binding is resolved per request/method. */
+export class R2ObjectStore implements ObjectStore {
+  readonly provider = "r2" as const;
+  private readonly deletedKeys = new Set<string>();
+
+  private bucket(): R2BucketLike {
+    const bucket = runtimeBinding<R2BucketLike>("AGMT_OBJECTS");
+    if (!bucket || typeof bucket.put !== "function") {
+      throw new ObjectStoreError(
+        "object_store_unconfigured",
+        "AGMT_OBJECTS R2 binding is not configured",
+      );
+    }
+    return bucket;
+  }
+
+  private async head(storageKey: string): Promise<S3ObjectHead | null> {
+    const object = await this.bucket().head(storageKey);
+    if (!object) return null;
+    const metadata = object.customMetadata ?? {};
+    const sha256 = metadata.agmt_sha256;
+    const byteSize = Number(metadata.agmt_byte_size ?? "");
+    if (!sha256 || !/^[0-9a-f]{64}$/i.test(sha256) || !Number.isSafeInteger(byteSize)) {
+      throw new ObjectStoreError(
+        "object_metadata_invalid",
+        "R2 object metadata does not contain a valid Agmt integrity manifest",
+      );
+    }
+    return { sha256: sha256.toLowerCase(), byteSize };
+  }
+
+  async put(input: ObjectStorePutInput): Promise<ObjectStoreReceipt> {
+    const normalized = normalizedPut(input);
+    const storageKey = storageKeyFor(normalized.tenantId, normalized.objectKey);
+    if (this.deletedKeys.has(storageKey)) {
+      throw new ObjectStoreError("object_key_reused", "deleted object keys cannot be reused");
+    }
+    const existing = await this.head(storageKey);
+    if (existing) {
+      if (existing.sha256 !== normalized.sha256 || existing.byteSize !== normalized.byteSize) {
+        throw new ObjectStoreError("object_key_reused", "immutable object key already has different bytes");
+      }
+      return { provider: this.provider, storageKey, sha256: existing.sha256, byteSize: existing.byteSize };
+    }
+    await this.bucket().put(storageKey, normalized.bytes, {
+      httpMetadata: { contentType: normalized.contentType },
+      customMetadata: {
+        ...(normalized.metadata ?? {}),
+        agmt_sha256: normalized.sha256,
+        agmt_byte_size: String(normalized.byteSize),
+      },
+    });
+    return { provider: this.provider, storageKey, sha256: normalized.sha256, byteSize: normalized.byteSize };
+  }
+
+  async get(input: ObjectStoreGetInput): Promise<Buffer | null> {
+    const normalized = normalizedGet(input);
+    const object = await this.bucket().get(storageKeyFor(normalized.tenantId, normalized.objectKey));
+    if (!object) return null;
+    return verifyDownloadedBytes(
+      new Uint8Array(await object.arrayBuffer()),
+      normalized.expectedSha256,
+      normalized.expectedByteSize,
+    );
+  }
+
+  async delete(input: ObjectStoreDeleteInput): Promise<void> {
+    const tenantId = validateTenantId(input.tenantId);
+    const objectKey = validateObjectKey(input.objectKey);
+    const storageKey = storageKeyFor(tenantId, objectKey);
+    await this.bucket().delete(storageKey);
+    this.deletedKeys.add(storageKey);
+  }
+}
+
 const globalRef = globalThis as typeof globalThis & {
   __agmtObjectStore__?: ObjectStore;
 };
@@ -305,7 +396,7 @@ function deployedRuntime(): boolean {
 
 /**
  * The memory provider is deliberately local-only. A deployed runtime must
- * have an explicitly wired S3 adapter; it must never silently place document
+ * have an explicitly wired R2 adapter; it must never silently place document
  * bytes in PostgreSQL or process-local memory.
  */
 export function getObjectStore(): ObjectStore {
@@ -315,11 +406,15 @@ export function getObjectStore(): ObjectStore {
     globalRef.__agmtObjectStore__ = new MemoryObjectStore();
     return globalRef.__agmtObjectStore__;
   }
+  if (configured === "r2" || deployedRuntime()) {
+    globalRef.__agmtObjectStore__ = new R2ObjectStore();
+    return globalRef.__agmtObjectStore__;
+  }
   throw new ObjectStoreError(
     "object_store_unconfigured",
     configured === "s3"
       ? "S3 object-store adapter is not wired in this runtime"
-      : "Set AGMT_OBJECT_STORE=memory for local synthetic data or wire the S3 object-store adapter before deploying",
+      : "Set AGMT_OBJECT_STORE=memory for local synthetic data or configure the AGMT_OBJECTS R2 binding before deploying",
   );
 }
 

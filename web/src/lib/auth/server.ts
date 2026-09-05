@@ -34,7 +34,8 @@ function deployed(): boolean {
 export function isAuthConfigured(): boolean {
   return (
     serverEnv("VITE_AUTH_ENABLED") !== "false" &&
-    Boolean(serverEnv("GROK_AUTH_CLIENT_ID") && serverEnv("GROK_AUTH_CLIENT_SECRET"))
+    (emailAndPasswordEnabled ||
+      Boolean(serverEnv("GROK_AUTH_CLIENT_ID") && serverEnv("GROK_AUTH_CLIENT_SECRET")))
   );
 }
 
@@ -171,7 +172,15 @@ function createAuth() {
       },
     },
     session: { cookieCache: { enabled: true, maxAge: 300 } },
-    ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
+    ...(emailAndPasswordEnabled
+      ? {
+          emailAndPassword: {
+            enabled: true,
+            requireEmailVerification: false,
+            minPasswordLength: 12,
+          },
+        }
+      : {}),
     advanced: {
       useSecureCookies: false,
       defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },

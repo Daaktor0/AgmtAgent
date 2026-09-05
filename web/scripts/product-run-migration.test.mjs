@@ -27,7 +27,7 @@ test("T06 constraints and RLS reject forged deadlines and cross-tenant writes", 
   const pg = new PGlite();
   await pg.exec("create table _migrations (name text primary key, checksum text, applied_at timestamptz default now())");
   const paths = (await readdir(new URL("../migrations/", import.meta.url), { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql") && entry.name !== "0006_product_runs.sql")
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql") && !["0006_product_runs.sql", "0007_r2_object_provider.sql", "0008_proof_purge_function.sql"].includes(entry.name))
     .map((entry) => entry.name).sort();
   for (const name of paths) await pg.exec(await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
   await pg.exec(migration);

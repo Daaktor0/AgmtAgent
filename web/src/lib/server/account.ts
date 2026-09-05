@@ -32,6 +32,7 @@ export type EnsureAccountOptions = {
  */
 async function identityFor(userId: string): Promise<{
   email: string | null;
+  emailVerified: boolean;
   displayName: string | null;
 }> {
   try {
@@ -39,9 +40,9 @@ async function identityFor(userId: string): Promise<{
     const user = await ctx.internalAdapter.findUserById(userId);
     const email = user?.email?.trim().toLowerCase() || null;
     const displayName = user?.name?.trim() || email;
-    return { email, displayName };
+    return { email, emailVerified: user?.emailVerified === true, displayName };
   } catch {
-    return { email: null, displayName: null };
+    return { email: null, emailVerified: false, displayName: null };
   }
 }
 
@@ -83,8 +84,7 @@ export async function ensureAccount(
   options: EnsureAccountOptions = {},
 ): Promise<Account> {
   const sql = await getSql();
-  const { email, displayName } = await identityFor(userId);
-  const verified = Boolean(email);
+  const { email, emailVerified, displayName } = await identityFor(userId);
   const existing = await sql<Account>`
     select user_id as "userId", email_normalised as "emailNormalised",
            email_verified_at as "emailVerifiedAt", display_name as "displayName", status
@@ -92,7 +92,7 @@ export async function ensureAccount(
   `;
   if (existing[0]) {
     let account = existing[0];
-    if (verified && email && (!account.emailVerifiedAt || !account.emailNormalised)) {
+    if (emailVerified && email && (!account.emailVerifiedAt || !account.emailNormalised)) {
       const at = account.emailVerifiedAt ?? nowIso();
       const name = account.displayName ?? displayName ?? email;
       await sql`
@@ -111,7 +111,7 @@ export async function ensureAccount(
   }
 
   const createdAt = nowIso();
-  const emailVerifiedAt = verified ? nowIso() : null;
+  const emailVerifiedAt = emailVerified ? nowIso() : null;
   await sql`
     insert into user_account (user_id, email_normalised, email_verified_at, display_name, status, created_at)
     values (${userId}, ${email}, ${emailVerifiedAt}, ${displayName ?? email}, 'active', ${createdAt})

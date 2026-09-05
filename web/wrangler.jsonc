@@ -8,6 +8,15 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "r2_buckets": [
+    {
+      "binding": "AGMT_OBJECTS",
+      "bucket_name": "agmt-proof-objects"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "hyperdrive": [
     {
       "binding": "AGMT_APP_DB",

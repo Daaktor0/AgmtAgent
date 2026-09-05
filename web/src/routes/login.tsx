@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { authEnabled, GROK_PROVIDERS, signIn } from "@/lib/auth/client";
+import { authClient, authEnabled, GROK_PROVIDERS, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { safeProofReturn } from "@/lib/products/registry";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,11 @@ function Login() {
   const navigate = useNavigate();
   const returnTo = safeProofReturn(Route.useSearch().returnTo);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!isPending && user) void navigate({ to: returnTo });
@@ -23,6 +28,23 @@ function Login() {
       await signIn(providerId, { callbackURL: returnTo });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
+    }
+  }
+
+  async function submitEmail(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const result = creating
+        ? await authClient.signUp.email({ email, password, name: name || email })
+        : await authClient.signIn.email({ email, password, callbackURL: returnTo });
+      if (result.error) throw new Error(result.error.message ?? "Authentication failed.");
+      if (creating && typeof window !== "undefined") window.location.href = returnTo;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -45,14 +67,20 @@ function Login() {
               Authentication is unavailable in this environment.
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-5">
+              <form className="space-y-3" onSubmit={(event) => void submitEmail(event)}>
+                {creating ? <input aria-label="Name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" className="w-full rounded-md border border-line px-3 py-2 text-sm" /> : null}
+                <input aria-label="Email" required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" className="w-full rounded-md border border-line px-3 py-2 text-sm" />
+                <input aria-label="Password" required type="password" minLength={12} autoComplete={creating ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password (12+ characters)" className="w-full rounded-md border border-line px-3 py-2 text-sm" />
+                <button type="submit" disabled={busy} className="w-full rounded-md bg-ink px-4 py-2 text-sm text-paper disabled:opacity-50">
+                  {busy ? "Working…" : creating ? "Create account" : "Sign in with email"}
+                </button>
+                <button type="button" className="text-sm underline underline-offset-4" onClick={() => { setCreating((value) => !value); setError(null); }}>
+                  {creating ? "Already have an account? Sign in" : "Need an account? Create one"}
+                </button>
+              </form>
               {GROK_PROVIDERS.map((provider) => (
-                <button
-                  key={provider.providerId}
-                  type="button"
-                  className="w-full rounded-md border border-line px-4 py-2 text-sm text-ink hover:bg-paper-subtle"
-                  onClick={() => void beginSignIn(provider.providerId)}
-                >
+                <button key={provider.providerId} type="button" className="w-full rounded-md border border-line px-4 py-2 text-sm text-ink hover:bg-paper-subtle" onClick={() => void beginSignIn(provider.providerId)}>
                   Continue with {provider.label}
                 </button>
               ))}

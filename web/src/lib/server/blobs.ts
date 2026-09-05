@@ -37,7 +37,7 @@ export type BlobPublicationArtifact = {
   kind: string;
   objectKey: string;
   contentType: string;
-  storageProvider: "memory" | "s3";
+  storageProvider: "memory" | "s3" | "r2";
   storageKey: string;
   sha256: string;
   byteSize: number;

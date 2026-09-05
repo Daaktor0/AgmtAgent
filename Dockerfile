@@ -1,29 +1,34 @@
-FROM python:3.12-slim
+FROM node:22-bookworm-slim AS web-build
+
+WORKDIR /app/web
+
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+
+COPY web ./
+
+# Authentication stays enabled in every deployed build. Runtime secrets are
+# injected by the Cloudflare Worker into the container; none are baked here.
+ENV VITE_AUTH_ENABLED=true
+RUN npm run build -- --config vite.cloudflare.config.ts
+
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY agent ./agent
-COPY server ./server
-COPY addin ./addin
-COPY skill ./skill
-
-# Non-root runtime user
-RUN useradd -m -u 10001 agmt
-USER agmt
-
-ENV PYTHONUNBUFFERED=1 \
-    BIND_HOST=0.0.0.0 \
-    TLS=0 \
-    HOSTED=1 \
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
     PORT=8787
 
-ENV DATA_DIR=/data
+COPY --from=web-build /app/web/.output ./.output
+
+# Non-root runtime. The Nitro bundle is read-only and all durable application
+# state lives outside the container.
+USER node
+
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8787')+'/api/health')" || exit 1
+  CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
 
-EXPOSE 10000
+EXPOSE 8787
 
-CMD ["sh", "-c", "python -m uvicorn server.app:app --host 0.0.0.0 --port ${PORT:-8787} --log-level info"]
+CMD ["node", ".output/server/index.mjs"]

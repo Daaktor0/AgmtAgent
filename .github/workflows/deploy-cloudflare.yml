@@ -37,3 +37,23 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config web/.output/server/wrangler.json --keep-vars
+      - name: Verify production document route
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          tail_log="$(mktemp)"
+          timeout 30s npx wrangler tail agmt --format json >"$tail_log" 2>&1 &
+          tail_pid=$!
+          sleep 5
+          status="$(curl -sS --max-time 20 -o /tmp/agmt-production-response -w '%{http_code}' https://agmt.dexterinlab.workers.dev/)"
+          sleep 5
+          kill "$tail_pid" 2>/dev/null || true
+          wait "$tail_pid" 2>/dev/null || true
+          echo "Production status: $status"
+          head -c 1000 /tmp/agmt-production-response || true
+          echo
+          echo "Cloudflare tail output:"
+          tail -n 200 "$tail_log"
+          test "$status" = "200"

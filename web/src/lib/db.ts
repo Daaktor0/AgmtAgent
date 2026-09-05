@@ -64,10 +64,18 @@ async function configureTransactionContext(client: PostgresClientLike): Promise<
   await client.query(RLS_CONTEXT_SQL, values);
 }
 
-// A deployed Worker must use Postgres even before its first request populates
-// globalThis.__env__ with Hyperdrive bindings.
+// Do not inspect a Hyperdrive binding here. Cloudflare forbids reading its
+// generated connection string in global scope; the binding is available only
+// after a request enters the Worker handler. Ordinary environment variables
+// are safe to inspect at module load, and deployed Workers are forced onto
+// Postgres regardless of whether their binding has been populated yet.
+const explicitDatabaseEnvConfigured = Boolean(
+  serverEnv("DATABASE_URL") ||
+    serverEnv("POSTGRES_URL") ||
+    serverEnv("POSTGRES_PRISMA_URL"),
+);
 export const dbSource: DbSource =
-  applicationDatabaseConnectionString() || deployedServerless
+  explicitDatabaseEnvConfigured || deployedServerless
     ? "postgres"
     : "pglite";
 

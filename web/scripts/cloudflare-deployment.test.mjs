@@ -31,7 +31,7 @@ test("Cloudflare deploy builds and serves the current web app", () => {
   assert.match(webScripts["deploy:cloudflare"], /--keep-vars/);
   assert.match(workflow, /npm run build/);
   assert.match(workflow, /deploy --config web\/\.output\/server\/wrangler\.json --keep-vars/);
-  assert.match(workflow, /push:\s*\n\s*branches:\s*\n\s*- codex\/platform-proof-t00/);
+  assert.match(workflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.match(vite, /preset:\s*mode === "cloudflare" \? "cloudflare_module"/);
   assert.match(db, /cloudflareWorkerRuntime/);
   assert.match(auth, /agmt\.dexterinlab\.workers\.dev/);

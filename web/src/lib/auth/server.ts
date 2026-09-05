@@ -31,6 +31,11 @@ function deployed(): boolean {
   );
 }
 
+function runtimeEnvironmentPresent(): boolean {
+  const value = (globalThis as typeof globalThis & { __env__?: unknown }).__env__;
+  return Boolean(value && typeof value === "object");
+}
+
 export function isAuthConfigured(): boolean {
   return (
     serverEnv("VITE_AUTH_ENABLED") !== "false" &&
@@ -65,14 +70,18 @@ function createAuth() {
   const isDeployed = deployed();
   const applicationDatabaseUrl = applicationDatabaseConnectionString();
   const dedicatedAuthDatabaseUrl = authDatabaseConnectionString();
-  if (isDeployed && (!applicationDatabaseUrl || !dedicatedAuthDatabaseUrl)) {
+  // Cloudflare validates a Worker bundle in an environment where navigator
+  // identifies Workers but request bindings have not been installed yet. Use
+  // the local adapter for that validation-only bootstrap; a real request with
+  // missing bindings still fails closed below.
+  if (isDeployed && runtimeEnvironmentPresent() && (!applicationDatabaseUrl || !dedicatedAuthDatabaseUrl)) {
     throw new Error(
       "Agmt requires separate application and Better Auth Postgres connections. Configure AGMT_APP_DB and AGMT_AUTH_DB Hyperdrive bindings or their dedicated URL secrets.",
     );
   }
 
   const configuredAuthSecret = serverEnv("BETTER_AUTH_SECRET");
-  if (isDeployed && !configuredAuthSecret) {
+  if (isDeployed && runtimeEnvironmentPresent() && !configuredAuthSecret) {
     throw new Error("BETTER_AUTH_SECRET is required in deployed environments.");
   }
   const authSecret = configuredAuthSecret ?? randomBytes(32).toString("hex");
@@ -141,7 +150,7 @@ function createAuth() {
       };
   const grokClientId = serverEnv("GROK_AUTH_CLIENT_ID");
   const grokClientSecret = serverEnv("GROK_AUTH_CLIENT_SECRET");
-  const grokOAuthPlugin = isAuthConfigured()
+  const grokOAuthPlugin = grokClientId && grokClientSecret
     ? genericOAuth({
         config: GROK_PROVIDERS.map(({ providerId, idp }) => ({
           providerId,
@@ -202,8 +211,18 @@ function createAuth() {
 type AuthInstance = ReturnType<typeof createAuth>;
 
 let authInstance: AuthInstance | undefined;
+let authInstanceRuntimeKey: string | undefined;
 function getAuth(): AuthInstance {
-  authInstance ??= createAuth();
+  const runtimeKey = [
+    runtimeEnvironmentPresent() ? "runtime" : "bootstrap",
+    applicationDatabaseConnectionString() ? "app-db" : "no-app-db",
+    authDatabaseConnectionString() ? "auth-db" : "no-auth-db",
+    serverEnv("BETTER_AUTH_SECRET") ? "secret" : "no-secret",
+  ].join(":");
+  if (!authInstance || authInstanceRuntimeKey !== runtimeKey) {
+    authInstance = createAuth();
+    authInstanceRuntimeKey = runtimeKey;
+  }
   return authInstance;
 }
 

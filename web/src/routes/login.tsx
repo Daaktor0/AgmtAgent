@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { authClient, authEnabled, GROK_PROVIDERS, signIn } from "@/lib/auth/client";
+import { authClient, authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { safeProofReturn } from "@/lib/products/registry";
 import { Card } from "@/components/ui/card";
@@ -21,15 +21,6 @@ function Login() {
   useEffect(() => {
     if (!isPending && user) void navigate({ to: returnTo });
   }, [isPending, navigate, user, returnTo]);
-
-  async function beginSignIn(providerId: string) {
-    setError(null);
-    try {
-      await signIn(providerId, { callbackURL: returnTo });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed.");
-    }
-  }
 
   async function submitEmail(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,11 +70,6 @@ function Login() {
                   {creating ? "Already have an account? Sign in" : "Need an account? Create one"}
                 </button>
               </form>
-              {GROK_PROVIDERS.map((provider) => (
-                <button key={provider.providerId} type="button" className="w-full rounded-md border border-line px-4 py-2 text-sm text-ink hover:bg-paper-subtle" onClick={() => void beginSignIn(provider.providerId)}>
-                  Continue with {provider.label}
-                </button>
-              ))}
             </div>
           )}
           {error ? <p className="text-sm text-danger">{error}</p> : null}

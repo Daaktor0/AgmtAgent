@@ -7,8 +7,8 @@ import { auth, authConfigured, isAuthConfigured } from "./server";
  * Server-side session resolution (server-only).
  *
  * Agmt runs Better Auth at same-origin `/api/auth/*`. A valid Better Auth
- * session is authoritative regardless of how it was opened: Google, delivered
- * magic link, gate identity, or the temporary isolated product-testing flow.
+ * session is authoritative regardless of how it was opened: email verification,
+ * delivered magic link, gate identity, or the temporary isolated product-testing flow.
  * Never trust a client-supplied user id — only Better Auth's verified session.
  */
 
@@ -42,7 +42,7 @@ export type VerifiedUser = { id: string; email: string | null };
  *
  * Do this BEFORE considering whether an interactive provider is configured.
  * The temporary product-testing entrypoint deliberately creates a real Better
- * Auth user/session even while Google/email login is bypassed. Rejecting that
+ * Auth user/session even while email login is bypassed. Rejecting that
  * session merely because an OAuth provider is absent would collapse the test
  * workspace back onto the unsafe shared-dev-user path.
  */

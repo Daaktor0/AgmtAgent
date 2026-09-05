@@ -1,14 +1,14 @@
 /** Self-hosted Better Auth for Agmt. Server-only. */
 import { betterAuth } from "better-auth";
-import { bearer, genericOAuth } from "better-auth/plugins";
+import { bearer } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
-import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
+import { sendResendVerificationEmail } from "./resend.server";
 import {
   applicationDatabaseConnectionString,
   authDatabaseConnectionString,
@@ -39,8 +39,7 @@ function runtimeEnvironmentPresent(): boolean {
 export function isAuthConfigured(): boolean {
   return (
     serverEnv("VITE_AUTH_ENABLED") !== "false" &&
-    (emailAndPasswordEnabled ||
-      Boolean(serverEnv("GROK_AUTH_CLIENT_ID") && serverEnv("GROK_AUTH_CLIENT_SECRET")))
+    emailAndPasswordEnabled
   );
 }
 
@@ -131,11 +130,6 @@ function createAuth() {
           ...LOCAL_DEV_ORIGINS,
         ];
 
-  const grokIssuer = serverEnv("GROK_AUTH_ISSUER") ?? "https://auth.grok.me";
-  const issuerBase = grokIssuer.replace(/\/+$/, "");
-  const grokAuthorizationUrl = `${issuerBase}/api/auth/oauth2/authorize`;
-  const grokTokenUrl = `${issuerBase}/api/auth/oauth2/token`;
-  const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
   const database = dedicatedAuthDatabaseUrl
     ? new Pool({
         connectionString: dedicatedAuthDatabaseUrl,
@@ -148,48 +142,30 @@ function createAuth() {
         dialect: pgliteDialect(() => getPglite()),
         type: "postgres" as const,
       };
-  const grokClientId = serverEnv("GROK_AUTH_CLIENT_ID");
-  const grokClientSecret = serverEnv("GROK_AUTH_CLIENT_SECRET");
-  const grokOAuthPlugin = grokClientId && grokClientSecret
-    ? genericOAuth({
-        config: GROK_PROVIDERS.map(({ providerId, idp }) => ({
-          providerId,
-          clientId: grokClientId as string,
-          clientSecret: grokClientSecret as string,
-          authorizationUrl: grokAuthorizationUrl,
-          tokenUrl: grokTokenUrl,
-          userInfoUrl: grokUserInfoUrl,
-          scopes: ["openid", "profile", "email"],
-          authorizationUrlParams: { idp, prompt: "login" },
-        })),
-      })
-    : null;
-
   return betterAuth({
     baseURL,
     secret: authSecret,
     database,
     trustedOrigins,
-    account: {
-      encryptOAuthTokens: true,
-      accountLinking: {
-        enabled: true,
-        trustedProviders: [
-          ...GROK_PROVIDERS.map((provider) => provider.providerId),
-        ],
-        requireLocalEmailVerified: false,
-      },
-    },
+    account: { encryptOAuthTokens: true },
     session: { cookieCache: { enabled: true, maxAge: 300 } },
     ...(emailAndPasswordEnabled
       ? {
           emailAndPassword: {
             enabled: true,
-            requireEmailVerification: false,
+            requireEmailVerification: true,
             minPasswordLength: 12,
+            autoSignIn: false,
           },
         }
       : {}),
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      expiresIn: 3600,
+      sendVerificationEmail: async ({ user, url }) =>
+        sendResendVerificationEmail({ user, url }),
+    },
     advanced: {
       useSecureCookies: false,
       defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
@@ -201,7 +177,6 @@ function createAuth() {
       },
     },
     plugins: [
-      ...(grokOAuthPlugin ? [grokOAuthPlugin] : []),
       bearer(),
       tanstackStartCookies(),
     ],
@@ -240,5 +215,3 @@ export const auth = new Proxy({} as AuthInstance, {
 export function readSessionToken(): string | null {
   return getCookie(SESSION_TOKEN_COOKIE) ?? null;
 }
-
-export { GROK_PROVIDERS } from "./providers";

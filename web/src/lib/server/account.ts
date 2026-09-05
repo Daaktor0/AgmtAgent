@@ -26,9 +26,8 @@ export type EnsureAccountOptions = {
  * token, so cookies on this request are often empty — never look the email
  * up from getSessionUser() without that bearer.
  *
- * Any Better Auth email is treated as verified for Agmt: Google is a broker
- * identity, and the product-layer magic link marks emailVerified before
- * ensureAccount runs.
+ * Only Better Auth's verified-email flag can cross the Agmt document-access
+ * boundary. A password account is not trusted until its Resend link is used.
  */
 async function identityFor(userId: string): Promise<{
   email: string | null;

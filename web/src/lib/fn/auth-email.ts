@@ -96,7 +96,7 @@ async function sendVerificationEmail(to: string, token: string): Promise<void> {
   const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
     throw Object.assign(
-      new Error("Email sign-in is not configured yet. Continue with Google for now."),
+      new Error("Email sign-in is not configured yet."),
       { code: "email_provider_not_configured" },
     );
   }
@@ -123,7 +123,7 @@ async function sendVerificationEmail(to: string, token: string): Promise<void> {
     const detail = (await response.text()).slice(0, 500);
     console.error(`[auth.email] provider rejected request status=${response.status} detail=${detail}`);
     throw Object.assign(
-      new Error("We could not send the sign-in email. Try again or continue with Google."),
+      new Error("We could not send the sign-in email. Try again."),
       { code: "email_delivery_failed" },
     );
   }

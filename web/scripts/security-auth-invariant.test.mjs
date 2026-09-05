@@ -14,6 +14,10 @@ const loginSource = await readFile(
   new URL("../src/routes/login.tsx", import.meta.url),
   "utf8",
 );
+const resendSource = await readFile(
+  new URL("../src/lib/auth/resend.server.ts", import.meta.url),
+  "utf8",
+);
 
 const agmtSource = await readFile(
   new URL("../src/lib/fn/agmt.ts", import.meta.url),
@@ -31,7 +35,11 @@ test("production auth has no anonymous test-session path", () => {
 
 test("deployed auth does not derive or bake credentials", () => {
   assert.match(authSource, /BETTER_AUTH_SECRET/);
-  assert.match(authSource, /GROK_AUTH_CLIENT_SECRET/);
+  assert.match(authSource, /sendVerificationEmail/);
+  assert.match(resendSource, /RESEND_API_KEY/);
+  assert.match(resendSource, /api\.resend\.com\/emails/);
+  assert.doesNotMatch(authSource, /genericOAuth|GROK_AUTH|GROK_PROVIDERS/);
+  assert.doesNotMatch(loginSource, /Google|Continue with|oauth2/i);
   assert.doesNotMatch(authSource, /previewSecret|derived.*secret|test-access/i);
 });
 

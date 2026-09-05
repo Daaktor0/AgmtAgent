@@ -39,11 +39,11 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npm run typecheck
       - name: Build Cloudflare container web runtime
         run: npm run build -- --config vite.cloudflare.config.ts
         env:
           VITE_AUTH_ENABLED: "true"
+      - run: npm run typecheck
 
   deploy:
     if: github.event_name != 'pull_request'

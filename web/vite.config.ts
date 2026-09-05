@@ -51,6 +51,26 @@ function pgliteBootstrapPlugin(): Plugin {
   };
 }
 
+// Keep the legacy preview path explicit while OAuth is disabled. This avoids
+// falling through to the SPA for old bookmarks without exposing a provider.
+function disabledAuthPopupPlugin(): Plugin {
+  return {
+    name: "app-builder:disabled-auth-popup",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? "").split("?", 1)[0] !== "/auth/popup") {
+          next();
+          return;
+        }
+        res.statusCode = 410;
+        res.setHeader("content-type", "text/plain; charset=utf-8");
+        res.end("OAuth sign-in is disabled; use email and password.");
+      });
+    },
+  };
+}
+
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
@@ -68,6 +88,7 @@ export default defineConfig(({ command, isPreview, mode }) => ({
   resolve: { tsconfigPaths: true },
   plugins: [
     pgliteBootstrapPlugin(),
+    disabledAuthPopupPlugin(),
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
     appEnvPlugin(),
     // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
@@ -78,6 +99,7 @@ export default defineConfig(({ command, isPreview, mode }) => ({
       ? [
           nitro({
             preset: mode === "cloudflare" ? "cloudflare_module" : "vercel",
+            rollupConfig: { output: { inlineDynamicImports: true } },
             // Auto-registers server/middleware/* (the PWA install page +
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.

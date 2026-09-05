@@ -71,3 +71,13 @@ jobs:
           echo "Cloudflare tail output:"
           tail -n 200 "$tail_log"
           test "$status" = "200"
+
+          login_status="$(curl -sS --max-time 20 -o /tmp/agmt-login-response -w '%{http_code}' https://agmt.dexterinlab.workers.dev/login)"
+          session_status="$(curl -sS --max-time 20 -o /tmp/agmt-session-response -w '%{http_code}' https://agmt.dexterinlab.workers.dev/api/auth/get-session)"
+          upload_status="$(curl -sS --max-time 20 -X POST -H 'content-type: application/vnd.openxmlformats-officedocument.wordprocessingml.document' --data-binary @/dev/null -o /tmp/agmt-upload-response -w '%{http_code}' https://agmt.dexterinlab.workers.dev/api/proof/upload)"
+          echo "Login status: $login_status"
+          echo "Session status: $session_status"
+          echo "Anonymous upload status: $upload_status"
+          test "$login_status" = "200"
+          test "$session_status" = "200"
+          test "$upload_status" = "401"

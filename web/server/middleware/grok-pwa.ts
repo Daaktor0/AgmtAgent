@@ -70,6 +70,13 @@ export default async function grokPwaMiddleware(
   const path = event.url.pathname;
   const urlWithQuery = path + event.url.search;
 
+  // The former Cloudflare deployment exposed the legacy Office task pane at
+  // this path. Keep old bookmarks useful after the platform cutover, but do
+  // not serve the legacy pane from the current web Worker.
+  if (path === "/taskpane.html") {
+    return Response.redirect(new URL("/", event.url), 302);
+  }
+
   if (path === "/__grok/manifest.webmanifest" || path === "/__grok/manifest.json") {
     return new Response(renderWebManifest(requestHost(event)), {
       headers: {

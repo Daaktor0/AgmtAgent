@@ -12,16 +12,12 @@ import {
   type CallToolResult,
   type ToolArgs,
 } from "./types.ts";
+import { serverEnv } from "../runtime-env.server.ts";
 
 assertAppDataServerOnly("app-data/client.server");
 
 export const CONNECTORS_HOST_STAGING = "connectors.app-builder-testing.com";
 export const CONNECTORS_HOST_PROD = "connectors.grok.me";
-
-function env(key: string): string | undefined {
-  const v = process.env[key]?.trim();
-  return v || undefined;
-}
 
 function isLoopbackHost(host: string): boolean {
   return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
@@ -34,7 +30,7 @@ type InboundContext = {
 };
 
 function connectorsBaseFor(publicHost: string | null): string | null {
-  const explicit = env("GROK_CONNECTORS_URL");
+  const explicit = serverEnv("GROK_CONNECTORS_URL");
   if (explicit) return explicit.replace(/\/+$/, "");
 
   const host = publicHost?.toLowerCase();
@@ -66,9 +62,9 @@ function inboundContext(): InboundContext {
     (xf || req?.headers.get("host") || "").split(":")[0]?.trim() || null;
   const headerToken = req?.headers.get(CONNECTOR_TOKEN_HEADER)?.trim() || null;
   const envToken =
-    process.env.NODE_ENV === "production"
+    serverEnv("NODE_ENV") === "production"
       ? null
-      : (env("GROK_CONNECTOR_ACCESS_TOKEN") ?? null);
+      : (serverEnv("GROK_CONNECTOR_ACCESS_TOKEN") ?? null);
   return {
     token: headerToken ?? envToken,
     publicHost,

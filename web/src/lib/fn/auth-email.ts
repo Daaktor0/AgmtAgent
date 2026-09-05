@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { getSql } from "@/lib/db";
 import { withDatabaseContext } from "@/lib/db-context.server";
 import { withAuthenticatedDatabaseContext } from "@/lib/auth/runtime-context.server";
+import { serverEnv } from "@/lib/runtime-env.server";
 import { writeAudit } from "@/lib/server/audit";
 import { hashToken } from "@/lib/agmt/crypto";
 import { newId, nowIso } from "@/lib/agmt/ids";
@@ -24,16 +25,12 @@ function authOperationContext(operation: "auth_magic_link_request" | "auth_magic
   };
 }
 
-const env = (key: string): string | undefined => {
-  const value = process.env[key]?.trim();
-  return value ? value : undefined;
-};
-
 function publicOrigin(): string {
-  const configured = env("AGMT_PUBLIC_URL") ?? env("BETTER_AUTH_URL");
+  const configured = serverEnv("AGMT_PUBLIC_URL") ?? serverEnv("BETTER_AUTH_URL");
   if (configured) return configured.replace(/\/+$/, "");
 
-  const vercelHost = env("VERCEL_PROJECT_PRODUCTION_URL") ?? env("VERCEL_URL");
+  const vercelHost =
+    serverEnv("VERCEL_PROJECT_PRODUCTION_URL") ?? serverEnv("VERCEL_URL");
   if (vercelHost) {
     return /^https?:\/\//i.test(vercelHost)
       ? vercelHost.replace(/\/+$/, "")
@@ -57,7 +54,7 @@ function escapeHtml(value: string): string {
 
 function verificationEmail(url: string): { html: string; text: string } {
   const safeUrl = escapeHtml(url);
-  const support = env("AUTH_SUPPORT_EMAIL");
+  const support = serverEnv("AUTH_SUPPORT_EMAIL");
   const supportHtml = support
     ? `<p style="margin:24px 0 0;color:#6f6763;font-size:13px;line-height:1.6">Need help? Reply to this email or contact ${escapeHtml(support)}.</p>`
     : "";
@@ -96,7 +93,7 @@ function verificationEmail(url: string): { html: string; text: string } {
 }
 
 async function sendVerificationEmail(to: string, token: string): Promise<void> {
-  const apiKey = env("RESEND_API_KEY");
+  const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
     throw Object.assign(
       new Error("Email sign-in is not configured yet. Continue with Google for now."),
@@ -104,7 +101,7 @@ async function sendVerificationEmail(to: string, token: string): Promise<void> {
     );
   }
 
-  const from = env("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
+  const from = serverEnv("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
   const verifyUrl = `${publicOrigin()}/verify?token=${encodeURIComponent(token)}`;
   const email = verificationEmail(verifyUrl);
   const response = await fetch("https://api.resend.com/emails", {

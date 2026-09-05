@@ -1,4 +1,5 @@
 import { sha256Hex } from "../agmt/crypto.ts";
+import { serverEnv } from "../runtime-env.server.ts";
 
 export type ObjectStoreProvider = "memory" | "s3";
 
@@ -293,13 +294,13 @@ const globalRef = globalThis as typeof globalThis & {
   __agmtObjectStore__?: ObjectStore;
 };
 
-function env(key: string): string | undefined {
-  const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
-  return value || undefined;
-}
-
 function deployedRuntime(): boolean {
-  return Boolean(env("VERCEL") || env("VERCEL_ENV") || env("CF_PAGES") || env("CLOUDFLARE_ENV"));
+  return Boolean(
+    serverEnv("VERCEL") ||
+      serverEnv("VERCEL_ENV") ||
+      serverEnv("CF_PAGES") ||
+      serverEnv("CLOUDFLARE_ENV"),
+  );
 }
 
 /**
@@ -309,7 +310,7 @@ function deployedRuntime(): boolean {
  */
 export function getObjectStore(): ObjectStore {
   if (globalRef.__agmtObjectStore__) return globalRef.__agmtObjectStore__;
-  const configured = env("AGMT_OBJECT_STORE")?.toLowerCase();
+  const configured = serverEnv("AGMT_OBJECT_STORE")?.toLowerCase();
   if (!deployedRuntime() && (!configured || configured === "memory")) {
     globalRef.__agmtObjectStore__ = new MemoryObjectStore();
     return globalRef.__agmtObjectStore__;

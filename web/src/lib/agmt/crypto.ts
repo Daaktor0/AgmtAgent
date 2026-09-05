@@ -12,23 +12,29 @@
  * final production secrets are configured. Remove this fallback with test mode.
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import {
+  applicationDatabaseConnectionString,
+  serverEnv,
+} from "../runtime-env.server.ts";
 
 const LOCAL_WRAP_LABEL = "agmt-wrap-v1-preview-not-for-production";
 const WRAP_DOMAIN = "agmt-envelope-wrap-v2\0";
 const TEST_WRAP_DOMAIN = "agmt-isolated-test-envelope-v1\0";
 
 function env(key: string): string | undefined {
-  const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
-  return value ? value : undefined;
+  return serverEnv(key);
 }
 
 function isDeployed(): boolean {
-  return Boolean(env("VERCEL") || env("VERCEL_ENV"));
+  return Boolean(
+    env("VERCEL") || env("VERCEL_ENV") || env("CF_PAGES") || env("CLOUDFLARE_ENV") ||
+      (typeof navigator === "object" && navigator !== null && navigator.userAgent === "Cloudflare-Workers"),
+  );
 }
 
 function temporaryTestSecret(): string | undefined {
   if (!isDeployed() || env("VITE_AUTH_ENABLED") !== "false") return undefined;
-  const databaseUrl = env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
+  const databaseUrl = applicationDatabaseConnectionString();
   if (!databaseUrl) return undefined;
   return createHash("sha256").update(TEST_WRAP_DOMAIN).update(databaseUrl).digest("hex");
 }

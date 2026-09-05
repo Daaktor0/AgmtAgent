@@ -11,7 +11,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="flex min-w-0 items-center gap-8 lg:gap-12">
             <Link
               to="/"
-              aria-label="Agmt — Matters"
+              aria-label="Agmt — agreement utilities"
               className="group inline-flex shrink-0 items-start gap-1.5 no-underline"
             >
               <span className="font-display text-[28px] font-semibold leading-none tracking-[-0.045em] text-paper">
@@ -22,12 +22,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
             <nav className="hidden items-center gap-1 sm:flex" aria-label="Workspace">
               <Link
-                to="/"
+                to="/matters"
                 className="border-b-2 border-oxblood px-3 py-[22px] text-[13px] font-medium text-paper no-underline"
               >
                 Matters
               </Link>
-              <span className="px-3 py-[22px] text-[13px] text-white/55">Proof</span>
+              <Link to="/proof" className="px-3 py-[22px] text-[13px] text-paper">Proof</Link>
               <span className="inline-flex items-center gap-2 px-3 py-[22px] text-[13px] text-white/45">
                 Review
                 <span className="border border-white/15 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-white/45">
@@ -43,7 +43,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             ) : user ? (
               <div className="hidden items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-white/50 sm:flex">
                 <span className="size-1.5 bg-white/35" aria-hidden="true" />
-                Private test workspace
+                Account
               </div>
             ) : null}
           </div>

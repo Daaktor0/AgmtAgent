@@ -18,22 +18,25 @@ import {
   currentDatabaseContext,
   databaseContextSettings,
 } from "./db-context.server.ts";
+import {
+  applicationDatabaseConnectionString,
+  serverEnv,
+} from "./runtime-env.server.ts";
 
 export type { Sql, TransactionIsolation, TransactionOptions } from "./db-transaction.ts";
 
 export type DbSource = "postgres" | "pglite";
 
-const env = (key: string): string | undefined => {
-  const value = typeof process !== "undefined" ? process.env[key]?.trim() : undefined;
-  return value ? value : undefined;
-};
-
 // Prefer the canonical name, but also accept the names commonly injected by
 // managed Postgres integrations on Vercel. Production must never silently fall
 // back to an embedded database.
-const databaseUrl =
-  env("DATABASE_URL") ?? env("POSTGRES_URL") ?? env("POSTGRES_PRISMA_URL");
-const deployedServerless = Boolean(env("VERCEL") || env("VERCEL_ENV"));
+function cloudflareWorkerRuntime(): boolean {
+  return typeof navigator === "object" && navigator !== null && navigator.userAgent === "Cloudflare-Workers";
+}
+
+const deployedServerless = Boolean(
+  serverEnv("VERCEL") || serverEnv("VERCEL_ENV") || serverEnv("CF_PAGES") || serverEnv("CLOUDFLARE_ENV") || cloudflareWorkerRuntime(),
+);
 
 const RLS_CONTEXT_SQL =
   "select set_config($1, $2, true), set_config($3, $4, true), set_config($5, $6, true), set_config($7, $8, true)";
@@ -45,7 +48,7 @@ const DATABASE_RUNTIME_ROLES = {
 } as const;
 
 function databaseRuntimeRole(): keyof typeof DATABASE_RUNTIME_ROLES {
-  const value = env("AGMT_DB_ROLE");
+  const value = serverEnv("AGMT_DB_ROLE");
   if (!value || !(value in DATABASE_RUNTIME_ROLES)) {
     throw new Error(
       "AGMT_DB_ROLE must be agmt_app, agmt_worker, or agmt_support when persistent Postgres is configured.",
@@ -61,7 +64,12 @@ async function configureTransactionContext(client: PostgresClientLike): Promise<
   await client.query(RLS_CONTEXT_SQL, values);
 }
 
-export const dbSource: DbSource = databaseUrl ? "postgres" : "pglite";
+// A deployed Worker must use Postgres even before its first request populates
+// globalThis.__env__ with Hyperdrive bindings.
+export const dbSource: DbSource =
+  applicationDatabaseConnectionString() || deployedServerless
+    ? "postgres"
+    : "pglite";
 
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
@@ -76,12 +84,17 @@ const identity = (value: string) => value;
 
 function persistentDatabaseRequired(): never {
   throw new Error(
-    "Agmt requires a persistent managed Postgres connection in deployed environments. Set DATABASE_URL (or POSTGRES_URL) before deploying.",
+    "Agmt requires a persistent managed Postgres connection in deployed environments. Configure AGMT_APP_DB Hyperdrive or DATABASE_URL before deploying.",
   );
 }
 
 function createManagedPostgresSql(): Promise<Sql> {
-  if (!databaseUrl) return Promise.reject(new Error("DATABASE_URL is not configured"));
+  const databaseUrl = applicationDatabaseConnectionString();
+  if (!databaseUrl) {
+    return Promise.reject(
+      new Error("AGMT_APP_DB Hyperdrive or DATABASE_URL is not configured"),
+    );
+  }
   const role = databaseRuntimeRole();
   globalRef.__pgSqlPromise__ ??= (async () => {
     const { Pool, types } = await import("pg");
@@ -247,7 +260,9 @@ async function createSql(): Promise<Sql> {
       "@/lib/db is server-only — call getSql() from a server function or route loader.",
     );
   }
-  if (deployedServerless && !databaseUrl) persistentDatabaseRequired();
+  if (deployedServerless && !applicationDatabaseConnectionString()) {
+    persistentDatabaseRequired();
+  }
   return dbSource === "postgres" ? createManagedPostgresSql() : createPgliteSql();
 }
 
@@ -279,9 +294,9 @@ export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite
 }
 
 export function ensureDbReady(): Promise<void> {
-  if (deployedServerless && !databaseUrl) {
+  if (deployedServerless && !applicationDatabaseConnectionString()) {
     return Promise.reject(
-      new Error("Persistent Postgres is required on Vercel; embedded PGLite is disabled."),
+      new Error("Persistent Postgres is required in deployed environments; embedded PGLite is disabled."),
     );
   }
   if (dbSource !== "pglite") return Promise.resolve();

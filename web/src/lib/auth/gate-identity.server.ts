@@ -4,6 +4,7 @@ import {
   type JWK,
   type JWTVerifyGetKey,
 } from "jose";
+import { serverEnv } from "../runtime-env.server.ts";
 
 export const GATE_IDENTITY_HEADER = "x-grok-identity";
 export const GATE_JWKS_PATH = "/__gate/identity-key";
@@ -21,13 +22,11 @@ export type GateJwks = { keys: JWK[] };
 
 export type JwksFetch = (url: string) => Promise<GateJwks | null>;
 
-function env(key: string): string | undefined {
-  const v = process.env[key]?.trim();
-  return v || undefined;
-}
-
 export function gateIdentityEnabled(): boolean {
-  return env("VITE_AUTH_ENABLED") !== "false" && Boolean(env("GROK_PROJECT_ID"));
+  return (
+    serverEnv("VITE_AUTH_ENABLED") !== "false" &&
+    Boolean(serverEnv("GROK_PROJECT_ID"))
+  );
 }
 
 async function defaultJwksFetch(url: string): Promise<GateJwks | null> {
@@ -118,7 +117,7 @@ export async function verifyGateIdentityToken(
 type GateEndpoints = { issuer: string; jwksUrl: string };
 
 export function resolveGateEndpoints(headers: Headers): GateEndpoints | null {
-  const explicit = env("GROK_GATE_ORIGIN");
+  const explicit = serverEnv("GROK_GATE_ORIGIN");
   if (explicit) {
     const origin = explicit.replace(/\/+$/, "");
     return { issuer: origin, jwksUrl: `${origin}${GATE_JWKS_PATH}` };
@@ -166,7 +165,7 @@ export async function gateIdentityFromHeaders(
   if (!gateIdentityEnabled()) return null;
   const token = headers.get(GATE_IDENTITY_HEADER)?.trim();
   if (!token) return null;
-  const projectId = env("GROK_PROJECT_ID");
+  const projectId = serverEnv("GROK_PROJECT_ID");
   if (!projectId) return null;
   const endpoints = resolveGateEndpoints(headers);
   if (!endpoints) return null;

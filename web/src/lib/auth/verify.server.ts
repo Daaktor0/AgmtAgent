@@ -1,6 +1,7 @@
 import { getRequest } from "@tanstack/react-start/server";
+import { applicationDatabaseConnectionString, serverEnv } from "../runtime-env.server.ts";
 import { gateIdentityEnabled } from "./gate-identity.server";
-import { auth, authConfigured } from "./server";
+import { auth, authConfigured, isAuthConfigured } from "./server";
 
 /**
  * Server-side session resolution (server-only).
@@ -12,11 +13,9 @@ import { auth, authConfigured } from "./server";
  */
 
 /** True when a real database is configured server-side. */
-const databaseConfigured = Boolean(
-  process.env.DATABASE_URL?.trim() ||
-    process.env.POSTGRES_URL?.trim() ||
-    process.env.POSTGRES_PRISMA_URL?.trim(),
-);
+function databaseConfigured(): boolean {
+  return Boolean(applicationDatabaseConnectionString());
+}
 
 /** Re-export so callers can branch on it without importing `server.ts`. */
 export { authConfigured };
@@ -84,7 +83,7 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
     throw new UnauthorizedError();
   }
 
-  if (databaseConfigured) {
+  if (databaseConfigured() || isAuthConfigured() || serverEnv("CLOUDFLARE_ENV")) {
     throw new UnauthorizedError();
   }
 

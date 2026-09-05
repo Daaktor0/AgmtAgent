@@ -8,6 +8,10 @@ function parts(request: Request): string[] {
 }
 
 function errorResponse(error: unknown): Response {
+  const statusFromError = error && typeof error === "object" && "status" in error && typeof error.status === "number"
+    ? error.status
+    : null;
+  if (statusFromError === 401) return Response.json({ error: "unauthorized" }, { status: 401 });
   const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? error.code
     : error instanceof Error ? error.message : "proof_request_failed";

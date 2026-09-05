@@ -26,11 +26,11 @@ jobs:
           secrets_json="$(npx wrangler secret list --config "$config")"
 
           if ! jq -e 'any(.[]; .name == "BETTER_AUTH_SECRET")' >/dev/null <<<"$secrets_json"; then
-            openssl rand -base64 48 | tr -d '\n' | npx wrangler secret put BETTER_AUTH_SECRET --config "$config"
+            openssl rand -base64 48 | tr -d '\n' | npx wrangler versions secret put BETTER_AUTH_SECRET --config "$config"
           fi
 
           if ! jq -e 'any(.[]; .name == "AGMT_ENCRYPTION_KEY")' >/dev/null <<<"$secrets_json"; then
-            openssl rand -base64 48 | tr -d '\n' | npx wrangler secret put AGMT_ENCRYPTION_KEY --config "$config"
+            openssl rand -base64 48 | tr -d '\n' | npx wrangler versions secret put AGMT_ENCRYPTION_KEY --config "$config"
           fi
       - uses: cloudflare/wrangler-action@v3
         with:

@@ -1,16 +1,22 @@
 // @ts-check
 /**
- * Migration bookkeeping shared by the two appliers — `scripts/migrate.mjs`
- * (deploy, `readdir`) and `src/lib/db.ts` (PGLite preview, `import.meta.glob`).
+ * Migration bookkeeping shared by this module's two callers:
+ *  - `src/lib/db.ts` (PGLite preview, `import.meta.glob`) reads only the
+ *    top-level `migrations/*.sql` set — local dev shares one embedded
+ *    database between the app and Better Auth, so that set includes the
+ *    auth schema's byte-identical copy (see below).
+ *  - `scripts/migrate.mjs` (deploy, `readdir`) calls `pendingMigrations`
+ *    twice, once per directory: the top-level set against AGMT_APP_DB, and
+ *    `migrations/auth/*.sql` against the separate AGMT_AUTH_DB. Each call
+ *    only ever sees the one directory it was given — this module has no
+ *    notion of "descending into subdirectories".
  *
- * Both appliers intentionally consume only the top-level `migrations/*.sql`
- * set. The generated auth source is retained under `migrations/auth/` and,
- * when sign-in is enabled, its byte-identical copy is placed at the top level.
- * Applied files are keyed by BASENAME, so a database that already has
- * `0001_auth.sql` will not re-run it after that copy is enabled.
- *
- * Neither applier descends into subdirectories, so `migrations/auth/*.sql` is
- * never applied directly.
+ * The generated auth source lives under `migrations/auth/` and, when sign-in
+ * is enabled, its byte-identical copy is placed at the top level for the
+ * PGLite case above. Applied files are keyed by BASENAME (within each
+ * database's own `_migrations` ledger — the two databases never share one),
+ * so a database that already has `0001_auth.sql` will not re-run it after
+ * that copy is enabled.
  */
 
 /**

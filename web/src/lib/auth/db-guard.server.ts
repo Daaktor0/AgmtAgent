@@ -73,13 +73,12 @@ function logDriverError(stage: "connect" | "query" | "release", error: unknown):
   const name = error instanceof Error ? error.name : "unknown";
   const rawMessage = error instanceof Error ? error.message : "";
   const message = rawMessage
-    .replace(/postgres(?:ql)?:\\/\\/[^\\s"'\`]+/gi, "postgres://[redacted]")
-    .replace(/\\s+/g, " ")
+    .replace(/postgres(?:ql)?:\/\/[^\s"'`]+/gi, "postgres://[redacted]")
+    .replace(/\s+/g, " ")
     .slice(0, 180);
   console.error(
     `[auth.db] ${stage} failed name=${name}${pgCode ? ` code=${pgCode}` : ""}${message ? ` message=${JSON.stringify(message)}` : ""}`,
   );
-}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => APIError): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;

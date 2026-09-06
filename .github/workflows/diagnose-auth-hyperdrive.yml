@@ -1,0 +1,57 @@
+name: Diagnose auth Hyperdrive
+
+on:
+  push:
+    branches:
+      - codex/diagnose-auth-hyperdrive
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Inspect Hyperdrive configuration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          for id in 6738d0760a774700808fddf13018e36b d20b71757c7a404f9f02c1ff024b8b55; do
+            echo "=== Hyperdrive config $id ==="
+            npx wrangler hyperdrive get "$id" 2>&1 | sed -E 's/(password|secret|token|connection-string)[^[:space:]]*/[REDACTED]/Ig'
+            echo
+          done
+      - name: Capture auth runtime error
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          tail_log="$(mktemp)"
+          timeout 55s npx wrangler tail agmt --format json >"$tail_log" 2>&1 &
+          tail_pid=$!
+          sleep 5
+          echo "=== signed-out session ==="
+          curl -sS --max-time 25 -D - https://agmt.dexterinlab.workers.dev/api/auth/get-session -o /tmp/session-body
+          echo
+          echo "=== fake same-origin sign-in ==="
+          curl -sS --max-time 25 -D - -X POST https://agmt.dexterinlab.workers.dev/api/auth/sign-in/email \
+            -H 'content-type: application/json' \
+            -H 'origin: https://agmt.dexterinlab.workers.dev' \
+            --data '{"email":"smoke-test@example.com","password":"not-a-real-password"}' \
+            -o /tmp/signin-body
+          echo
+          sleep 5
+          kill "$tail_pid" 2>/dev/null || true
+          wait "$tail_pid" 2>/dev/null || true
+          echo "=== sanitized auth tail entries ==="
+          grep -E '\\[auth\\.db\\]|Database|database|Hyperdrive|error|Error|exception|Exception' "$tail_log" | tail -n 200 \
+            | sed -E 's/(password|secret|token|authorization|connection-string)[^,} ]*/[REDACTED]/Ig'
+          echo "=== response bodies ==="
+          echo "session: $(head -c 500 /tmp/session-body 2>/dev/null)"
+          echo "signin: $(head -c 500 /tmp/signin-body 2>/dev/null)"
+          exit 0

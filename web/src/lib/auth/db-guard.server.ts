@@ -37,6 +37,17 @@ export interface GuardablePoolClient {
   release(): void;
 }
 
+/**
+ * Minimal single-request client surface used by the Cloudflare-safe factory.
+ * Hyperdrive owns pooling; the Worker must not keep a Pool or Client globally.
+ */
+export interface GuardableAuthClient {
+  connect(): Promise<void>;
+  query(sql: string, parameters: unknown[]): Promise<{ command?: string; rowCount?: number | null; rows: unknown[] }>;
+  end(): Promise<void>;
+  on(event: "error", listener: (error: Error) => void): unknown;
+}
+
 /** Bound on establishing a fresh connection to AGMT_AUTH_DB via Hyperdrive. */
 export const AUTH_DB_CONNECT_TIMEOUT_MS = 5_000;
 /** Bound on a single query once connected — catches a hang mid-query. */
@@ -57,7 +68,7 @@ function authRequestTimeout(): APIError {
 }
 
 /** Never logs the connection string, query text, or parameters — only the driver error's safe metadata. */
-function logDriverError(stage: "connect" | "query", error: unknown): void {
+function logDriverError(stage: "connect" | "query" | "release", error: unknown): void {
   const pgCode = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
   const name = error instanceof Error ? error.name : "unknown";
   console.error(`[auth.db] ${stage} failed name=${name}${pgCode ? ` code=${pgCode}` : ""}`);
@@ -134,5 +145,80 @@ export function guardAuthPool(
       } satisfies PostgresPoolClient;
     },
     end: () => pool.end(),
+  };
+}
+
+/**
+ * Build a Kysely-compatible pool facade without retaining a node-postgres
+ * client across Worker requests. Better Auth asks the facade for a client;
+ * each call creates and connects a fresh pg.Client. On Cloudflare, release is
+ * intentionally a no-op because the request lifecycle cleans up the edge
+ * connection and Hyperdrive keeps the origin pool. Node hosts close clients
+ * explicitly so test and Vercel processes do not retain sockets.
+ */
+export function guardAuthClientFactory(
+  createClient: () => GuardableAuthClient,
+  options: {
+    connectMs?: number;
+    queryMs?: number;
+    closeOnRelease?: boolean;
+  } = {},
+): PostgresPool {
+  const connectTimeoutMs = options.connectMs ?? AUTH_DB_CONNECT_TIMEOUT_MS;
+  const queryTimeoutMs = options.queryMs ?? AUTH_DB_QUERY_TIMEOUT_MS;
+  const closeOnRelease = options.closeOnRelease ?? true;
+
+  return {
+    async connect(): Promise<PostgresPoolClient> {
+      let client: GuardableAuthClient | undefined;
+      try {
+        client = createClient();
+        client.on("error", (error) => logDriverError("connect", error));
+        await withTimeout(client.connect(), connectTimeoutMs, authDatabaseUnavailable);
+      } catch (error) {
+        if (client) void client.end().catch(() => undefined);
+        if (error instanceof APIError) throw error;
+        logDriverError("connect", error);
+        throw authDatabaseUnavailable();
+      }
+      if (!client) throw authDatabaseUnavailable();
+      const connectedClient = client;
+
+      function query<R>(sql: string, parameters: ReadonlyArray<unknown>): Promise<PostgresQueryResult<R>>;
+      function query<R>(cursor: PostgresCursor<R>): PostgresCursor<R>;
+      function query<R>(
+        sqlOrCursor: string | PostgresCursor<R>,
+        parameters?: ReadonlyArray<unknown>,
+      ): Promise<PostgresQueryResult<R>> | PostgresCursor<R> {
+        if (typeof sqlOrCursor !== "string") {
+          throw new Error("guardAuthClientFactory: cursor queries are not supported");
+        }
+        return withTimeout(
+          connectedClient.query(sqlOrCursor, (parameters ?? []) as unknown[]) as Promise<PostgresQueryResult<R>>,
+          queryTimeoutMs,
+          authRequestTimeout,
+        ).catch((error) => {
+          if (error instanceof APIError) throw error;
+          logDriverError("query", error);
+          throw authDatabaseUnavailable();
+        });
+      }
+
+      let released = false;
+      return {
+        query,
+        release(): void {
+          if (released) return;
+          released = true;
+          if (closeOnRelease) {
+            void connectedClient.end().catch((error) => logDriverError("release", error));
+          }
+        },
+      } satisfies PostgresPoolClient;
+    },
+    async end(): Promise<void> {
+      // There is no global pool to end. Individual clients are closed on
+      // release for Node hosts and automatically cleaned up by Workers.
+    },
   };
 }

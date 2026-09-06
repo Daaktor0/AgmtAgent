@@ -105,18 +105,43 @@ function createManagedPostgresSql(): Promise<Sql> {
   }
   const role = databaseRuntimeRole();
   globalRef.__pgSqlPromise__ ??= (async () => {
-    const { Pool, types } = await import("pg");
+    const { Client, types } = await import("pg");
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({
-      connectionString: databaseUrl,
-      max: 4,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 5_000,
-      allowExitOnIdle: true,
-    });
-    return createPostgresSql(pool as unknown as PostgresPoolLike, {
+
+    // Hyperdrive owns connection pooling. A Pool or Client retained in the
+    // Worker global scope can carry I/O objects across request contexts.
+    const connect = async (): Promise<PostgresClientLike> => {
+      const client = new Client({
+        connectionString: databaseUrl,
+        connectionTimeoutMillis: 5_000,
+        statement_timeout: 8_000,
+        query_timeout: 8_000,
+      });
+      await client.connect();
+      return {
+        query: (text, params = []) =>
+          client.query(text, params) as Promise<{ rows: unknown[] }>,
+        release: () => {
+          if (!cloudflareWorkerRuntime()) {
+            void client.end().catch(() => undefined);
+          }
+        },
+      };
+    };
+    const pool: PostgresPoolLike = {
+      connect,
+      async query(text, params = []) {
+        const client = await connect();
+        try {
+          return await client.query(text, params);
+        } finally {
+          client.release();
+        }
+      },
+    };
+    return createPostgresSql(pool, {
       configureClient: async (client) => {
         await client.query(`set role ${DATABASE_RUNTIME_ROLES[role]}`);
       },

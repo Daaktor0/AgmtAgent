@@ -4,12 +4,13 @@ import { bearer } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
-import { Pool } from "pg";
+import { Client } from "pg";
 import { getPglite } from "../db.ts";
 import {
   AUTH_DB_CONNECT_TIMEOUT_MS,
   AUTH_DB_QUERY_TIMEOUT_MS,
-  guardAuthPool,
+  guardAuthClientFactory,
+  type GuardableAuthClient,
 } from "./db-guard.server.ts";
 import { emailAndPasswordEnabled } from "./email-password.ts";
 import { pgliteDialect } from "./pglite-dialect.ts";
@@ -24,15 +25,21 @@ import {
 // it keeps BETTER_AUTH_DATABASE_URL/AUTH_DATABASE_URL separate from the
 // application DATABASE_URL and selects AGMT_AUTH_DB on Cloudflare.
 
+function cloudflareWorkerRuntime(): boolean {
+  return (
+    typeof navigator === "object" &&
+    navigator !== null &&
+    navigator.userAgent === "Cloudflare-Workers"
+  );
+}
+
 function deployed(): boolean {
   return Boolean(
     serverEnv("VERCEL") ||
       serverEnv("VERCEL_ENV") ||
       serverEnv("CF_PAGES") ||
       serverEnv("CLOUDFLARE_ENV") ||
-      (typeof navigator === "object" &&
-        navigator !== null &&
-        navigator.userAgent === "Cloudflare-Workers"),
+      cloudflareWorkerRuntime(),
   );
 }
 
@@ -148,18 +155,19 @@ function createAuth() {
         ];
 
   const database = dedicatedAuthDatabaseUrl
-    ? guardAuthPool(
-        new Pool({
-          connectionString: dedicatedAuthDatabaseUrl,
-          max: 4,
-          idleTimeoutMillis: 10_000,
-          connectionTimeoutMillis: AUTH_DB_CONNECT_TIMEOUT_MS,
-          // Server-side backstop so Postgres itself kills a runaway query,
-          // in addition to guardAuthPool()'s own client-side race.
-          statement_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
-          query_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
-          allowExitOnIdle: true,
-        }),
+    ? guardAuthClientFactory(
+        () =>
+          new Client({
+            connectionString: dedicatedAuthDatabaseUrl,
+            connectionTimeoutMillis: AUTH_DB_CONNECT_TIMEOUT_MS,
+            // Server-side backstop so Postgres itself kills a runaway query,
+            // in addition to guardAuthClientFactory()'s own client-side race.
+            statement_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
+            query_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
+          }) as unknown as GuardableAuthClient,
+        // Hyperdrive owns the origin pool. Let Workers clean up the edge
+        // client at the end of each invocation; close it explicitly on Node.
+        { closeOnRelease: !cloudflareWorkerRuntime() },
       )
     : {
         dialect: pgliteDialect(() => getPglite()),

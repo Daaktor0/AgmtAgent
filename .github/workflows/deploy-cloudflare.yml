@@ -63,11 +63,18 @@ jobs:
         run: |
           set +e
           tail_log="$(mktemp)"
-          timeout 30s npx wrangler tail agmt --format json >"$tail_log" 2>&1 &
+          timeout 45s npx wrangler tail agmt --format json >"$tail_log" 2>&1 &
           tail_pid=$!
           sleep 5
           status="$(curl -sS --max-time 20 -o /tmp/agmt-production-response -w '%{http_code}' https://agmt.dexterinlab.workers.dev/)"
-          sleep 5
+          auth_status="$(curl -sS --max-time 16 -X POST \
+            -H 'content-type: application/json' \
+            -H 'origin: https://agmt.dexterinlab.workers.dev' \
+            --data-raw "{\"email\":\"agmt-auth-smoke-${GITHUB_RUN_ID}@example.com\",\"password\":\"not-a-real-password\"}" \
+            -o /tmp/agmt-auth-smoke-response \
+            -w '%{http_code}' \
+            https://agmt.dexterinlab.workers.dev/api/auth/sign-in/email || true)"
+          sleep 4
           kill "$tail_pid" 2>/dev/null || true
           wait "$tail_pid" 2>/dev/null || true
           echo "Production status: $status"
@@ -83,9 +90,15 @@ jobs:
           echo "Login status: $login_status"
           echo "Session status: $session_status"
           echo "Anonymous upload status: $upload_status"
+          echo "Auth smoke status: $auth_status"
+          echo "Auth smoke body:"
+          head -c 1000 /tmp/agmt-auth-smoke-response || true
+          echo
           test "$login_status" = "200"
           test "$session_status" = "200"
           test "$upload_status" = "401"
+          test "$auth_status" = "401"
+          jq -e '.code == "INVALID_EMAIL_OR_PASSWORD"' /tmp/agmt-auth-smoke-response >/dev/null
       - name: Verify the app.agmt.legal custom domain
         # The workers.dev checks above exercise the same Worker code but not
         # the custom domain the product actually runs on — origin trust,

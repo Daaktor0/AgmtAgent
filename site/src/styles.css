@@ -1753,3 +1753,37 @@ h2 em {
     transform: none;
   }
 }
+
+.mobile-menu {
+  display: none;
+}
+.menu-toggle {
+  list-style: none;
+  cursor: pointer;
+}
+.menu-toggle::-webkit-details-marker {
+  display: none;
+}
+.menu-close-icon {
+  display: none;
+}
+.mobile-menu[open] .menu-open-icon {
+  display: none;
+}
+.mobile-menu[open] .menu-close-icon {
+  display: block;
+}
+@media (max-width: 800px) {
+  .mobile-menu {
+    display: block;
+  }
+  .mobile-menu .mobile-nav {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    background: var(--agmt-paper);
+    border-bottom: 1px solid var(--agmt-rule);
+    box-shadow: 0 12px 20px #0000000a;
+  }
+}

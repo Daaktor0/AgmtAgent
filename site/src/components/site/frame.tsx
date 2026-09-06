@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Menu, X } from "lucide-react";
 import { Wordmark } from "@/brand/wordmark";
@@ -11,7 +11,6 @@ export function SiteFrame({
   children: ReactNode;
   current?: "/what" | "/how" | "/beta" | "/legal";
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className="site-shell">
       <a href="#main" className="skip-link">
@@ -30,30 +29,19 @@ export function SiteFrame({
             <Link className="nav-cta" to="/beta">
               Keep me posted <ArrowUpRight size={16} aria-hidden />
             </Link>
-            <button
-              className="menu-toggle"
-              type="button"
-              onClick={() => setOpen(!open)}
-              aria-expanded={open}
-              aria-controls="mobile-nav"
-              aria-label={open ? "Close navigation" : "Open navigation"}
-            >
-              {open ? <X /> : <Menu />}
-            </button>
+            <details className="mobile-menu">
+              <summary className="menu-toggle" aria-label="Navigation menu">
+                <Menu className="menu-open-icon" aria-hidden />
+                <X className="menu-close-icon" aria-hidden />
+              </summary>
+              <nav className="mobile-nav" aria-label="Mobile navigation">
+                <a href="/what">The idea</a>
+                <a href="/how">Meet Proof</a>
+                <a href="/beta">Agmt Dispatch</a>
+              </nav>
+            </details>
           </div>
         </div>
-        {open && (
-          <nav
-            id="mobile-nav"
-            className="mobile-nav"
-            aria-label="Mobile navigation"
-            onClick={() => setOpen(false)}
-          >
-            <Link to="/what">The idea</Link>
-            <Link to="/how">Meet Proof</Link>
-            <Link to="/beta">Agmt Dispatch</Link>
-          </nav>
-        )}
       </header>
       <main id="main">{children}</main>
       <footer className="site-footer">

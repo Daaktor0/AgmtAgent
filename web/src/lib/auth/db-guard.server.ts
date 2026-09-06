@@ -67,11 +67,18 @@ function authRequestTimeout(): APIError {
   });
 }
 
-/** Never logs the connection string, query text, or parameters — only the driver error's safe metadata. */
+/** Never logs the connection string, query text, or parameters. */
 function logDriverError(stage: "connect" | "query" | "release", error: unknown): void {
   const pgCode = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
   const name = error instanceof Error ? error.name : "unknown";
-  console.error(`[auth.db] ${stage} failed name=${name}${pgCode ? ` code=${pgCode}` : ""}`);
+  const rawMessage = error instanceof Error ? error.message : "";
+  const message = rawMessage
+    .replace(/postgres(?:ql)?:\\/\\/[^\\s"'\`]+/gi, "postgres://[redacted]")
+    .replace(/\\s+/g, " ")
+    .slice(0, 180);
+  console.error(
+    `[auth.db] ${stage} failed name=${name}${pgCode ? ` code=${pgCode}` : ""}${message ? ` message=${JSON.stringify(message)}` : ""}`,
+  );
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => APIError): Promise<T> {

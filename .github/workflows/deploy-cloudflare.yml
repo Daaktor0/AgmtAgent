@@ -86,3 +86,10 @@ jobs:
           test "$login_status" = "200"
           test "$session_status" = "200"
           test "$upload_status" = "401"
+      - name: Verify the app.agmt.legal custom domain
+        # The workers.dev checks above exercise the same Worker code but not
+        # the custom domain the product actually runs on — origin trust,
+        # cookie domain, and Cloudflare's routing for it are only proven by
+        # hitting it directly. Read-only: creates no account, signs in with
+        # no real credentials.
+        run: node web/scripts/production-auth-smoke.mjs https://app.agmt.legal

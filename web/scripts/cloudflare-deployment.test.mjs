@@ -33,6 +33,10 @@ test("Cloudflare deploy builds and serves the current web app", () => {
   assert.match(workflow, /deploy --config web\/\.output\/server\/wrangler\.json --keep-vars/);
   assert.match(workflow, /RESEND_API_KEY/);
   assert.match(workflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
+  // CI's other production checks hit the workers.dev fallback only; this one
+  // proves the actual customer-facing custom domain (auth's reported failure
+  // surface) is verified after every deploy too.
+  assert.match(workflow, /production-auth-smoke\.mjs https:\/\/app\.agmt\.legal/);
   assert.match(vite, /preset:\s*mode === "cloudflare" \? "cloudflare_module"/);
   assert.match(vite, /rollupConfig:\s*\{ output: \{ inlineDynamicImports: true \} \}/);
   assert.match(db, /cloudflareWorkerRuntime/);

@@ -56,6 +56,15 @@ function Login() {
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Set once a request tells us this email needs verifying — either right
+  // after sign-up (requireEmailVerification means there is no session yet
+  // to redirect with), or after a sign-in attempt comes back
+  // EMAIL_NOT_VERIFIED. Offers a real "resend" action: retrying sign-up
+  // with the same email does NOT resend — Better Auth deliberately returns
+  // an indistinguishable fake success for an existing email (anti-account-
+  // enumeration), so a second sign-up attempt silently sends nothing.
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
 
   useEffect(() => {
     if (!isPending && user) void navigate({ to: returnTo });
@@ -64,17 +73,40 @@ function Login() {
   async function submitEmail(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setResendState("idle");
     setBusy(true);
     try {
-      const result = creating
-        ? await withAuthClientTimeout(authClient.signUp.email({ email, password, name: name || email }))
-        : await withAuthClientTimeout(authClient.signIn.email({ email, password, callbackURL: returnTo }));
-      if (result.error) throw new Error(describeAuthError(result.error));
-      if (creating && typeof window !== "undefined") window.location.href = returnTo;
+      if (creating) {
+        const result = await withAuthClientTimeout(authClient.signUp.email({ email, password, name: name || email }));
+        if (result.error) throw new Error(describeAuthError(result.error));
+        setPendingVerificationEmail(email);
+      } else {
+        const result = await withAuthClientTimeout(authClient.signIn.email({ email, password, callbackURL: returnTo }));
+        if (result.error) {
+          if (result.error.code === AUTH_ERROR_CODES.EMAIL_NOT_VERIFIED) setPendingVerificationEmail(email);
+          throw new Error(describeAuthError(result.error));
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resendVerificationEmail() {
+    if (!pendingVerificationEmail) return;
+    setError(null);
+    setResendState("sending");
+    try {
+      const result = await withAuthClientTimeout(
+        authClient.sendVerificationEmail({ email: pendingVerificationEmail, callbackURL: returnTo }),
+      );
+      if (result.error) throw new Error(describeAuthError(result.error));
+      setResendState("sent");
+    } catch (err) {
+      setResendState("idle");
+      setError(err instanceof Error ? err.message : "Authentication failed.");
     }
   }
 
@@ -96,6 +128,28 @@ function Login() {
             <p className="text-sm text-danger">
               Authentication is unavailable in this environment.
             </p>
+          ) : pendingVerificationEmail ? (
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-ink-muted">
+                We sent a verification link to <strong className="text-ink">{pendingVerificationEmail}</strong>.
+                Open it to finish signing in. If it doesn&apos;t arrive in a minute, check spam, or send it again.
+              </p>
+              <button
+                type="button"
+                disabled={resendState === "sending"}
+                onClick={() => void resendVerificationEmail()}
+                className="w-full rounded-md bg-ink px-4 py-2 text-sm text-paper disabled:opacity-50"
+              >
+                {resendState === "sending" ? "Sending…" : resendState === "sent" ? "Sent — resend again" : "Resend verification email"}
+              </button>
+              <button
+                type="button"
+                className="text-sm underline underline-offset-4"
+                onClick={() => { setPendingVerificationEmail(null); setResendState("idle"); setError(null); }}
+              >
+                Use a different email
+              </button>
+            </div>
           ) : (
             <div className="space-y-5">
               <form className="space-y-3" onSubmit={(event) => void submitEmail(event)}>

@@ -113,6 +113,27 @@ describe("auth handler — real AGMT_AUTH_DB", { skip: !process.env.AGMT_AUTH_DB
     assert.equal(unverified.status, 403);
     assert.equal(unverified.code, AUTH_ERROR_CODES.EMAIL_NOT_VERIFIED);
 
+    // Documents Better Auth's own anti-enumeration behaviour: a second
+    // sign-up with the same email returns a *different*, synthetic user
+    // rather than the real one, and never re-sends the verification email.
+    // If this ever starts returning the same id, the fixture's assumption
+    // (and the "resend" UI's reason to exist) needs revisiting.
+    const duplicate = step(results, "sign-up-duplicate-email-is-synthetic");
+    assert.equal(duplicate.status, 200);
+    assert.equal(duplicate.code, "SYNTHETIC_ID");
+
+    // Unlike sign-up, the dedicated resend endpoint attempts a real send
+    // every time — this is what login.tsx's "Resend verification email"
+    // button relies on. EMAIL_DELIVERY_FAILED here (not a swallowed 200)
+    // just reflects no real RESEND_API_KEY in this test environment; the
+    // point is that BOTH calls attempt it, and both surface a real error.
+    const resendFirst = step(results, "resend-verification-email-first");
+    assert.equal(resendFirst.status, 502);
+    assert.equal(resendFirst.code, AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED);
+    const resendAgain = step(results, "resend-verification-email-again");
+    assert.equal(resendAgain.status, 502);
+    assert.equal(resendAgain.code, AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED);
+
     assert.equal(step(results, "get-session-signed-out").status, 200);
   });
 });

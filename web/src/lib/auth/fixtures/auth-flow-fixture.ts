@@ -61,11 +61,29 @@ function getSession(): Promise<Response> {
   return auth.handler(new Request("http://localhost:8080/api/auth/get-session"));
 }
 
+function sendVerificationEmail(email: string, origin: string): Promise<Response> {
+  return auth.handler(
+    new Request("http://localhost:8080/api/auth/send-verification-email", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({ email, callbackURL: "/" }),
+    }),
+  );
+}
+
 async function markVerified(email: string): Promise<void> {
   const context = await auth.$context;
   const found = await context.internalAdapter.findUserByEmail(email.toLowerCase());
   if (!found) throw new Error(`fixture: user not found for ${email}`);
   await context.internalAdapter.updateUser(found.user.id, { emailVerified: true });
+}
+
+async function userId(response: Response): Promise<string | undefined> {
+  try {
+    return JSON.parse(await response.clone().text())?.user?.id;
+  } catch {
+    return undefined;
+  }
 }
 
 async function happyPath(): Promise<StepResult[]> {
@@ -80,8 +98,31 @@ async function happyPath(): Promise<StepResult[]> {
   results.push(await timed("sign-in-wrong-password", () => signIn(verifiedEmail, "wrong-password-wrong-password", VALID_ORIGIN)));
   results.push(await timed("sign-in-invalid-origin", () => signIn(verifiedEmail, PASSWORD, INVALID_ORIGIN)));
 
-  results.push(await timed("sign-up-unverified-user", () => signUp(unverifiedEmail, VALID_ORIGIN)));
+  const firstSignUp = await signUp(unverifiedEmail, VALID_ORIGIN);
+  const firstId = await userId(firstSignUp);
+  results.push({ step: "sign-up-unverified-user", status: firstSignUp.status, elapsedMs: 0 });
   results.push(await timed("sign-in-unverified-user", () => signIn(unverifiedEmail, PASSWORD, VALID_ORIGIN)));
+
+  // Documents a real Better Auth behaviour, not a bug in this app: signing
+  // up again with an email that already exists returns a synthetic, fake
+  // user (a fresh random id, not the original) to avoid revealing that the
+  // email is taken — and never re-attempts sending the verification email.
+  // A user re-submitting the sign-up form gets what looks like success and
+  // no email, every time. send-verification-email (tested below) is the
+  // actual resend path, which login.tsx now offers.
+  const secondSignUp = await signUp(unverifiedEmail, VALID_ORIGIN);
+  const secondId = await userId(secondSignUp);
+  results.push({
+    step: "sign-up-duplicate-email-is-synthetic",
+    status: secondSignUp.status,
+    code: firstId && secondId && firstId !== secondId ? "SYNTHETIC_ID" : "SAME_ID",
+    elapsedMs: 0,
+  });
+
+  // Unlike sign-up, the dedicated resend endpoint has no such bypass: it
+  // attempts a real send every time for an existing, unverified email.
+  results.push(await timed("resend-verification-email-first", () => sendVerificationEmail(unverifiedEmail, VALID_ORIGIN)));
+  results.push(await timed("resend-verification-email-again", () => sendVerificationEmail(unverifiedEmail, VALID_ORIGIN)));
 
   results.push(await timed("get-session-signed-out", () => getSession()));
   return results;

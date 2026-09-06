@@ -25,3 +25,8 @@ jobs:
         run: npm run db:migrate:release
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Direct (non-Hyperdrive) connection string to the AGMT_AUTH_DB
+          # Postgres instance — this runner is plain Node outside Cloudflare,
+          # so it cannot resolve the Hyperdrive binding the Worker uses.
+          BETTER_AUTH_DATABASE_URL: ${{ secrets.BETTER_AUTH_DATABASE_URL }}
+          AUTH_DB_MIGRATION_REQUIRED: "true"

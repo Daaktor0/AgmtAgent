@@ -5,10 +5,15 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
-import { getPglite } from "../db";
-import { emailAndPasswordEnabled } from "./email-password";
-import { pgliteDialect } from "./pglite-dialect";
-import { sendResendVerificationEmail } from "./resend.server";
+import { getPglite } from "../db.ts";
+import {
+  AUTH_DB_CONNECT_TIMEOUT_MS,
+  AUTH_DB_QUERY_TIMEOUT_MS,
+  guardAuthPool,
+} from "./db-guard.server.ts";
+import { emailAndPasswordEnabled } from "./email-password.ts";
+import { pgliteDialect } from "./pglite-dialect.ts";
+import { sendResendVerificationEmail } from "./resend.server.ts";
 import {
   applicationDatabaseConnectionString,
   authDatabaseConnectionString,
@@ -65,6 +70,17 @@ function hostOnly(value: string | undefined): string | null {
 
 export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";
 
+/**
+ * The canonical public app origin, used for Better Auth's `baseURL` (and so
+ * for every generated link, including the Resend email-verification URL).
+ * AGMT_PUBLIC_URL is authoritative; BETTER_AUTH_URL is a compatibility
+ * fallback for an older Worker URL and must never win over the current
+ * custom domain (see commit "fix(auth): trust the app custom domain").
+ */
+export function resolveExplicitBaseURL(): string | undefined {
+  return serverEnv("AGMT_PUBLIC_URL") ?? serverEnv("BETTER_AUTH_URL");
+}
+
 function createAuth() {
   const isDeployed = deployed();
   const applicationDatabaseUrl = applicationDatabaseConnectionString();
@@ -84,10 +100,7 @@ function createAuth() {
     throw new Error("BETTER_AUTH_SECRET is required in deployed environments.");
   }
   const authSecret = configuredAuthSecret ?? randomBytes(32).toString("hex");
-  // AGMT_PUBLIC_URL is the canonical public app URL. Keep the older
-  // BETTER_AUTH_URL variable as a backwards-compatible fallback, but do not
-  // let an old Worker URL override the current custom domain.
-  const explicitBaseURL = serverEnv("AGMT_PUBLIC_URL") ?? serverEnv("BETTER_AUTH_URL");
+  const explicitBaseURL = resolveExplicitBaseURL();
   const vercelHosts = [
     hostOnly(serverEnv("VERCEL_PROJECT_PRODUCTION_URL")),
     hostOnly(serverEnv("VERCEL_URL")),
@@ -135,13 +148,19 @@ function createAuth() {
         ];
 
   const database = dedicatedAuthDatabaseUrl
-    ? new Pool({
-        connectionString: dedicatedAuthDatabaseUrl,
-        max: 4,
-        idleTimeoutMillis: 10_000,
-        connectionTimeoutMillis: 5_000,
-        allowExitOnIdle: true,
-      })
+    ? guardAuthPool(
+        new Pool({
+          connectionString: dedicatedAuthDatabaseUrl,
+          max: 4,
+          idleTimeoutMillis: 10_000,
+          connectionTimeoutMillis: AUTH_DB_CONNECT_TIMEOUT_MS,
+          // Server-side backstop so Postgres itself kills a runaway query,
+          // in addition to guardAuthPool()'s own client-side race.
+          statement_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
+          query_timeout: AUTH_DB_QUERY_TIMEOUT_MS,
+          allowExitOnIdle: true,
+        }),
+      )
     : {
         dialect: pgliteDialect(() => getPglite()),
         type: "postgres" as const,

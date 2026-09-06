@@ -34,11 +34,14 @@ export function pgliteDialect(
 }
 
 class LazyPGliteDriver implements Driver {
+  private readonly getClient: () => Promise<Client> | Client;
   private client: Client | undefined;
   private connection: PGliteConnection | undefined;
   private queue: Array<(con: PGliteConnection) => void> = [];
 
-  constructor(private readonly getClient: () => Promise<Client> | Client) {}
+  constructor(getClient: () => Promise<Client> | Client) {
+    this.getClient = getClient;
+  }
 
   async init(): Promise<void> {
     this.client = await this.getClient();
@@ -106,7 +109,11 @@ class LazyPGliteDriver implements Driver {
 }
 
 class PGliteConnection implements DatabaseConnection {
-  constructor(private readonly client: Client) {}
+  private readonly client: Client;
+
+  constructor(client: Client) {
+    this.client = client;
+  }
 
   async executeQuery<O>(compiledQuery: CompiledQuery): Promise<QueryResult<O>> {
     const result = await this.client.query(compiledQuery.sql, [

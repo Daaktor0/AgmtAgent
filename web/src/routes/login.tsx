@@ -1,11 +1,35 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { authClient, authEnabled } from "@/lib/auth/client";
+import { AUTH_ERROR_CODES } from "@/lib/auth/error-codes";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { safeProofReturn } from "@/lib/products/registry";
 import { Card } from "@/components/ui/card";
 
 export const Route = createFileRoute("/login")({ validateSearch: (s: Record<string, unknown>): { returnTo?: "/" | "/proof" } => ({ returnTo: safeProofReturn(s.returnTo) }), component: Login });
+
+/**
+ * Friendly text for the stable codes the auth backend can return (see
+ * `error-codes.ts`). Anything else — an unrecognised code, or none at all —
+ * falls back to the server's own `error.message`, then to a generic string;
+ * this never hides a *specific known* failure behind that generic text.
+ */
+const AUTH_ERROR_MESSAGES: Partial<Record<string, string>> = {
+  [AUTH_ERROR_CODES.INVALID_ORIGIN]:
+    "This page isn't running on a trusted domain. Reload the app at https://app.agmt.legal and try again.",
+  [AUTH_ERROR_CODES.INVALID_CREDENTIALS]: "Incorrect email or password.",
+  [AUTH_ERROR_CODES.EMAIL_NOT_VERIFIED]:
+    "Verify your email before signing in — check your inbox for the verification link.",
+  [AUTH_ERROR_CODES.AUTH_DATABASE_UNAVAILABLE]:
+    "Agmt can't reach the authentication database right now. Try again shortly.",
+  [AUTH_ERROR_CODES.AUTH_REQUEST_TIMEOUT]: "That took too long to respond. Try again.",
+  [AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED]: "We could not send the verification email. Try again shortly.",
+};
+
+function describeAuthError(error: { code?: string; message?: string } | null | undefined): string {
+  if (!error) return "Authentication failed.";
+  return (error.code && AUTH_ERROR_MESSAGES[error.code]) || error.message || "Authentication failed.";
+}
 
 function Login() {
   const { user, isPending } = useCurrentUserState();
@@ -30,7 +54,7 @@ function Login() {
       const result = creating
         ? await authClient.signUp.email({ email, password, name: name || email })
         : await authClient.signIn.email({ email, password, callbackURL: returnTo });
-      if (result.error) throw new Error(result.error.message ?? "Authentication failed.");
+      if (result.error) throw new Error(describeAuthError(result.error));
       if (creating && typeof window !== "undefined") window.location.href = returnTo;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed.");

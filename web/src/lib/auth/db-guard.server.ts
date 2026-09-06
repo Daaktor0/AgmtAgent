@@ -79,6 +79,7 @@ function logDriverError(stage: "connect" | "query" | "release", error: unknown):
   console.error(
     `[auth.db] ${stage} failed name=${name}${pgCode ? ` code=${pgCode}` : ""}${message ? ` message=${JSON.stringify(message)}` : ""}`,
   );
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => APIError): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;

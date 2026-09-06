@@ -1,4 +1,6 @@
-import { serverEnv } from "@/lib/runtime-env.server";
+import { APIError } from "better-auth/api";
+import { serverEnv } from "../runtime-env.server.ts";
+import { AUTH_ERROR_CODES } from "./error-codes.ts";
 
 type VerificationUser = {
   email: string;
@@ -63,8 +65,10 @@ export async function sendResendVerificationEmail(data: {
 }): Promise<void> {
   const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
-    throw Object.assign(new Error("Email verification is not configured."), {
-      code: "email_provider_not_configured",
+    console.error("[auth.email] RESEND_API_KEY is not configured");
+    throw new APIError("BAD_GATEWAY", {
+      code: AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED,
+      message: "We could not send the verification email.",
     });
   }
 
@@ -91,16 +95,19 @@ export async function sendResendVerificationEmail(data: {
     console.error(
       `[auth.email] provider request failed name=${error instanceof Error ? error.name : "unknown"}`,
     );
-    throw Object.assign(new Error("We could not send the verification email."), {
-      code: "email_delivery_failed",
+    throw new APIError("BAD_GATEWAY", {
+      code: AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED,
+      message: "We could not send the verification email.",
     });
   }
 
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 500);
-    console.error(`[auth.email] provider rejected request status=${response.status} detail=${detail}`);
-    throw Object.assign(new Error("We could not send the verification email."), {
-      code: "email_delivery_failed",
+    // Log only the provider's status — never the response body, which can
+    // echo back the request (recipient address, subject).
+    console.error(`[auth.email] provider rejected request status=${response.status}`);
+    throw new APIError("BAD_GATEWAY", {
+      code: AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED,
+      message: "We could not send the verification email.",
     });
   }
 }

@@ -1,6 +1,6 @@
 /**
  * End-to-end coverage of the real /api/auth/* HTTP flow (Better Auth's
- * router, this app's origin/trustedOrigins config, and guardAuthPool)
+ * router, this app's origin/trustedOrigins config, and guardAuthClientFactory)
  * against a real Postgres — no mocks standing in for the database.
  *
  * "sign-in-db-unavailable" needs no setup beyond a closed local port and

@@ -25,18 +25,6 @@ import type { PostgresCursor, PostgresPool, PostgresPoolClient, PostgresQueryRes
 import { APIError } from "better-auth/api";
 import { AUTH_ERROR_CODES } from "./error-codes.ts";
 
-/** The exact surface this file needs from a `pg.Pool` — kept minimal so a test can pass a fake. */
-export interface GuardablePool {
-  connect(): Promise<GuardablePoolClient>;
-  end(): Promise<void>;
-  on(event: "error", listener: (error: Error) => void): unknown;
-}
-
-export interface GuardablePoolClient {
-  query(sql: string, parameters: unknown[]): Promise<{ command?: string; rowCount?: number | null; rows: unknown[] }>;
-  release(): void;
-}
-
 /**
  * Minimal single-request client surface used by the Cloudflare-safe factory.
  * Hyperdrive owns pooling; the Worker must not keep a Pool or Client globally.
@@ -87,72 +75,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => APIErr
     timer = setTimeout(() => reject(onTimeout()), ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
-}
-
-/**
- * Wrap a real `pg.Pool` for use as Better Auth's `database` option. Bounds
- * `connect()` and every `query()`, and converts any failure that is not
- * already an `APIError` into `AUTH_DATABASE_UNAVAILABLE` (connect failed, or
- * a query errored for a reason other than our own timeout) or
- * `AUTH_REQUEST_TIMEOUT` (a query outlived `AUTH_DB_QUERY_TIMEOUT_MS`).
- *
- * Also attaches the pool-level `error` listener node-postgres requires: an
- * idle client that errors with no listener throws an unhandled event and can
- * take the whole isolate down with it, failing every in-flight request, not
- * just the one that hit the bad connection.
- */
-export function guardAuthPool(
-  pool: GuardablePool,
-  timeouts?: { connectMs?: number; queryMs?: number },
-): PostgresPool {
-  const connectTimeoutMs = timeouts?.connectMs ?? AUTH_DB_CONNECT_TIMEOUT_MS;
-  const queryTimeoutMs = timeouts?.queryMs ?? AUTH_DB_QUERY_TIMEOUT_MS;
-  pool.on("error", (error) => logDriverError("connect", error));
-
-  return {
-    async connect(): Promise<PostgresPoolClient> {
-      let client: GuardablePoolClient;
-      try {
-        client = await withTimeout(pool.connect(), connectTimeoutMs, authDatabaseUnavailable);
-      } catch (error) {
-        if (error instanceof APIError) throw error;
-        logDriverError("connect", error);
-        throw authDatabaseUnavailable();
-      }
-      function query<R>(sql: string, parameters: ReadonlyArray<unknown>): Promise<PostgresQueryResult<R>>;
-      function query<R>(cursor: PostgresCursor<R>): PostgresCursor<R>;
-      function query<R>(
-        sqlOrCursor: string | PostgresCursor<R>,
-        parameters?: ReadonlyArray<unknown>,
-      ): Promise<PostgresQueryResult<R>> | PostgresCursor<R> {
-        // Better Auth never configures Kysely's optional query-cursor
-        // streaming (`PostgresDialectConfig.cursor`), so this overload is
-        // never actually called — it exists only so this object satisfies
-        // Kysely's `PostgresPoolClient` type, which declares it alongside the
-        // `(sql, parameters)` form this file always uses.
-        if (typeof sqlOrCursor !== "string") {
-          throw new Error("guardAuthPool: cursor queries are not supported");
-        }
-        return withTimeout(
-          client.query(sqlOrCursor, (parameters ?? []) as unknown[]) as Promise<PostgresQueryResult<R>>,
-          queryTimeoutMs,
-          authRequestTimeout,
-        ).catch((error) => {
-          if (error instanceof APIError) throw error;
-          logDriverError("query", error);
-          throw authDatabaseUnavailable();
-        });
-      }
-
-      return {
-        query,
-        release(): void {
-          client.release();
-        },
-      } satisfies PostgresPoolClient;
-    },
-    end: () => pool.end(),
-  };
 }
 
 /**

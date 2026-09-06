@@ -31,6 +31,21 @@ function describeAuthError(error: { code?: string; message?: string } | null | u
   return (error.code && AUTH_ERROR_MESSAGES[error.code]) || error.message || "Authentication failed.";
 }
 
+const AUTH_CLIENT_TIMEOUT_MS = 12_000;
+
+function withAuthClientTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Authentication request timed out. Please try again.")),
+      AUTH_CLIENT_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  }) as Promise<T>;
+}
+
 function Login() {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
@@ -52,8 +67,8 @@ function Login() {
     setBusy(true);
     try {
       const result = creating
-        ? await authClient.signUp.email({ email, password, name: name || email })
-        : await authClient.signIn.email({ email, password, callbackURL: returnTo });
+        ? await withAuthClientTimeout(authClient.signUp.email({ email, password, name: name || email }))
+        : await withAuthClientTimeout(authClient.signIn.email({ email, password, callbackURL: returnTo }));
       if (result.error) throw new Error(describeAuthError(result.error));
       if (creating && typeof window !== "undefined") window.location.href = returnTo;
     } catch (err) {

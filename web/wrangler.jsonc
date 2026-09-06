@@ -23,8 +23,11 @@
       "id": "6738d0760a774700808fddf13018e36b"
     },
     {
+      // Temporary recovery: auth and app use the same Supabase origin.
+      // Keep the AGMT_AUTH_DB binding name so a dedicated cache-disabled
+      // Hyperdrive can be restored later without a code migration.
       "binding": "AGMT_AUTH_DB",
-      "id": "d20b71757c7a404f9f02c1ff024b8b55"
+      "id": "6738d0760a774700808fddf13018e36b"
     }
   ]
 }

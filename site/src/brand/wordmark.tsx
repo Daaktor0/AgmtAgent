@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { AgmtWordmark } from "@/brand/logo";
+
 export function Wordmark({
   size = "sm",
   asLink = true,
@@ -8,18 +10,17 @@ export function Wordmark({
   asLink?: boolean;
   inverse?: boolean;
 }) {
-  const body = (
-    <span
+  const mark = (
+    <AgmtWordmark
+      aria-hidden
       className={`wordmark ${size === "lg" ? "wordmark-large" : ""} ${inverse ? "wordmark-inverse" : ""}`}
-    >
-      agmt<span aria-hidden>.</span>
-    </span>
+    />
   );
   return asLink ? (
-    <Link to="/" aria-label="Agmt — home" className="wordmark-link">
-      {body}
+    <Link to="/" aria-label="Agmt home" className="wordmark-link">
+      {mark}
     </Link>
   ) : (
-    body
+    mark
   );
 }

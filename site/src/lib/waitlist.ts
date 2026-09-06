@@ -1,14 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { SEAT_OPEN, SEAT_RESERVED, SEAT_TOTAL } from "@/brand/tokens";
 
 /**
- * The beta list.
+ * The beta list. Not part of the redesigned public site (no page links to
+ * it — the 50-seat mechanic is scarcity framing the v2 brief retires), but
+ * the admin view over existing rows is preserved rather than deleted.
  *
  * Seats are handed out inside a single SQL statement — the count and the
  * insert never come apart — and the unique index on `fcfs_seat` is the final
  * word if two submits race. Nothing here trusts a number read a moment ago.
  */
+export const SEAT_OPEN = 30;
+export const SEAT_RESERVED = 20;
+export const SEAT_TOTAL = SEAT_OPEN + SEAT_RESERVED;
 
 export type SeatStatus = "seat-fcfs" | "waitlist" | "reserved-allotted" | "reminder-only";
 

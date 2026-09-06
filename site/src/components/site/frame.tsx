@@ -1,103 +1,102 @@
 import { type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Wordmark } from "@/brand/wordmark";
-import { ThemeToggle } from "@/components/site/theme-toggle";
+import { NAV, FOOTER_DESCRIPTION, FOOTER_LINKS, A11Y } from "@/brand/copy";
+import { APP_URL } from "@/brand/tokens";
 import { cn } from "@/lib/utils";
 
-export function SiteFrame({
-  children,
-}: {
-  children: ReactNode;
-  current?: "/what" | "/how" | "/beta" | "/legal";
-}) {
+export function SiteFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="site-shell">
+    <div className="flex min-h-dvh flex-col">
       <a href="#main" className="skip-link">
-        Skip to content
+        {NAV.skip}
       </a>
       <header className="masthead">
         <div className="site-container masthead-inner">
           <Wordmark />
-          <nav className="desktop-nav" aria-label="Main navigation">
-            <Link to="/what">The idea</Link>
-            <Link to="/how">Meet Proof</Link>
-            <Link to="/beta">Dispatch</Link>
+          <nav className="desktop-nav" aria-label={A11Y.mainNav}>
+            <Link to="/products">{NAV.products}</Link>
+            <Link to="/trust">{NAV.trust}</Link>
           </nav>
           <div className="nav-actions">
-            <ThemeToggle />
-            <Link className="nav-cta" to="/beta">
-              Keep me posted <ArrowUpRight size={16} aria-hidden />
-            </Link>
+            <a className="nav-app-link" href={APP_URL}>
+              {NAV.app}
+            </a>
             <details className="mobile-menu">
-              <summary className="menu-toggle" aria-label="Navigation menu">
-                <Menu className="menu-open-icon" aria-hidden />
-                <X className="menu-close-icon" aria-hidden />
+              <summary className="mobile-menu-toggle" aria-label={A11Y.mobileMenuOpen}>
+                <Menu className="icon-open" size={20} aria-hidden />
+                <X className="icon-close" size={20} aria-hidden />
+                {NAV.mobileMenu}
               </summary>
-              <nav className="mobile-nav" aria-label="Mobile navigation">
-                <a href="/what">The idea</a>
-                <a href="/how">Meet Proof</a>
-                <a href="/beta">Agmt Dispatch</a>
+              <nav className="mobile-nav" aria-label={A11Y.mainNav}>
+                <a href="/products">{NAV.products}</a>
+                <a href="/trust">{NAV.trust}</a>
+                <a href={APP_URL}>{NAV.app}</a>
               </nav>
             </details>
           </div>
         </div>
       </header>
-      <main id="main">{children}</main>
-      <footer className="site-footer">
-        <div className="site-container">
-          <div className="footer-top">
-            <p>
-              Less repetition.
-              <br />
-              <em>More possibility.</em>
-            </p>
-            <div className="footer-links">
-              <Link to="/what">The idea</Link>
-              <Link to="/how">Meet Proof</Link>
-              <Link to="/beta">Dispatch</Link>
-              <Link to="/legal">Legal & updates</Link>
+
+      <main id="main" className="flex-1">
+        {children}
+      </main>
+
+      <footer className="border-t border-rule">
+        <div className="site-container py-16">
+          <nav
+            className="grid grid-cols-2 gap-8 border-b border-rule pb-12 sm:grid-cols-4"
+            aria-label={A11Y.footerNav}
+          >
+            <div className="col-span-2 sm:col-span-1">
+              <Wordmark size="lg" />
+              <p className="text-helper mt-4 max-w-[16rem]">{FOOTER_DESCRIPTION}</p>
             </div>
-          </div>
-          <div className="footer-bottom">
-            <Wordmark />
-            <span>Practical tools for modern legal work.</span>
-            <a href="#main">Back to top ↑</a>
-          </div>
+            <FooterGroup heading="Products" links={FOOTER_LINKS.products} />
+            <FooterGroup heading="Agmt" links={FOOTER_LINKS.agmt} />
+            <FooterGroup heading="Legal" links={FOOTER_LINKS.legal} />
+          </nav>
+          <p className="text-helper pt-8">© {new Date().getFullYear()} Agmt.</p>
         </div>
       </footer>
     </div>
   );
 }
-export function Page({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("site-container inner-page", className)}>{children}</div>;
-}
-export function Clause({
-  n,
-  title,
-  children,
-  className,
+
+function FooterGroup({
+  heading,
+  links,
 }: {
-  n: string;
-  title?: string;
-  children: ReactNode;
-  className?: string;
+  heading: string;
+  links: readonly { label: string; to?: string; href?: string }[];
 }) {
   return (
-    <section className={cn("clause border-t border-rule pt-7", className)}>
-      <p className="clause-n" aria-hidden>
-        {n.padStart(2, "0")}
-      </p>
-      <div>
-        {title && <h2 className="text-2xl">{title}</h2>}
-        {children}
-      </div>
-    </section>
+    <div>
+      <p className="eyebrow mb-4">{heading}</p>
+      <ul className="flex flex-col gap-3">
+        {links.map((link) => (
+          <li key={link.label}>
+            {link.to ? (
+              <Link to={link.to} className="text-sm font-medium hover:underline">
+                {link.label}
+              </Link>
+            ) : (
+              <a href={link.href} className="text-sm font-medium hover:underline">
+                {link.label}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
-export function Prose({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn("max-w-[var(--measure)] text-ink-2", className)}>{children}</p>;
+
+export function Page({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("site-container py-14 sm:py-20", className)}>{children}</div>;
 }
-export function Aside({ children }: { children: ReactNode }) {
-  return <p className="border-l-2 border-accent pl-4 text-muted">{children}</p>;
+
+export function Prose({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn("reading-measure text-[1.0625rem] leading-[1.75]", className)}>{children}</p>;
 }

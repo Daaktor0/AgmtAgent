@@ -1,192 +1,121 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { SiteFrame } from "@/components/site/frame";
-import { DispatchForm } from "@/components/site/dispatch-form";
-import { ProofExample } from "@/components/site/proof-example";
-import { PLATFORM, DISPATCH } from "@/brand/copy";
+import { ProofSpecimen } from "@/components/site/proof-specimen";
+import { ProofCta } from "@/components/site/state-cta";
+import { AgmtSymbol } from "@/brand/logo";
+import { HOME, FUTURE_PRODUCTS, PROOF_STATE, METADATA } from "@/brand/copy";
 
-export const Route = createFileRoute("/")({ component: Home });
+const isLaunch = PROOF_STATE === "launch";
+
+export const Route = createFileRoute("/")({
+  component: Home,
+  head: () => ({
+    meta: [
+      { title: isLaunch ? METADATA.home.title : METADATA.home.prelaunchTitle },
+      {
+        name: "description",
+        content: isLaunch ? METADATA.home.description : METADATA.home.prelaunchDescription,
+      },
+    ],
+  }),
+});
+
 function Home() {
   return (
     <SiteFrame>
-      <section className="hero site-container">
-        <div className="hero-top">
-          <p className="eyebrow">{PLATFORM.eyebrow}</p>
-          <span className="status-note">
-            <span aria-hidden /> A platform in the making
-          </span>
-        </div>
-        <div className="hero-composition">
-          <div className="hero-copy">
-            <h1>
-              More room
-              <br />
-              for <em>judgment.</em>
-            </h1>
-            <p className="hero-lede">{PLATFORM.lede}</p>
-            <div className="hero-actions">
-              <Link to="/how" className="button button-ink">
-                Meet Proof <ArrowUpRight size={18} aria-hidden />
+      {/* H01 */}
+      <section className="relative overflow-hidden py-14 sm:py-20 lg:py-28">
+        <AgmtSymbol aria-hidden className="hero-symbol" />
+        <div className="site-container relative">
+          <p className="eyebrow">{HOME.hero.eyebrow}</p>
+          <h1 className="text-hero mt-4 max-w-3xl">{HOME.hero.headline}</h1>
+          <p className="text-lead mt-6 max-w-xl text-[var(--color-ash)]">
+            {isLaunch ? HOME.hero.body : HOME.hero.prelaunchBody}
+          </p>
+          <div className="mt-9 flex flex-wrap items-center gap-x-8 gap-y-4">
+            <ProofCta prelaunchLabel={HOME.hero.secondaryLink} prelaunchTo="/products/proof" />
+            {isLaunch ? (
+              <Link className="text-link" to="/products/proof">
+                {HOME.hero.secondaryLink} <ArrowRight size={16} aria-hidden />
               </Link>
-              <a href="#dispatch" className="text-link">
-                Follow the build <ArrowRight size={17} aria-hidden />
-              </a>
-            </div>
+            ) : null}
           </div>
-          <div className="margin-art" aria-hidden>
-            <span className="art-label">A LITTLE LESS OF THIS.</span>
-            <div className="art-stack">
-              <div className="art-sheet sheet-back" />
-              <div className="art-sheet sheet-middle" />
-              <div className="art-sheet sheet-front">
-                <span className="art-sheet-title">
-                  The work around
-                  <br />
-                  the work.
-                </span>
-                <div className="art-list">
-                  <span>Check. Again.</span>
-                  <span>Find the reference.</span>
-                  <span>Fix the same detail.</span>
-                  <span>One more pass.</span>
-                </div>
-                <div className="art-margin">Make space.</div>
-                <span className="art-page">AGMT / 001</span>
+          <p className="text-helper mt-5">{isLaunch ? HOME.hero.helper : HOME.hero.prelaunchHelper}</p>
+        </div>
+      </section>
+
+      {/* H02 */}
+      <section className="border-t border-rule bg-white py-14 sm:py-20 lg:py-28">
+        <div className="site-container grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
+          <div>
+            <p className="eyebrow">{HOME.featured.label}</p>
+            <h2 className="text-section-title mt-4">{HOME.featured.headline}</h2>
+            <p className="text-lead mt-5 max-w-md text-[var(--color-ash)]">{HOME.featured.body}</p>
+            <p className="mt-4 max-w-md text-[1.0625rem] leading-[1.7]">{HOME.featured.outputExplanation}</p>
+            <Link to="/products/proof" className="text-link mt-7">
+              {HOME.featured.link} <ArrowRight size={16} aria-hidden />
+            </Link>
+          </div>
+          <ProofSpecimen caption={HOME.featured.specimenCaption} />
+        </div>
+      </section>
+
+      {/* H03 */}
+      <section aria-label={HOME.facts.accessibleLabel} className="py-14 sm:py-20 lg:py-24">
+        <div className="site-container">
+          <div className="grid gap-10 sm:grid-cols-3 sm:gap-8">
+            {HOME.facts.items.map((fact) => (
+              <div key={fact.heading} className="border-t border-rule pt-6">
+                <h3 className="text-product-title">{fact.heading}</h3>
+                <p className="mt-3 text-[1.0625rem] leading-[1.7] text-[var(--color-ash)]">{fact.body}</p>
               </div>
-            </div>
-            <span className="art-note">
-              For the part only you can do. <span>↗</span>
-            </span>
+            ))}
           </div>
-        </div>
-        <div className="hero-bottom">
-          <span>Built for the way legal work actually happens.</span>
-          <a href="#idea" aria-label="Discover the idea behind Agmt">
-            <ArrowDown size={16} aria-hidden /> Scroll to explore
-          </a>
+          <Link to="/trust" className="text-link mt-10">
+            {HOME.facts.link} <ArrowRight size={16} aria-hidden />
+          </Link>
         </div>
       </section>
-      <section className="idea-section" id="idea">
-        <span id="problem" />
-        <div className="site-container idea-grid">
-          <p className="eyebrow">
-            <span className="section-number">01 /</span> THE IDEA
-          </p>
-          <div>
-            <h2>
-              A profession built on thought.
-              <br />
-              <em>A day filled with everything else.</em>
-            </h2>
-            <div className="idea-prose">
-              <p>
-                Finding the detail. Checking it again. Getting the document ready for the next
-                person. Necessary work has a way of taking up the whole day.
-              </p>
-              <p>
-                Agmt starts there. We’re building practical tools around real legal tasks, so more
-                of your attention can go where it matters.
-              </p>
-            </div>
-            <Link to="/what" className="text-link">
-              Why we’re building Agmt <ArrowUpRight size={17} aria-hidden />
-            </Link>
-          </div>
-        </div>
-      </section>
-      <section className="proof-section site-container" id="proof">
-        <div className="section-heading">
-          <p className="eyebrow">
-            <span className="section-number">02 /</span> FIRST ON THE DESK
-          </p>
-          <span className="status-note">Proof · In development</span>
-        </div>
-        <div className="proof-grid">
-          <div className="proof-copy">
-            <span className="product-name">Agmt / Proof</span>
-            <h2>
-              The last pass.
-              <br />
-              <em>A fresh pair of eyes.</em>
-            </h2>
-            <p>
-              A focused proofreading tool for Word agreements. We’re building Proof to catch
-              mechanical errors and return corrections and comments in the document you’re already
-              working on.
-            </p>
-            <ul className="proof-points">
-              <li>
-                <span>01</span> A supported Word agreement goes in.
+
+      {/* H04 */}
+      <section className="border-t border-rule py-14 sm:py-20 lg:py-24">
+        <div className="site-container">
+          <h2 className="text-section-title max-w-lg">{HOME.future.heading}</h2>
+          <p className="text-lead mt-4 max-w-xl text-[var(--color-ash)]">{HOME.future.intro}</p>
+          <ul className="mt-10 divide-y divide-[var(--color-rule)] border-y border-rule">
+            {FUTURE_PRODUCTS.map((product) => (
+              <li
+                key={product.name}
+                className="flex flex-wrap items-center justify-between gap-4 py-5"
+              >
+                <div>
+                  <p className="font-semibold">{product.name}</p>
+                  <p className="text-helper mt-0.5">{product.description}</p>
+                </div>
+                <span className="status-pill">{product.status}</span>
               </li>
-              <li>
-                <span>02</span> Focused proofreading checks run.
-              </li>
-              <li>
-                <span>03</span> Word markup comes back for your review.
-              </li>
-            </ul>
-            <Link to="/how" className="text-link">
-              Take a closer look at Proof <ArrowUpRight size={18} aria-hidden />
-            </Link>
-          </div>
-          <ProofExample />
+            ))}
+          </ul>
         </div>
       </section>
-      <section className="horizon-section" id="review">
-        <div className="site-container horizon-grid">
-          <div>
-            <p className="eyebrow">
-              <span className="section-number">03 /</span> THE WIDER VIEW
-            </p>
-            <h2>
-              Agreements are
-              <br />
-              the beginning.
-              <br />
-              <em>Not the boundary.</em>
-            </h2>
-          </div>
-          <div className="horizon-copy">
-            <p>{PLATFORM.direction}</p>
-            <div className="direction-row">
-              <span>Building now</span>
-              <strong>Proofreading with Proof</strong>
-            </div>
-            <div className="direction-row">
-              <span>Exploring next</span>
-              <strong>
-                Review, document preparation
-                <br />
-                and the work between them
-              </strong>
-            </div>
-            <p className="small-note">
-              These are areas of exploration, not available products or a release schedule.
-            </p>
-            <Link to="/beta" className="text-link">
-              Watch it take shape <ArrowUpRight size={17} aria-hidden />
-            </Link>
-          </div>
-        </div>
-      </section>
-      <section className="dispatch-section site-container" id="dispatch">
-        <span id="beta" className="anchor-alias" />
-        <div className="dispatch-copy">
-          <p className="eyebrow">
-            <span className="section-number">04 /</span> {DISPATCH.name}
-          </p>
-          <h2>
-            A note when
-            <br />
-            <em>there’s something new.</em>
+
+      {/* H05 */}
+      <section data-surface="dark" className="py-16 sm:py-24">
+        <div className="site-container text-center">
+          <h2 className="text-section-title mx-auto max-w-xl">
+            {isLaunch ? HOME.closing.headline : HOME.closing.prelaunchHeadline}
           </h2>
-          <p>{DISPATCH.body}</p>
-          <div className="dispatch-detail">
-            <span aria-hidden>↗</span>
-            <p>New tools. Beta openings. The next chapter of Agmt.</p>
+          <p className="text-lead mx-auto mt-4 max-w-md text-[var(--color-dark-secondary)]">
+            {isLaunch ? HOME.closing.body : HOME.closing.prelaunchBody}
+          </p>
+          <div className="mt-8 flex justify-center">
+            <ProofCta prelaunchLabel="View all products" prelaunchTo="/products" variant="on-dark" />
           </div>
+          <Link to="/builders" className="text-link mt-8 inline-flex">
+            {HOME.closing.quietLink}
+          </Link>
         </div>
-        <DispatchForm />
       </section>
     </SiteFrame>
   );

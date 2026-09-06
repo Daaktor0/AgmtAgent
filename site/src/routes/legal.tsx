@@ -1,22 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { LEGAL } from "@/brand/copy";
-import { Page, SiteFrame } from "@/components/site/frame";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+/** Retired in the v2 overhaul — split into /privacy and /terms. */
 export const Route = createFileRoute("/legal")({
-  component: LegalPage,
-  head: () => ({ meta: [{ title: "Legal & updates — Agmt" }] }),
+  beforeLoad: () => {
+    throw redirect({ to: "/terms" });
+  },
 });
-function LegalPage() {
-  return (
-    <SiteFrame>
-      <Page>
-        <p className="eyebrow">AGMT / A FEW PLAIN TERMS</p>
-        <h1 className="page-title">Legal & updates.</h1>
-        <div className="legal-prose">
-          {LEGAL.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-      </Page>
-    </SiteFrame>
-  );
-}

@@ -153,6 +153,39 @@ Fixture hashes: none. Versions: `proof-launch-v1` / `proof-support-matrix-v1`.
 - **Next executable (critical path):** PWC-02 — strict public and internal contracts.
 - **Parallel:** PWC-03 — independently generated corpus fixtures.
 
+### PWC-02 — Define strict public and internal contracts
+
+- **Baseline commit:** `19fcf07` (PWC-01 SHA fill-in).
+- **Change commit:** recorded after commit.
+- **Files changed:** `web/src/lib/products/contracts.ts`, `web/src/lib/products/api-contracts.ts`, `web/src/lib/products/api-contracts.test.ts`, `web/src/lib/server/proof-worker-contract.ts`, `web/src/lib/server/proof-worker-contract.test.ts`, `web/package.json`, `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
+- **Status:** Implemented; Tested (3/3 api-contracts + 3/3 worker-envelope + 7/7 PWC-01 + 2/2 product tests = 15/15). Browser/Word not applicable. Not Deployed. Current HTTP handlers still return the older `{error: string}` shape until PWC-19/28 wire these schemas.
+- **Must-not-change held:** `RunStatus` DB enum list unchanged; `validating` is an API stage only.
+
+#### Behaviour
+
+- `RunSummaryV2` (`apiVersion: 2`): nullable pre-result counts, distinct `noticeCount`, coverage reason enum, retry/download/deletion metadata. Premature zeros and extra fields rejected.
+- Error envelope `{error:{code,messageKey,retryable,supportId},serverNow}` with unknown-field rejection.
+- Metadata-only queue envelope version 1, ≤2 KiB, no filenames/URLs/findings/bytes/`tenantId`.
+- 36 section-9 UI fixtures with frozen copy; content canary never appears in serialized API or queue JSON.
+- Content contracts remain in `agmt/proof/contracts.ts` and are not imported by the public/queue modules.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/products/api-contracts.test.ts src/lib/server/proof-worker-contract.test.ts src/lib/products/capabilities.test.ts src/lib/products/products.test.ts
+```
+
+Actual: **15/15 pass**, 0 fail. Node v24.11.1.
+
+Fixture hashes: none (JSON fixtures only). Versions: API v2, envelope v1, `proof-launch-v1`.
+
+#### Remaining blockers and next eligible tasks
+
+- Wiring these DTOs onto live routes is PWC-19/28/29, not this task.
+- **Next executable (critical path):** PWC-16 (depends on PWC-02). Source lane **PWC-03** is independently eligible.
+- **Parallel:** PWC-03, PWC-29 (UI presentation of these DTOs).
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

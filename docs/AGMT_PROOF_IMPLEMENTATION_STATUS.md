@@ -156,7 +156,7 @@ Fixture hashes: none. Versions: `proof-launch-v1` / `proof-support-matrix-v1`.
 ### PWC-02 — Define strict public and internal contracts
 
 - **Baseline commit:** `19fcf07` (PWC-01 SHA fill-in).
-- **Change commit:** recorded after commit.
+- **Change commit:** `f4cd8907919159f1ec564712592cd74528543cba`.
 - **Files changed:** `web/src/lib/products/contracts.ts`, `web/src/lib/products/api-contracts.ts`, `web/src/lib/products/api-contracts.test.ts`, `web/src/lib/server/proof-worker-contract.ts`, `web/src/lib/server/proof-worker-contract.test.ts`, `web/package.json`, `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
 - **Status:** Implemented; Tested (3/3 api-contracts + 3/3 worker-envelope + 7/7 PWC-01 + 2/2 product tests = 15/15). Browser/Word not applicable. Not Deployed. Current HTTP handlers still return the older `{error: string}` shape until PWC-19/28 wire these schemas.
 - **Must-not-change held:** `RunStatus` DB enum list unchanged; `validating` is an API stage only.

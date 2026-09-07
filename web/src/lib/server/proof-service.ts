@@ -2,9 +2,11 @@ import { sha256Hex } from "../agmt/crypto.ts";
 import { exportProofDocx } from "../agmt/export/docx.ts";
 import { LAUNCH_RULE_SET_VERSION } from "../agmt/proof/registry.ts";
 import { newId } from "../agmt/ids.ts";
+import { getProofCapabilities as assembleProofCapabilities, parseProofUploadsSwitch, ProofUploadsPausedError, proofUploadAdmissionResponse as pausedUploadResponse, type ProofCapabilitiesV2 } from "../products/capabilities.ts";
 import type { RunStatus } from "../products/contracts.ts";
 import { withDatabaseContext, currentDatabaseContext } from "../db-context.server.ts";
 import { getSql, type Sql } from "../db.ts";
+import { serverEnv } from "../runtime-env.server.ts";
 import { requireVerified } from "./account.ts";
 import { deleteBlob, getBlob, markBlobClean, putBlob } from "./blobs.ts";
 import { createProductRun, transitionProductRun, type ProductRunRow } from "./product-runs.ts";
@@ -13,6 +15,18 @@ import { scanProofDocx } from "./proof-scan.ts";
 const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const PARSER_VERSION = "proof-docx-v2";
 const EXPORTER_VERSION = "proof-ooxml-v1";
+
+export function getProofCapabilities(now = Date.now()): ProofCapabilitiesV2 {
+  return assembleProofCapabilities(now, parseProofUploadsSwitch(serverEnv("PROOF_UPLOADS_ENABLED")));
+}
+
+export function proofUploadAdmissionResponse(now = Date.now()): Response | null {
+  return pausedUploadResponse(now, parseProofUploadsSwitch(serverEnv("PROOF_UPLOADS_ENABLED")));
+}
+
+function assertProofUploadsAccepted(now = Date.now()): void {
+  if (!getProofCapabilities(now).acceptingUploads) throw new ProofUploadsPausedError();
+}
 
 export type ProofResponse = {
   runId: string;
@@ -88,6 +102,7 @@ async function markRunReady(sql: Sql, run: ProductRunRow, outputArtifactId: stri
 }
 
 export async function uploadAndProcessProof(ownerUserId: string, bytes: Buffer, idempotencyKey: string, contentType = DOCX_TYPE): Promise<ProofResponse> {
+  assertProofUploadsAccepted();
   if (contentType !== DOCX_TYPE) throw new Error("unsupported_content_type");
   if (bytes.byteLength < 1 || bytes.byteLength > 25 * 1024 * 1024) throw new Error("source_too_large");
   const sql = await getSql();
@@ -149,6 +164,7 @@ export async function uploadAndProcessProof(ownerUserId: string, bytes: Buffer, 
 }
 
 export async function authenticatedProofUpload(ownerUserId: string, bytes: Buffer, idempotencyKey: string, contentType?: string): Promise<ProofResponse> {
+  assertProofUploadsAccepted();
   await requireVerified(ownerUserId);
   return uploadAndProcessProof(ownerUserId, bytes, idempotencyKey, contentType);
 }

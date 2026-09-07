@@ -116,6 +116,43 @@ Fixture hashes: none (no document fixtures generated). Versions: Node 24.11.1, n
 - **Parallel after PWC-00:** PWC-03 — independently generated corpus fixtures.
 - PWC-02 depends on PWC-01.
 
+### PWC-01 — Add one fail-closed capability and upload gate
+
+- **Baseline commit:** `a30a0c2` (PWC-00 SHA fill-in; branch head before this task).
+- **Change commit:** recorded after commit.
+- **Files changed:** `web/src/lib/products/capabilities.ts`, `web/src/lib/products/capabilities.test.ts`, `web/src/lib/server/proof-service.ts`, `web/src/routes/api/proof/$.ts`, `web/src/routes/index.tsx`, `web/src/routes/proof.tsx`, `web/package.json` (test script), `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
+- **Status:** Implemented; Tested (7/7 capabilities tests + 2/2 existing product tests). Browser fixture copy agreement Tested. Live Chromium home/Proof Verified **Blocked** (no browser MCP in this session). Word not applicable. Not Deployed.
+- **Must-not-change held:** `canTransitionProductRun("scanning","processing")` remains false; transition table unchanged.
+
+#### Behaviour
+
+`acceptingUploads` is true only when `PROOF_UPLOADS_ENABLED` is explicitly true **and** purge, scanner and validator readiness timestamps are present and fresh (90 s / 24 h / 90 s). Missing, false, unknown, stale or future signals deny. Default production state is paused.
+
+- `GET /api/proof/capabilities` is anonymous and returns the section 18 DTO (`apiVersion: 2`).
+- `POST /api/proof/upload` calls `proofUploadAdmissionResponse()` **before** `request.arrayBuffer()`. Direct POST while paused returns 503 `uploads_paused` and does not create a run.
+- `GET /api/proof/download/:id` and `DELETE /api/proof/run/:id` are not gated by the upload switch.
+- Home and Proof render the same paused copy: “Proof is temporarily unavailable for new uploads.” / “Existing downloads and deletion remain available.”
+- Proof submit rechecks capabilities before POST. Proofread stays disabled while paused.
+- Current synchronous upload path remains closed until replacement gates (PWC-17–25) report readiness.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/products/capabilities.test.ts src/lib/products/products.test.ts
+```
+
+Actual: **9/9 pass**, 0 fail. Node v24.11.1.
+
+Fixture hashes: none. Versions: `proof-launch-v1` / `proof-support-matrix-v1`.
+
+#### Remaining blockers and next eligible tasks
+
+- Live browser agreement of home/Proof: Blocked (no browser driver this session).
+- Upload remains correctly closed until purge/scanner/validator readiness exists (PWC-22/27) and founder enables the switch.
+- **Next executable (critical path):** PWC-02 — strict public and internal contracts.
+- **Parallel:** PWC-03 — independently generated corpus fixtures.
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

@@ -1,23 +1,44 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Shell } from "@/components/agmt/shell";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { parseProofCapabilities, PROOF_CAPABILITIES_FALLBACK, proofAvailabilityCopy, type ProofCapabilitiesV2 } from "@/lib/products/capabilities";
 import { selectedFileError } from "@/lib/products/proof-state";
 
 export const Route = createFileRoute("/proof")({ component: Proof });
+
+async function loadProofCapabilities(): Promise<ProofCapabilitiesV2> {
+  try {
+    const response = await fetch("/api/proof/capabilities", { cache: "no-store" });
+    if (!response.ok) return PROOF_CAPABILITIES_FALLBACK;
+    return parseProofCapabilities(await response.json());
+  } catch {
+    return PROOF_CAPABILITIES_FALLBACK;
+  }
+}
 
 function Proof() {
   const { user, isPending } = useCurrentUserState();
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [capabilities, setCapabilities] = useState<ProofCapabilitiesV2>(PROOF_CAPABILITIES_FALLBACK);
   const [result, setResult] = useState<{ downloadUrl: string | null; correctionCount: number; commentCount: number; coverage: string | null } | null>(null);
+  const paused = proofAvailabilityCopy(capabilities.acceptingUploads);
+
+  useEffect(() => { void loadProofCapabilities().then(setCapabilities); }, []);
 
   async function submit() {
     if (!file || !user || user.isDevFallback) return;
     setBusy(true); setError(null); setResult(null);
     try {
+      const latest = await loadProofCapabilities();
+      setCapabilities(latest);
+      if (!latest.acceptingUploads) {
+        setError(proofAvailabilityCopy(false)?.heading ?? "Proof is temporarily unavailable for new uploads.");
+        return;
+      }
       const response = await fetch("/api/proof/upload", {
         method: "POST",
         headers: {
@@ -27,7 +48,7 @@ function Proof() {
         body: await file.arrayBuffer(),
       });
       const body = await response.json() as { error?: string; downloadUrl?: string | null; correctionCount?: number; commentCount?: number; coverage?: string | null };
-      if (!response.ok) throw new Error(body.error ?? "Proof could not process this document.");
+      if (!response.ok) throw new Error(body.error === "uploads_paused" ? "Proof is temporarily unavailable for new uploads." : body.error ?? "Proof could not process this document.");
       setResult({ downloadUrl: body.downloadUrl ?? null, correctionCount: body.correctionCount ?? 0, commentCount: body.commentCount ?? 0, coverage: body.coverage ?? null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Proof could not process this document.");
@@ -42,6 +63,7 @@ function Proof() {
       <p className="text-base leading-7">Safe corrections appear as tracked changes. Items that need your judgment appear as comments.</p>
       <p className="border-l-2 border-oxblood pl-4 text-sm leading-6">Proof runs are temporary. The source and marked DOCX are deleted no later than two hours after upload, with access closing five minutes earlier.</p>
       <div className="space-y-4 border-y border-rule py-7">
+        {paused ? <div className="space-y-1 text-sm" role="status"><p>{paused.heading}</p><p className="text-stone">{paused.detail}</p></div> : null}
         <label htmlFor="proof-file" className="block text-sm font-medium">Choose Word document</label>
         <input id="proof-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="block w-full text-sm file:mr-4 file:border file:border-ink file:bg-transparent file:px-4 file:py-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-oxblood" onChange={(e) => {
           const next = e.target.files?.[0] ?? null;
@@ -53,7 +75,7 @@ function Proof() {
         {error ? <p role="alert" className="text-sm text-oxblood">{error}</p> : null}
         {file ? <p className="break-words text-sm" aria-live="polite">{file.name} · {(file.size / 1024).toFixed(1)} KiB selected on your device</p> : null}
         {!isPending && (!user || user.isDevFallback) ? <p className="text-sm"><Link to="/login" search={{ returnTo: "/proof" }} className="underline underline-offset-4">Sign in to Agmt</Link> before uploading. You may need to select your file again.</p> : null}
-        <Button disabled={!file || !user || user.isDevFallback || busy} onClick={() => void submit()}>{busy ? "Proofreading…" : "Proofread document"}</Button>
+        <Button disabled={!capabilities.acceptingUploads || !file || !user || user.isDevFallback || busy} onClick={() => void submit()}>{busy ? "Proofreading…" : "Proofread document"}</Button>
         <p id="proof-unavailable" className="text-sm text-stone">The server receives the selected Word file only after you submit. A verified email is required.</p>
         {result ? <div className="space-y-2 border-l-2 border-ink pl-4 text-sm" aria-live="polite"><p>{result.correctionCount} tracked correction{result.correctionCount === 1 ? "" : "s"} and {result.commentCount} anchored comment{result.commentCount === 1 ? "" : "s"} prepared{result.coverage === "limited" ? " with limited coverage" : ""}.</p>{result.downloadUrl ? <a className="underline underline-offset-4" href={result.downloadUrl}>Download the marked DOCX</a> : null}</div> : null}
       </div>

@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUserId } from "@/lib/auth/verify.server";
 import { withAuthenticatedDatabaseContext } from "@/lib/auth/runtime-context.server";
-import { authenticatedProofUpload, deleteProofRun, proofDownload } from "@/lib/server/proof-service";
+import { proofCapabilitiesPath, proofRouteRequiresUploadAdmission } from "@/lib/products/capabilities";
+import { authenticatedProofUpload, deleteProofRun, getProofCapabilities, proofDownload, proofUploadAdmissionResponse } from "@/lib/server/proof-service";
 
 function parts(request: Request): string[] {
   return new URL(request.url).pathname.replace(/^\/api\/proof\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
@@ -19,27 +20,36 @@ function errorResponse(error: unknown): Response {
     "unverified_email", "disabled", "proof_not_available", "proof_object_missing",
     "processing_deadline_reached", "upload_grant_closed", "source_too_large",
     "unsupported_content_type", "invalid_docx", "unsafe_docx", "proof_failed",
+    "uploads_paused",
   ]);
   const safeCode = known.has(code) ? code : "proof_request_failed";
   const status = safeCode === "source_too_large" ? 413
     : safeCode === "unsupported_content_type" ? 415
-      : ["unverified_email", "disabled", "proof_not_available", "proof_object_missing"].includes(safeCode) ? 403
-        : 400;
+      : safeCode === "uploads_paused" ? 503
+        : ["unverified_email", "disabled", "proof_not_available", "proof_object_missing"].includes(safeCode) ? 403
+          : 400;
   return Response.json({ error: safeCode }, { status });
 }
 
+const noStore = { "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
+
 async function handler(request: Request): Promise<Response> {
   try {
+    const path = parts(request);
+    if (proofCapabilitiesPath(path, request.method)) {
+      return Response.json(getProofCapabilities(), { headers: noStore });
+    }
     const userId = await requireUserId();
     return withAuthenticatedDatabaseContext(userId, async () => {
-      const path = parts(request);
-      if (request.method === "POST" && path[0] === "upload") {
+      if (proofRouteRequiresUploadAdmission(request.method, path)) {
+        const paused = proofUploadAdmissionResponse();
+        if (paused) return paused;
         const declared = Number(request.headers.get("content-length") ?? "0");
-        if (declared > 25 * 1024 * 1024) return Response.json({ error: "source_too_large" }, { status: 413 });
+        if (declared > 25 * 1024 * 1024) return Response.json({ error: "source_too_large" }, { status: 413, headers: noStore });
         const bytes = Buffer.from(await request.arrayBuffer());
         const key = request.headers.get("idempotency-key") ?? `proof-${crypto.randomUUID()}`;
         const result = await authenticatedProofUpload(userId, bytes, key, request.headers.get("content-type") ?? undefined);
-        return Response.json(result, { status: result.status === "rejected" || result.status === "failed" ? 422 : 200 });
+        return Response.json(result, { status: result.status === "rejected" || result.status === "failed" ? 422 : 200, headers: noStore });
       }
       if (request.method === "GET" && path[0] === "download" && path[1]) {
         const bytes = await proofDownload(userId, path[1]);

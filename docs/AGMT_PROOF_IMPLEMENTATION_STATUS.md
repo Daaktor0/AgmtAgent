@@ -119,7 +119,7 @@ Fixture hashes: none (no document fixtures generated). Versions: Node 24.11.1, n
 ### PWC-01 — Add one fail-closed capability and upload gate
 
 - **Baseline commit:** `a30a0c2` (PWC-00 SHA fill-in; branch head before this task).
-- **Change commit:** recorded after commit.
+- **Change commit:** `112b1d6e19fe51b3917b1b179d68660babb111ee`.
 - **Files changed:** `web/src/lib/products/capabilities.ts`, `web/src/lib/products/capabilities.test.ts`, `web/src/lib/server/proof-service.ts`, `web/src/routes/api/proof/$.ts`, `web/src/routes/index.tsx`, `web/src/routes/proof.tsx`, `web/package.json` (test script), `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
 - **Status:** Implemented; Tested (7/7 capabilities tests + 2/2 existing product tests). Browser fixture copy agreement Tested. Live Chromium home/Proof Verified **Blocked** (no browser MCP in this session). Word not applicable. Not Deployed.
 - **Must-not-change held:** `canTransitionProductRun("scanning","processing")` remains false; transition table unchanged.

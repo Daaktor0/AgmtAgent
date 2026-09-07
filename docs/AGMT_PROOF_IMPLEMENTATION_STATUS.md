@@ -42,7 +42,7 @@ Plan file SHA-256 on this branch: `1A62526A909B0AF7F020ABEDD276CEA725AC781952C15
 ### PWC-00 — Reconcile baseline and create PWC ledger
 
 - **Baseline commit:** `6a7e80d7cdc584f4b1c67f1fce822da0e230dc53` (`origin/main`); plan commit on branch `b7126c712950b1f521a2b1bad832c4922a4b2266`.
-- **Change commit:** this ledger-only commit (recorded after commit).
+- **Change commit:** `5c031b1193aec13082faedbb0dd9f7411c783305`.
 - **Files changed:** `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md` only.
 - **Status:** Implemented; Tested (documentation checks); Verified not applicable (no browser/Word/live production claim). Not Deployed.
 - **Objective met:** Branch created from latest main; controlling plan present; current defects re-probed; historical receipts preserved; first eligible tasks identified.

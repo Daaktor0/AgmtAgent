@@ -256,12 +256,12 @@ Actual: **4/4**, **2/2**, **2/2** pass. Node v24.11.1. PGlite: scanning→proces
 - Do not apply 0009 to production without explicit authorization.
 - Real staging role matrix: Blocked.
 - **Next executable (critical path):** PWC-17 — temporary R2 boundaries and adapter (code can be prepared; provisioning is D-02/D-03 / spend).
-- **Next executable (source lane):** PWC-04.
+- **Source lane after this task:** PWC-04 (completed in this session).
 
 ### PWC-04 — Unify pre-expansion ZIP and resource limits
 
-- **Baseline commit:** `6059b69` (PWC-03/16 ledger).
-- **Change commit:** recorded after commit.
+- **Baseline commit:** `6059b692567689aff5dd726e6e4b5e6f7488170d`.
+- **Change commit:** `4e8605147fd70da1fac3d960f7c7120ba4e462af`.
 - **Files changed:** `web/src/lib/agmt/zip-safety.ts`, `web/src/lib/agmt/zip-safety.test.ts`, `web/src/lib/server/proof-scan.ts`, `web/src/lib/server/proof-scan.test.ts`, `web/package.json`, `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
 - **Status:** Implemented; Tested (4/4 zip-safety + 3/3 proof-scan + 9/9 docx-v2 + 4/4 launch + 7/7 corpus = 27/27 in the combined run). Browser/Word not applicable. Not Deployed.
 - **Must-not-change held:** uploads remain disabled; no antivirus claim; `scanning` → `processing` untouched.

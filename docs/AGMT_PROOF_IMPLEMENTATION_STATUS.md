@@ -1,5 +1,123 @@
 # Agmt Proof implementation status
 
+## Proof World Class (PWC) ledger
+
+This section is the controlling implementation ledger for the Proof World Class initiative defined in [AGMT_PROOF_WORLD_CLASS_PLAN.md](AGMT_PROOF_WORLD_CLASS_PLAN.md). Historical T00–T16 and hardening receipts below remain evidence. They are not PWC completion. Do not restart those sequences blindly.
+
+Evidence vocabulary follows the plan: **Existing**, **Implemented**, **Tested**, **Verified**, **Deployed**, **Proposed**, **Blocked**, **Superseded**.
+
+### Workspace and branch
+
+| Item | Value |
+|---|---|
+| Date (UTC) | 2026-09-07 |
+| Environment | Windows PowerShell; Node v24.11.1; npm 11.7.0 |
+| Workspace | `D:\AI Agent\agreement-agent` (normal checkout, not a linked worktree) |
+| Implementation branch | `proof-world-class-implementation` |
+| Remote | `origin` = `https://github.com/Daaktor0/AgmtAgent.git` |
+| Local `main` at session start | `b2d48d6f52bf6afdad33821db5daf70c107f5e5f` (stale vs remote; left untouched) |
+| `origin/main` after fetch | `6a7e80d7cdc584f4b1c67f1fce822da0e230dc53` |
+| Audit baseline (plan) | `15ad1e8c04533d5152107d614999d9fdc2dd5889` |
+| Planning branch / commit | `origin/proof-world-class-plan` / `2016c7a19758f25db2449f222618484155ed5ba5` |
+| Plan brought onto this branch | cherry-pick of `2016c7a` → `b7126c712950b1f521a2b1bad832c4922a4b2266` (docs-only; inspected before cherry-pick: one file `docs/AGMT_PROOF_WORLD_CLASS_PLAN.md`) |
+| Untracked local paths preserved (not committed) | `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs` |
+| Applicable AGENTS | `web/AGENTS.md` only. No root or deeper AGENTS.md. |
+
+### Reconciliation since audit baseline `15ad1e8`
+
+`git diff --stat 15ad1e8 origin/main` is confined to `/site` (Open Form / v2 public-website overhaul: `2dae374`, merge `6a7e80d`). No Proof engine, API, migration, Worker or storage files changed on `main` after the audit. `/site` remains out of scope for PWC tasks.
+
+Plan file SHA-256 on this branch: `1A62526A909B0AF7F020ABEDD276CEA725AC781952C15C724D1D8AEE1F819258`.
+
+### Deployment entrypoint (current source)
+
+| Surface | Status |
+|---|---|
+| Selected deploy | Root `package.json` `deploy` / `.github/workflows/deploy-cloudflare.yml`: `npm run build:web` then `wrangler deploy --config web/.output/server/wrangler.json --keep-vars` |
+| Selected build | `web/vite.config.ts` Nitro preset `cloudflare_module` when `mode === "cloudflare"` |
+| Bindings in `web/wrangler.jsonc` | R2 `AGMT_OBJECTS` → `agmt-proof-objects`; Hyperdrive `AGMT_APP_DB`, `AGMT_AUTH_DB`; cron `*/5 * * * *` |
+| Alternate, not selected | `web/vite.cloudflare.config.ts` (Nitro `node-server`); root `src/worker.ts` + Dockerfile Container web backend |
+| Historical Vercel/AWS T07 draft | `infra/proof/README.md` still describes S3/KMS. **Superseded** for new temporary Proof by plan sections 17–20. Existing R2 adapter code is **Existing**; dedicated quarantine/temporary buckets and independent purge Worker are **not Implemented** |
+
+### PWC-00 — Reconcile baseline and create PWC ledger
+
+- **Baseline commit:** `6a7e80d7cdc584f4b1c67f1fce822da0e230dc53` (`origin/main`); plan commit on branch `b7126c712950b1f521a2b1bad832c4922a4b2266`.
+- **Change commit:** this ledger-only commit (recorded after commit).
+- **Files changed:** `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md` only.
+- **Status:** Implemented; Tested (documentation checks); Verified not applicable (no browser/Word/live production claim). Not Deployed.
+- **Objective met:** Branch created from latest main; controlling plan present; current defects re-probed; historical receipts preserved; first eligible tasks identified.
+
+#### Contract probe — scanning → processing (re-run, not a completed flow)
+
+Command (from repo root, Node v24.11.1):
+
+```
+node --experimental-strip-types --input-type=module -e "import { canTransitionProductRun } from './web/src/lib/server/product-runs.ts'; ..."
+```
+
+Actual results:
+
+| Transition | Result |
+|---|---|
+| `uploading` → `scanning` | true |
+| `scanning` → `processing` | **false** |
+| `scanning` → `queued` | true |
+| `queued` → `processing` | true |
+| `processing` → `exporting` | true |
+| `exporting` → `ready` | true |
+| `failed` → `queued` | false |
+| `failed` → `scanning` | false |
+
+Code evidence: `web/src/lib/server/product-runs.ts` transition table still disallows `scanning` → `processing`. `web/src/lib/server/proof-service.ts::uploadAndProcessProof` still calls `transitionProductRun(..., from: scanning.status, to: "processing")` after `scanProofDocx`. **Existing defect.** A valid-file upload that reaches that call cannot complete the documented state machine. This is a code/contract probe, not a live authenticated reproduction. Do not “fix” it by adding `scanning` → `processing` (PWC-01 must-not-change; new queue path is PWC-16/24).
+
+#### Audit findings rechecked against current source
+
+| Finding | Current evidence | Label |
+|---|---|---|
+| Rejected upload-state transition | Probe above; service still requests the illegal transition | Existing defect |
+| Structural screening presented as security gate | `proof-scan.ts` comment says it is not antivirus, but it still runs JSZip CRC load before central-directory safety, inspects private `_data`, refuses all external relationships, and is the only scan before `putBlob`. No ClamAV. Limits 2,000 entries / 100 MiB / 100:1 vs `zip-safety.ts` 4,096 / 150 MiB / 250. `inspectZipCentralDirectory` is used by `docx-v2.ts`, not by `scanProofDocx` | Existing defect / incomplete gate |
+| Incomplete deletion verification | `deleteProofRun` calls `deleteBlob` then sets `deletion_verified_at = now()` with no provider HEAD/list absence check. Missing manifests return early in `deleteBlob`. Purge uses `list_due_product_runs($1)` with batch 25, sequential, same-app cron in `web/server/plugins/cloudflare.ts`, which logs the raw error | Existing defect |
+| Contradictory availability | Home (`web/src/routes/index.tsx`): “Beta preparation · uploads not yet available”. Proof (`web/src/routes/proof.tsx`): signed-in users can POST `/api/proof/upload`. Catalogue `PRODUCTS.proof.availability = "available"`. No fail-closed readiness switch | Existing defect |
+| Bytes before verified-email | `api/proof/$.ts` authenticates `requireUserId` then `request.arrayBuffer()` then `authenticatedProofUpload` → `requireVerified` | Existing defect |
+| Source map main-story only | `source-map.ts` hard-codes `partUri: "/word/document.xml"` | Existing |
+| Envelope encryption on current Proof path | `blobs.ts` still encrypts via `encryptBytes` / `object_manifest`. Plan supersedes this for *new* temporary runs (R2 managed encryption) without rewriting historical ciphertext | Existing; new lane **Proposed** |
+
+#### Documentation checks (PWC-00 unit tests)
+
+- Plan headings `### PWC-00` … `### PWC-45` plus `### PWC-33A`: 47/47 present, 0 missing.
+- Inspect/create paths named by PWC-00 and the immediately following inspect lists exist (AGENTS, ledger, plan, registry, product-handlers, proof/index routes, proof-service, launch-fixtures, zip-safety, docx-v2, proof-scan, source-map, export/docx, product-runs, retention, object-store, wrangler configs, deploy workflow, cloudflare plugin, migration 0008). Future PWC create paths (e.g. `capabilities.ts`) are targets, not current files.
+- Next unused migration number: **0009** (`0008_proof_purge_function.sql` exists).
+
+#### Unresolved production verification (not claimed)
+
+- Authenticated upload → download on `https://app.agmt.legal/proof`: **Blocked** (no authorized test session this session).
+- Microsoft Word / Open XML SDK fidelity: **Blocked** (D-04; not run).
+- Live R2 absence / two-hour retention drill: **Blocked**.
+- Mapping live custom domain to this Git SHA: **Blocked**.
+- Founder decisions D-01…D-07: open; do not block PWC-01/PWC-03.
+
+#### Commands and results this task
+
+| Command | Result |
+|---|---|
+| `git fetch origin --prune` | Updated `origin/main` to `6a7e80d`; discovered `origin/proof-world-class-plan`. No `origin/proof-world-class-implementation` |
+| `git checkout -b proof-world-class-implementation origin/main` | Branch created from latest main |
+| `git cherry-pick 2016c7a…` | Success; 1 file, 1553 insertions |
+| Transition probe | counts above; `scanning→processing` false |
+| Task-ID / path resolve | 47/47 headings; listed inspect paths present |
+| Runtime unit/integration tests | Not applicable for PWC-00 (documentation task). `npm run test:proof` not required and not claimed |
+
+Fixture hashes: none (no document fixtures generated). Versions: Node 24.11.1, npm 11.7.0, controlling plan as cherry-picked.
+
+#### Remaining blockers and next eligible tasks
+
+- No local blocker for PWC-01 or PWC-03.
+- **Next executable task (critical path):** PWC-01 — fail-closed capability and upload gate. Must not add `scanning` → `processing`.
+- **Parallel after PWC-00:** PWC-03 — independently generated corpus fixtures.
+- PWC-02 depends on PWC-01.
+
+---
+
 ## Current temporary Proof release — 5 September 2026
 
 Contract: [AGMT_PLATFORM_PROOF_SPEC.md](AGMT_PLATFORM_PROOF_SPEC.md). This section supersedes the historical package sequence and next-task statements below for new temporary Proof runs. Historical evidence and unresolved security gates remain intact.

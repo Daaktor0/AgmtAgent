@@ -2,7 +2,7 @@
  * Preflight whether an exact span can be realized as a tracked change or
  * classic comment (PWC-08). Unsupported anchors are suppressed, never moved.
  */
-import { xmlAttrs, xmlChildren, xmlTag, type ProofSource, type SourceParagraph, type XmlNode } from "../source-map.ts";
+import { nodeAt, xmlAttrs, xmlChildren, xmlTag, type ProofSource, type SourceParagraph, type XmlNode } from "../source-map.ts";
 import { ProofFindingSchema, type ProofFinding, type SourceSpan } from "../proof/contracts.ts";
 
 export const EDIT_CAPABILITY_VERSION = "proof-edit-capabilities-v1";
@@ -107,8 +107,14 @@ export function classifySpanEdit(
   const agmtPrior = nodes.some((node) => revisionAuthor(source.tree, node.nodePath) === "Agmt Proof");
   const mixedFormat = new Set(nodes.map((node) => rPrKey(source.tree, node.nodePath))).size > 1;
 
+  if (priorRevision || agmtPrior) {
+    return {
+      operation: "unsupported",
+      reason: agmtPrior ? "prior_agmt_revision" : "prior_revision",
+    };
+  }
+
   if (intended === "correction") {
-    if (priorRevision || agmtPrior) return { operation: "comment", reason: agmtPrior ? "prior_agmt_revision" : "prior_revision" };
     if (mixedFormat && replacement !== null && replacement.length > 0) {
       return { operation: "comment", reason: "mixed_format" };
     }
@@ -116,8 +122,33 @@ export function classifySpanEdit(
     return { operation: "correction", reason: null };
   }
 
-  if (priorRevision && intended === "comment") return { operation: "comment", reason: "comment_inside_insertion" };
   return { operation: "comment", reason: null };
+}
+
+/** Direct children that a surgical rewrite can split must be plain text runs. */
+export function paragraphChildrenExportable(source: ProofSource, span: SourceSpan): boolean {
+  const paragraph = paragraphFor(source, span);
+  if (!paragraph) return false;
+  const node = nodeAt(source.tree, paragraph.paragraphPath);
+  return xmlChildren(node).every((child, index) => {
+    const prefix = [...paragraph.paragraphPath, index];
+    const nodes = paragraph.nodes.filter((candidate) => JSON.stringify(candidate.nodePath.slice(0, prefix.length)) === JSON.stringify(prefix));
+    const touched = nodes.some((candidate) => candidate.start < span.textEnd && candidate.end > span.textStart);
+    if (!touched) return true;
+    return xmlTag(child) === "w:r" && xmlChildren(child).every((part) => ["w:rPr", "w:t"].includes(xmlTag(part)));
+  });
+}
+
+export function classifyExportAnchor(source: ProofSource, finding: ProofFinding): SpanEditCapability {
+  const classified = classifySpanEdit(source, finding.primarySpan, finding.kind, finding.replacement);
+  if (classified.operation === "unsupported") return classified;
+  if (classified.operation !== finding.kind) {
+    return { operation: "unsupported", reason: classified.reason ?? "action_not_exportable" };
+  }
+  if (!paragraphChildrenExportable(source, finding.primarySpan)) {
+    return { operation: "unsupported", reason: "unanchorable_markup" };
+  }
+  return classified;
 }
 
 export function admitFinding(source: ProofSource, finding: ProofFinding): { finding: ProofFinding | null; skipped: string | null } {
@@ -126,9 +157,7 @@ export function admitFinding(source: ProofSource, finding: ProofFinding): { find
   if (capability.operation === "comment" && finding.kind === "correction") {
     const comment = capability.reason === "mixed_format"
       ? `Possible correction: ‘${finding.exactQuote}’ → ‘${finding.replacement ?? ""}’. This span uses mixed formatting, so it is marked as a comment rather than a tracked change.`
-      : capability.reason === "prior_agmt_revision"
-        ? `Possible correction: ‘${finding.exactQuote}’ → ‘${finding.replacement ?? ""}’. This text is already within an existing Agmt Proof tracked change.`
-        : finding.comment;
+      : finding.comment;
     return {
       finding: ProofFindingSchema.parse({
         ...finding,

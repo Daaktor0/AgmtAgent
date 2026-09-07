@@ -18,7 +18,7 @@ async function sourceOf(bytes: Buffer): Promise<ProofSource> {
   return source;
 }
 
-test("PWC-08 insertion and deletion intersections are comment-only, never nested corrections", async () => {
+test("PWC-08 insertion and deletion intersections are unsupported, never nested corrections or assumed comments", async () => {
   const bytes = await launchFixture("prior_review");
   const source = await sourceOf(bytes);
   const inserted = source.paragraphs.find((paragraph) => paragraph.text.includes("Added earlier."));
@@ -26,8 +26,9 @@ test("PWC-08 insertion and deletion intersections are comment-only, never nested
   const start = inserted.text.indexOf("Added");
   const span = sourceSpan(inserted, start, start + 5);
   const capability = classifySpanEdit(source, span, "correction", "Added");
-  assert.equal(capability.operation, "comment");
+  assert.equal(capability.operation, "unsupported");
   assert.equal(capability.reason, "prior_revision");
+  assert.equal(classifySpanEdit(source, span, "comment", null).operation, "unsupported");
 });
 
 test("PWC-08 mixed rPr replacements are comments unless the run format is uniform", async () => {
@@ -59,7 +60,7 @@ test("PWC-08 old Agmt Proof revisions and classic comment references are not nes
   const paragraph = source.paragraphs[0]!;
   const span = sourceSpan(paragraph, paragraph.text.indexOf("recieve"), paragraph.text.indexOf("recieve") + 7);
   const capability = classifySpanEdit(source, span, "correction", "receive");
-  assert.equal(capability.operation, "comment");
+  assert.equal(capability.operation, "unsupported");
   assert.ok(capability.reason === "prior_agmt_revision" || capability.reason === "prior_revision");
 
   const prior = await sourceOf(await launchFixture("prior_review"));

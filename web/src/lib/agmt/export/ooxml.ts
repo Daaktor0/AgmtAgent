@@ -80,6 +80,18 @@ export function semantic(nodes: XmlNode[]): unknown {
   return normalized;
 }
 
+/** Insert serialized nodes before a close tag without rewriting the rest of the part. */
+export function appendBeforeCloseTag(xml: string, closeTag: string, fragment: string): string {
+  const close = xml.lastIndexOf(closeTag);
+  if (close < 0) throw new Error("xml_close_tag_missing");
+  return xml.slice(0, close) + fragment + xml.slice(close);
+}
+
+export function runPropertiesKey(node: XmlNode): string {
+  const properties = xmlChildren(node).find((child) => xmlTag(child) === "w:rPr");
+  return properties ? JSON.stringify(xmlChildren(properties)) : "";
+}
+
 /** Only remove IDs allocated for this export, never all changes by an author name. */
 export function resolveAdded(nodes: XmlNode[], revisionIds: Set<string>, commentIds: Set<string>, accept: boolean): XmlNode[] {
   const output: XmlNode[] = [];

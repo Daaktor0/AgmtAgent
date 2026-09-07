@@ -223,6 +223,27 @@ test("PWC-03 current engine is evaluated against frozen expected actions; misses
   assert.deepEqual(misses, labelled, "engine misses drifted; label them in ENGINE_BASELINE_MISSES, do not rewrite expected actions");
 });
 
+test("PWC-10 employment_typo_split keeps authored correction open; detection, anchoring and output-action are separate", async () => {
+  const spec = POSITIVE_SPECS.find((item) => item.id === "employment_typo_split");
+  assert.ok(spec);
+  const generated = await generatePackage(spec);
+  const expected = expectedFindingsFor(spec, "positive", generated.sha256).find((finding) => finding.quote === "recieve");
+  assert.ok(expected);
+  assert.equal(expected.action, "track_replace");
+  const analysis = await analyzeProof(generated.bytes);
+  const detected = analysis.plan.findings.find((finding) => finding.ruleId === "language.typo_allowlist" && finding.exactQuote === "recieve");
+  assert.ok(detected, "detection: the quote is still found");
+  assert.equal(detected.primarySpan.textStart, expected.textStart, "anchoring: span start");
+  assert.equal(detected.primarySpan.textEnd, expected.textEnd, "anchoring: span end");
+  assert.equal(detected.kind, "comment", "output-action: mixed rPr is not a safe tracked change");
+  assert.equal(detected.replacement, null);
+  assert.equal(
+    ENGINE_BASELINE_MISSES["pwc-08-mixed-format-comment-only"]?.includes("employment_typo_split::language.typo_allowlist::recieve"),
+    true,
+  );
+});
+
+
 test("PWC-03 packages stay synthetic and family-separated", async () => {
   const generated: GeneratedPackage[] = [];
   for (const spec of allSpecs()) generated.push(await generatePackage(spec, packageKind(spec)));

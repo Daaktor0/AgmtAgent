@@ -141,15 +141,18 @@ test("PWC-03 expected quote matches the original source node", async () => {
     const findings = expectedFindingsFor(spec, "positive", generated.sha256);
     for (const finding of findings) {
       if (finding.quote == null || finding.paragraphIndex == null || finding.textStart == null || finding.textEnd == null) continue;
+      const quote = finding.quote;
+      const textStart = finding.textStart;
+      const textEnd = finding.textEnd;
       const paragraph = source.paragraphs[finding.paragraphIndex];
       assert.ok(paragraph, `${spec.id} paragraph ${finding.paragraphIndex}`);
-      assert.equal(paragraph.text.slice(finding.textStart, finding.textEnd), finding.quote);
-      const covering = paragraph.nodes.filter((node) => node.start < finding.textEnd && node.end > finding.textStart);
-      assert.ok(covering.length > 0, `${spec.id} has no source node for ${finding.quote}`);
+      assert.equal(paragraph.text.slice(textStart, textEnd), quote);
+      const covering = paragraph.nodes.filter((node) => node.start < textEnd && node.end > textStart);
+      assert.ok(covering.length > 0, `${spec.id} has no source node for ${quote}`);
       const reconstructed = covering
-        .map((node) => node.text.slice(Math.max(0, finding.textStart - node.start), Math.min(node.text.length, finding.textEnd - node.start)))
+        .map((node) => node.text.slice(Math.max(0, textStart - node.start), Math.min(node.text.length, textEnd - node.start)))
         .join("");
-      assert.equal(reconstructed, finding.quote);
+      assert.equal(reconstructed, quote);
     }
     const xml = generated.bytes.toString("utf8");
     assert.match(xml, new RegExp(PWC_SYNTHETIC_AUTHOR));

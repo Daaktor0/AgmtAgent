@@ -6,6 +6,7 @@ import {
   assertProductRunTransition,
   canTransitionProductRun,
   ProductRunError,
+  retryDestination,
   validateProductRunInput,
 } from "./product-runs.ts";
 
@@ -34,4 +35,37 @@ test("T06 Proof run transitions are explicit and fail closed", () => {
   assert.doesNotThrow(() => assertProductRunTransition("deleting", "deleted"));
   assert.throws(() => assertProductRunTransition("deleted", "ready"), (error) => error instanceof ProductRunError && error.code === "invalid_state_transition");
   assert.throws(() => validateProductRunInput(base, -1), (error) => error instanceof ProductRunError && error.code === "database_context_required");
+});
+
+test("PWC-16 completes the section 17 transition table without scanning→processing", () => {
+  assert.equal(canTransitionProductRun("scanning", "processing"), false);
+  assert.equal(canTransitionProductRun("scanning", "queued"), true);
+  assert.equal(canTransitionProductRun("queued", "failed"), true);
+  assert.equal(canTransitionProductRun("failed", "queued"), true);
+  assert.equal(canTransitionProductRun("failed", "scanning"), true);
+  assert.equal(canTransitionProductRun("deleting", "deleting"), true);
+  assert.equal(canTransitionProductRun("deleting", "deleted"), true);
+  assert.equal(canTransitionProductRun("deleted", "uploading"), false);
+  assert.equal(canTransitionProductRun("ready", "queued"), false);
+  assert.doesNotThrow(() => assertProductRunTransition("failed", "queued"));
+  assert.throws(() => assertProductRunTransition("scanning", "processing"), (error) => error instanceof ProductRunError && error.code === "invalid_state_transition");
+});
+
+test("PWC-16 retry destination keeps the original deadline and attempt budget", () => {
+  const processingDeadline = Date.parse("2026-01-01T01:50:00Z");
+  assert.equal(retryDestination({
+    status: "failed", attemptCount: 1, processingDeadline, now: Date.parse("2026-01-01T00:10:00Z"), hasCleanScanReceipt: true,
+  }), "queued");
+  assert.equal(retryDestination({
+    status: "failed", attemptCount: 0, processingDeadline, now: Date.parse("2026-01-01T00:10:00Z"), hasCleanScanReceipt: false,
+  }), "scanning");
+  assert.throws(() => retryDestination({
+    status: "ready", attemptCount: 0, processingDeadline, now: Date.parse("2026-01-01T00:10:00Z"), hasCleanScanReceipt: true,
+  }), (error) => error instanceof ProductRunError && error.code === "retry_ineligible");
+  assert.throws(() => retryDestination({
+    status: "failed", attemptCount: 3, processingDeadline, now: Date.parse("2026-01-01T00:10:00Z"), hasCleanScanReceipt: true,
+  }), /attempt budget/);
+  assert.throws(() => retryDestination({
+    status: "failed", attemptCount: 1, processingDeadline, now: processingDeadline, hasCleanScanReceipt: true,
+  }), /processing deadline/);
 });

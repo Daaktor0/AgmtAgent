@@ -7,12 +7,28 @@ import type { RuleOutcome } from "../../products/contracts.ts";
 import { LAUNCH_CHECKS, LAUNCH_RULE_SET_VERSION } from "./registry.ts";
 import { ExportPlanSchema, type ProofFinding, type LaunchRuleId } from "./contracts.ts";
 import { launchRuleFindings, type LaunchContext } from "./launch-checks.ts";
+import { EvidenceError, toFindingV2, validateFindingV2, type EvidenceContext } from "./evidence.ts";
+import { admitFinding } from "../export/edit-capabilities.ts";
+
+export function evidenceContext(ctx: LaunchContext): EvidenceContext {
+  const receipt = ctx.extracted.packageCapabilityReceipt;
+  if (!receipt) throw new EvidenceError("mapping_corruption", "missing_capability_receipt");
+  return {
+    sourceSha256: ctx.sourceSha256,
+    source: ctx.source,
+    receipt,
+    stories: ctx.extracted.storyProjections ?? [],
+  };
+}
 
 export function validateLaunchFinding(ctx: LaunchContext, finding: ProofFinding): void {
   validateSourceSpan(ctx.source, finding.primarySpan, finding.exactQuote);
-  // Predicate replay binds absence inventories, related anchors, eligibility and replacement.
-  const actual = launchRuleFindings(ctx, finding.ruleId).find((f) => f.id === finding.id);
-  if (!actual || JSON.stringify(actual) !== JSON.stringify(finding)) throw new Error("invalid_rule_evidence");
+  // Predicate replay binds absence inventories, related anchors, eligibility, replacement and edit preflight.
+  const proposed = launchRuleFindings(ctx, finding.ruleId).find((f) => f.id === finding.id);
+  if (!proposed) throw new Error("invalid_rule_evidence");
+  const accepted = admitFinding(ctx.source, proposed);
+  if (!accepted.finding || JSON.stringify(accepted.finding) !== JSON.stringify(finding)) throw new Error("invalid_rule_evidence");
+  validateFindingV2(evidenceContext(ctx), toFindingV2(evidenceContext(ctx), finding));
 }
 
 export async function analyzeProof(bytes: Buffer) {
@@ -26,12 +42,16 @@ export async function analyzeProof(bytes: Buffer) {
   if (settings && /w:documentProtection|w:writeProtection/.test(settings)) throw new Error("protected_document");
   if (source.gaps.includes("complex_revision")) throw new Error("unsupported_complex_revision");
   const extracted = await resolveExtractedNumbering(bytes, raw);
-  const ctx = { source, extracted };
+  const sourceSha256 = createHash("sha256").update(bytes).digest("hex");
+  const ctx = { source, extracted, sourceSha256 };
   const findings: ProofFinding[] = [];
   const executions: { ruleId: LaunchRuleId; version: 1; outcome: RuleOutcome; findingCount: number; code: string | null }[] = [];
+  const skippedReview: string[] = [];
   for (const spec of LAUNCH_CHECKS) {
     try {
       const proposed = launchRuleFindings(ctx, spec.checkId);
+      const evidence = evidenceContext(ctx);
+      const admitted: ProofFinding[] = [];
       for (const f of proposed) {
         validateSourceSpan(source, f.primarySpan, f.exactQuote);
         for (const span of f.relatedSpans) {
@@ -39,21 +59,29 @@ export async function analyzeProof(bytes: Buffer) {
           if (!p) throw new Error("invalid_related_evidence");
           validateSourceSpan(source, span, p.text.slice(span.textStart, span.textEnd));
         }
+        const accepted = admitFinding(source, f);
+        if (!accepted.finding) {
+          if (accepted.skipped) skippedReview.push(accepted.skipped);
+          continue;
+        }
+        validateFindingV2(evidence, toFindingV2(evidence, accepted.finding));
+        admitted.push(accepted.finding);
       }
-      findings.push(...proposed);
-      executions.push({ ruleId: spec.checkId, version: 1, outcome: proposed.length ? "completed_with_findings" : "completed_zero_findings", findingCount: proposed.length, code: null });
+      findings.push(...admitted);
+      executions.push({ ruleId: spec.checkId, version: 1, outcome: admitted.length ? "completed_with_findings" : "completed_zero_findings", findingCount: admitted.length, code: null });
     } catch (e) {
-      const incomplete = e instanceof Error && /^incomplete_/.test(e.message);
+      if (e instanceof EvidenceError && e.code === "mapping_corruption") throw e;
+      const incomplete = (e instanceof EvidenceError && e.abstention) || (e instanceof Error && /^incomplete_/.test(e.message));
       executions.push({ ruleId: spec.checkId, version: 1, outcome: incomplete ? "suppressed" : "failed", findingCount: 0, code: incomplete ? "incomplete_scope" : "invalid_evidence" });
     }
   }
   if (executions.every((e) => e.outcome === "failed" || e.outcome === "suppressed")) throw new Error("all_checks_failed");
   if (findings.length > 500) throw new Error("excessive_findings");
-  const gaps = [...source.gaps];
+  const gaps = [...source.gaps, ...skippedReview];
   if (extracted.blocks.some((b) => b.isHeaderFooter && b.text.trim())) gaps.push("non_main_story_checks");
   if (source.paragraphs.some((p) => p.nodes.some((n) => !n.editable && !n.revision))) gaps.push("protected_text_language_checks");
   if (executions.some((e) => e.outcome === "failed" || e.outcome === "suppressed")) gaps.push("incomplete_checks");
   const coverage = gaps.length ? "limited" : "complete";
-  const plan = ExportPlanSchema.parse({ sourceSha256: createHash("sha256").update(bytes).digest("hex"), ruleSetVersion: LAUNCH_RULE_SET_VERSION, exporterVersion: "proof-ooxml-v1", author: "Agmt Proof", initials: "AP", findings, notices: [] });
-  return { source, extracted, plan, executions, coverage, gaps, llmCalls: 0 as const };
+  const plan = ExportPlanSchema.parse({ sourceSha256, ruleSetVersion: LAUNCH_RULE_SET_VERSION, exporterVersion: "proof-ooxml-v1", author: "Agmt Proof", initials: "AP", findings, notices: [] });
+  return { source, extracted, plan, executions, coverage, gaps, sourceSha256, llmCalls: 0 as const };
 }

@@ -22,11 +22,18 @@ test("all four demonstration variants produce exactly two corrections and two an
     assert.equal(result.coverage, "complete");
     assert.equal(result.plan.findings.length, 4);
     assert.equal(result.executions.length, 6);
+    assert.equal(result.plan.findings.filter((f) => f.kind === "correction").length, kind === "split_runs" ? 1 : 2);
     for (const e of DEMO_EXPECTED) {
       const f = result.plan.findings.find((f) => f.ruleId === e.ruleId)!;
       assert.ok(f, e.ruleId);
-      assert.equal(f.exactQuote, e.quote); assert.equal(f.replacement, e.replacement);
+      assert.equal(f.exactQuote, e.quote);
       assert.equal(f.primarySpan.textStart, e.start); assert.equal(f.primarySpan.textEnd, e.end);
+      if (kind === "split_runs" && e.ruleId === "language.typo_allowlist") {
+        assert.equal(f.kind, "comment");
+        assert.equal(f.replacement, null);
+      } else {
+        assert.equal(f.replacement, e.replacement);
+      }
       validateLaunchFinding(result, f);
       assert.throws(() => validateLaunchFinding(result, { ...f, comment: "forged claim" }), /invalid_rule_evidence/);
     }

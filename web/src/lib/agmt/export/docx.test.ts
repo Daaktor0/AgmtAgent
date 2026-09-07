@@ -12,16 +12,24 @@ test("DOCX export creates genuine tracked corrections and exact comments, preser
     const source = await launchFixture(kind), before = Buffer.from(source);
     const exported = await exportProofDocx(source, new Date("2026-09-05T00:00:00Z"));
     assert.deepEqual(source, before);
-    assert.equal(exported.receipt.revisionIds.length, 3); // Replacement = deletion + insertion; repeated word = deletion.
-    assert.equal(exported.receipt.commentIds.length, 2);
+    if (kind === "split_runs") {
+      assert.equal(exported.receipt.revisionIds.length, 1); // Mixed-format typo is comment-only; repeated word is a deletion.
+      assert.equal(exported.receipt.commentIds.length, 3);
+    } else {
+      assert.equal(exported.receipt.revisionIds.length, 3); // Replacement = deletion + insertion; repeated word = deletion.
+      assert.equal(exported.receipt.commentIds.length, 2);
+    }
     const extracted = await extractDocx(exported.bytes);
-    assert.equal(extracted.blocks[0].text, DEMO_ACCEPTED);
+    assert.equal(extracted.blocks[0].text, kind === "split_runs" ? "The Company shall recieve the notice under Clause 99.2 by [●]." : DEMO_ACCEPTED);
     assert.equal((await extractDocx(source)).blocks[0].text, DEMO_SENTENCE);
     const xml = await (await JSZip.loadAsync(exported.bytes)).file("word/document.xml")!.async("string");
-    assert.match(xml, /<w:del\b/); assert.match(xml, /<w:ins\b/); assert.match(xml, /<w:delText\b/);
+    assert.match(xml, /<w:del\b/); assert.match(xml, /<w:delText\b/);
     assert.match(xml, /w:author="Agmt Proof"/);
+    if (kind === "split_runs") assert.match(xml, /<w:commentRangeStart\b/);
+    else {
+      assert.match(xml, /<w:ins\b/);
+    }
     if (kind === "prior_review") { assert.equal(extracted.comments.length, 3); assert.equal(extracted.revisions.length, 5); }
-    if (kind === "split_runs") assert.match(xml, /<w:ins[^>]*><w:r><w:rPr><w:b\/><\/w:rPr><w:t[^>]*>re<\/w:t><\/w:r><w:r><w:rPr><w:i\//);
     await validateProofExport(source, exported.bytes, exported.receipt);
   }
 });

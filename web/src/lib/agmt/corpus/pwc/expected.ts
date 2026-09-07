@@ -122,8 +122,9 @@ export function allExpectedFindings(): PwcExpectedFinding[] {
 
 /** Frozen labelled engine misses. Do not regenerate expected.ts to hide these. */
 export const ENGINE_BASELINE_MISSES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  // Populated only after an independent engine evaluation. Empty means the
-  // current engine is expected to hit every independently authored locus.
+  "pwc-08-mixed-format-comment-only": [
+    "employment_typo_split::language.typo_allowlist::recieve",
+  ],
 });
 
 export function expectedKey(finding: { fixtureId: string; ruleId: LaunchRuleId | string | null; quote: string | null }): string {

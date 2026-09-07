@@ -3,13 +3,14 @@ import type { ExtractedDocument } from "../types.ts";
 import { sourceSpan, evaluatedScope, type ProofSource, type SourceParagraph } from "../source-map.ts";
 import { ProofFindingSchema, type ProofFinding, type LaunchRuleId } from "./contracts.ts";
 import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS } from "./typo-allowlist.ts";
+import { absenceBlockingReasons } from "./evidence.ts";
 
-export type LaunchContext = { source: ProofSource; extracted: ExtractedDocument };
+export type LaunchContext = { source: ProofSource; extracted: ExtractedDocument; sourceSha256: string };
 type Candidate = { p: SourceParagraph; start: number; end: number; replacement?: string; comment: string; related?: ProofFinding["relatedSpans"]; scopeEvidence?: ProofFinding["scopeEvidence"] };
 export function candidateFinding(rule: LaunchRuleId, c: Candidate): ProofFinding {
   const quote = c.p.text.slice(c.start, c.end);
   return ProofFindingSchema.parse({
-    id: createHash("sha256").update(JSON.stringify([rule, c.p.paragraphPath, c.start, c.end, quote])).digest("hex"),
+    id: createHash("sha256").update(JSON.stringify([rule, c.p.partUri, c.p.storyId, c.p.paragraphPath, c.start, c.end, quote])).digest("hex"),
     ruleId: rule, ruleVersion: 1, kind: c.replacement === undefined ? "comment" : "correction",
     category: rule.startsWith("language.") ? "language" : rule.startsWith("definitions.") ? "definitions" : rule.startsWith("references.") ? "references" : "completion",
     severity: c.replacement === undefined ? "attention" : "suggestion", primarySpan: sourceSpan(c.p, c.start, c.end), relatedSpans: c.related ?? [], exactQuote: quote,
@@ -89,6 +90,10 @@ export function launchRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): Proo
   }
   if (rule.startsWith("references.")) {
     if (!ctx.source.complete || ctx.extracted.capabilities.some((c) => c.name === "numbering" && c.state === "unsupported")) throw new Error("incomplete_numbering_scope");
+    if (rule === "references.missing_target") {
+      const receipt = ctx.extracted.packageCapabilityReceipt;
+      if (!receipt || absenceBlockingReasons(receipt).length) throw new Error("incomplete_numbering_scope");
+    }
     const inventory = labels(ctx);
     if (rule === "references.duplicate_number") {
       const seen = new Map<string, typeof inventory[number]>();

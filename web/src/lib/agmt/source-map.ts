@@ -19,6 +19,8 @@ export type SourceParagraph = {
   scope: string;
   style: string | null;
   safe: boolean;
+  storyId: string;
+  language?: string | null;
 };
 export type ProofSource = {
   xml: string;
@@ -65,6 +67,19 @@ function surrogateBoundary(text: string, offset: number): boolean {
   return offset <= 0 || offset >= text.length || !(text.charCodeAt(offset - 1) >= 0xd800 && text.charCodeAt(offset - 1) <= 0xdbff && text.charCodeAt(offset) >= 0xdc00 && text.charCodeAt(offset) <= 0xdfff);
 }
 
+const graphemeSegmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+/** Half-open offsets must not split UTF-16 surrogates or grapheme clusters. */
+export function graphemeBoundary(text: string, offset: number): boolean {
+  if (!surrogateBoundary(text, offset)) return false;
+  if (offset <= 0 || offset >= text.length) return true;
+  for (const { index, segment } of graphemeSegmenter.segment(text)) {
+    if (offset > index && offset < index + segment.length) return false;
+    if (index >= offset) break;
+  }
+  return true;
+}
+
 /** Called only by docx-v2 after its ZIP, package and XML gates. Paths index its preserve-order tree. */
 export function mapProofSource(xml: string, tree: XmlNode[]): ProofSource {
   const story = projectPart({
@@ -86,7 +101,7 @@ export function mapProofSource(xml: string, tree: XmlNode[]): ProofSource {
 }
 
 export function sourceSpan(p: SourceParagraph, start: number, end: number): SourceSpan {
-  if (!p.safe || start < 0 || end > p.text.length || end <= start || !surrogateBoundary(p.text, start) || !surrogateBoundary(p.text, end)) throw new Error("invalid_source_span");
+  if (!p.safe || start < 0 || end > p.text.length || end <= start || !graphemeBoundary(p.text, start) || !graphemeBoundary(p.text, end)) throw new Error("invalid_source_span");
   return SourceSpanSchema.parse({
     partUri: p.partUri, paragraphPath: [...p.paragraphPath], textStart: start, textEnd: end, projection: "final",
     nodeSegments: p.nodes.filter((n) => n.start < end && n.end > start).map((n) => ({ nodePath: [...n.nodePath], start: Math.max(0, start - n.start), end: Math.min(n.text.length, end - n.start) })),

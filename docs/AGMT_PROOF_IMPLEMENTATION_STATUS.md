@@ -553,6 +553,140 @@ Actual: **98/98 pass**, `tsc` **exit 0**.
 - **Next executable (source lane):** PWC-10.
 - **Critical path (code-eligible, staging blocked):** PWC-18.
 
+### Typecheck evidence — lockfile-complete re-run at `b31a8ee`
+
+- **Baseline:** `b31a8ee3a620c7fce70bb39e140d9462f127fa5f` (`origin/proof-world-class-implementation` at this session start).
+- Isolated main worktree: `D:\AI Agent\agreement-agent-main-pwc-baseline` at `6a7e80d7cdc584f4b1c67f1fce822da0e230dc53`.
+- Root lockfile was not modified. Isolated-main disk SHA-256 `A384D410B90B6A91CC3F33EF03CCA7DE6183FCF159FF4AF40AB5F23F5EA87B58` before and after `npm ci`. Implementation disk SHA-256 `7F8DB5BEF2E3E82CEDD87F9C92A20B403638EEE04C9BC7AD26DB318DB28AC229` before and after `npm run build` (line-ending difference vs the worktree copy, same git blob as previously recorded).
+
+Root lockfile install in the isolated worktree (lockfile not modified):
+
+```
+cd D:\AI Agent\agreement-agent-main-pwc-baseline
+npm ci --ignore-scripts --no-audit --no-fund
+```
+
+Result: **exit 0**, 41 packages added.
+
+Normal root build (both trees, after that install):
+
+```
+npm run build
+```
+
+| Tree | `npm run build` | Lockfile |
+|---|---|---|
+| Isolated `origin/main` `6a7e80d` | **exit 127** `[with-app-env] failed to run vite: spawn vite ENOENT` after `npm --prefix web ci` (447 packages). | Unchanged |
+| Implementation `b31a8ee` / this session head | **exit 127**, same `spawn vite ENOENT` after `npm --prefix web ci` (447 packages). | Unchanged |
+
+This Windows ENOENT is `web/scripts/with-app-env.mjs` spawning `vite` without a shell. It is **identical on both trees**. It is recorded separately from the successful direct Vite/Nitro build. The wrapper and wrangler/Nitro deploy config were **not** changed. Track a bounded follow-up to invoke `node ./node_modules/vite/bin/vite.js` (or equivalent PATH resolution) from the wrapper on Windows; do not treat this as a deployment-architecture defect.
+
+Equivalent Cloudflare build used for post-generation typecheck (same on both trees):
+
+```
+cd web
+node scripts/with-app-env.mjs node ./node_modules/vite/bin/vite.js build --mode cloudflare
+npx tsc --noEmit
+```
+
+| Tree | Vite/Nitro (`cloudflare_module`) | `npx tsc --noEmit` |
+|---|---|---|
+| Isolated `origin/main` after root `npm ci` | Client/SSR/Nitro **exit 0** (1901/368/2893 modules). Nitro detected `exports.cloudflare.ts`. Generated `.output/server/wrangler.json`. | **exit 0**, 0 errors |
+| Implementation after PWC-10/11/18 | Client/SSR/Nitro **exit 0** (1902/378/2903 modules; extra PWC modules). Same wrangler output. | **exit 0**, 0 errors |
+
+No attributable Nitro or typecheck regression versus `origin/main` once the lockfile install is complete. Deployment configuration was not edited to compensate for the Windows `vite` ENOENT.
+
+### PWC-10 — Extend surgical tracked-change and comment export
+
+- **Baseline commit:** `b31a8ee3a620c7fce70bb39e140d9462f127fa5f`.
+- **Change commit:** `39afa292c1001f1103d870be484b572004f38bc7` (shared with PWC-11 and PWC-18).
+- **Files changed:** `web/src/lib/agmt/export/docx.ts`, `web/src/lib/agmt/export/ooxml.ts`, `web/src/lib/agmt/export/docx.test.ts`, `web/src/lib/agmt/export/receipt.ts`, `web/src/lib/agmt/export/edit-capabilities.ts`, `web/src/lib/agmt/export/edit-capabilities.test.ts`, `web/src/lib/agmt/corpus/pwc/corpus.test.ts`.
+- **Status:** Implemented; Tested (export/edit-capabilities/corpus). Word verification **Blocked** (PWC-13). Not Deployed.
+- **Must-not-change held:** no HTML/docx regeneration; modern review structures still refused; uploads remain disabled; `scanning` → `processing` still false.
+
+#### Behaviour
+
+- Safe same-format corrections emit genuine `w:del`/`w:delText` plus one `w:ins` run that copies the original `w:rPr` and `xml:space="preserve"`. Approximate character-count distribution across mixed formatting runs is gone; mixed-format replacements remain comments (PWC-08).
+- Existing revisions and classic comments keep their IDs; new IDs are allocated globally and do not reuse 0/7/8 in the prior-review fixture.
+- Comment fallback is admitted only when the span’s paragraph children are plain text runs that can carry exact `commentRangeStart`/`End`/reference. Spans inside existing `w:ins`/`w:del` are **unsupported**, suppressed with coverage (`prior_revision` / `prior_agmt_revision`), never nested and never moved.
+- Zero-finding complete outputs remain byte-identical and now pass the publication gates. Limited coverage still adds one `document_notice`. Missing `document.xml.rels` refuses with `no_document_rels`.
+- Receipt `proof-export-receipt-v1` binds source SHA-256, planned finding IDs, revision IDs, comment IDs, notice IDs and modified parts.
+
+#### `employment_typo_split` (kept open)
+
+| Layer | Result |
+|---|---|
+| Detection | Rule `language.typo_allowlist` still finds quote `recieve` |
+| Anchoring | Span offsets match the authored expected locus |
+| Output action | Engine publishes a **comment**, not `track_replace` |
+| Authored expectation | Still `track_replace` → `receive` |
+| Representable under export contract? | **No.** Mixed rPr has no tested same-format mapping; forcing a tracked change would be approximate distribution. Label `pwc-08-mixed-format-comment-only` retained. Expected action not rewritten. |
+
+#### Commands and results
+
+```
+cd web
+npm run test:proof
+npx tsc --noEmit
+```
+
+Actual: **104/104 pass**, `tsc` **exit 0**. Node v24.11.1.
+
+### PWC-11 — Add independent structural/reconstruction validator
+
+- **Baseline commit:** `b31a8ee3a620c7fce70bb39e140d9462f127fa5f`.
+- **Change commit:** `39afa292c1001f1103d870be484b572004f38bc7` (shared).
+- **Files changed:** `web/src/lib/agmt/validation/structure.ts`, `web/src/lib/agmt/validation/reconstruct.ts`, `web/src/lib/agmt/validation/validation.test.ts`, `web/src/lib/agmt/export/docx.ts`.
+- **Status:** Implemented; Tested (1/1 validation + export corpus). Word not substituted. SDK harness is PWC-12. Not Deployed.
+- **Must-not-change held:** validator does not import `rewriteParagraph` / `replaceParagraphXml` / `resolveAdded` / `semantic`. Uploads remain disabled.
+
+#### Behaviour
+
+- Package gate: ZIP central directory + bounded inflation, original entries present, allowed changed parts derived from source+plan (not trusted from `receipt.modifiedParts`).
+- Reconstruction: accept/reject visible text from original paragraphs + plan; reject also restores run-level rPr. Existing revision records and original comments must match. New markup counted by receipt IDs, not author name.
+- Mutations rejected independently: altered rPr, shifted comment, extra Agmt revision, original comment text, unrelated entry, extra relationship.
+- `employment_typo_split` export is validated as a comment document, not rewritten to a correction.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/validation/validation.test.ts src/lib/agmt/export/docx.test.ts
+```
+
+Actual: **1/1 + 8/8 pass** (included in 104/104 `test:proof`).
+
+### PWC-18 — Implement transfer reservations and cancellation fencing
+
+- **Baseline commit:** `b31a8ee3a620c7fce70bb39e140d9462f127fa5f`.
+- **Change commit:** `39afa292c1001f1103d870be484b572004f38bc7` (shared).
+- **Files changed:** `web/src/lib/server/proof-transfer.ts`, `web/src/lib/server/proof-transfer.test.ts`, `web/src/lib/server/proof-reconciliation.ts`, `web/src/lib/server/proof-reconciliation.test.ts`, `web/package.json`.
+- **Status:** Implemented (local ledger + adapter); Tested (3/3 transfer + 1/1 reconciliation). Live provider races **Blocked**. Word not applicable. Not Deployed. No production/staging apply.
+- **Must-not-change held:** abort success is never inferred from a timeout; memory store still rejected in deployed mode; uploads remain disabled; migration 0009 not applied to production.
+
+#### Behaviour
+
+- Reserve object key and writer row (`reserved` → `writing`) before provider `put`. Generation and deadlines are checked before and after the network write. No ledger transaction is held during the provider call.
+- Cancel commits `deleting` + incremented generation first, then aborts multipart and marks in-flight writers `uncertain`.
+- Provider timeout or post-write fence break is `uncertain`. Reconcile HEADs the reserved key, deletes only on exact checksum/size, then clears the writer. Mismatched checksums stay unresolved. `noWriterReceipt` is issued only when no writing/uncertain writers remain and reserved keys are absent.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-transfer.test.ts src/lib/server/proof-reconciliation.test.ts
+```
+
+Actual: **4/4 pass**. Live R2 put/cancel/orphan drill: **not run**.
+
+#### Remaining blockers and next eligible tasks
+
+- Word/SDK: PWC-12 (Open XML SDK harness; .NET pin after licence review), PWC-13 (Microsoft Word).
+- Live transfer races and staging buckets: PWC-17 provider verification, then PWC-18 Verified / PWC-19.
+- **Next executable (source lane):** PWC-14 — rule registry, budgets and promotion controls (depends on PWC-07/09).
+- **Critical path (code-eligible, staging blocked):** PWC-19 depends on live PWC-18.
+- Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

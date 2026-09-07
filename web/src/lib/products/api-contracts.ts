@@ -9,8 +9,8 @@ import {
   PROOF_UPLOADS_PAUSED_DETAIL,
   PROOF_UPLOADS_PAUSED_HEADING,
 } from "./capabilities.ts";
-import { proofDeadlines, type RunDeadlines } from "../server/retention.ts";
-import type { ProofStage, RunStatus } from "./contracts.ts";
+import { proofDeadlines } from "../server/retention.ts";
+import type { ProofStage, RunDeadlines, RunStatus } from "./contracts.ts";
 
 export const PROOF_API_VERSION = 2 as const;
 export const PROOF_ERROR_SCHEMA_VERSION = 2 as const;

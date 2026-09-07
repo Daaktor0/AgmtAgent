@@ -78,7 +78,9 @@ test("PWC-07 launch candidates reconstruct exact source and reject tampered hash
     validateLaunchFinding(analysis, finding);
   }
 
-  const primary = toFindingV2(ctx, analysis.plan.findings[0]!);
+  const typo = analysis.plan.findings.find((finding) => finding.ruleId === "language.typo_allowlist");
+  assert.ok(typo);
+  const primary = toFindingV2(ctx, typo);
   assert.throws(
     () => validateFindingV2(ctx, { ...primary, primary: { ...primary.primary, sourceSha256: "a".repeat(64) } }),
     (error: unknown) => error instanceof EvidenceError && error.code === "mapping_corruption",

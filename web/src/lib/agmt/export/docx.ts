@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import { XMLValidator } from "fast-xml-parser";
 import { analyzeProof, validateLaunchFinding } from "../proof/launch.ts";
 import { ExportPlanSchema, type ExportPlan, type ProofFinding } from "../proof/contracts.ts";
+import { resolveProofFindings } from "../proof/resolve-findings.ts";
 import { nodeAt, sourceSpan, mapProofSource, xmlChildren, xmlTag, xmlAttrs, type SourceParagraph, type XmlNode } from "../source-map.ts";
 import { extractDocx } from "../docx-v2.ts";
 import { W, parser, builder, element, textRun, walk, ids, semantic, resolveAdded, replaceParagraphXml } from "./ooxml.ts";
@@ -12,24 +13,20 @@ type Analysis = Awaited<ReturnType<typeof analyzeProof>>;
 export type ExportReceipt = { revisionIds: string[]; commentIds: string[]; modifiedParts: string[]; plan: ExportPlan };
 type Fragment = { node: XmlNode; start?: number; end?: number };
 
-function uniqueFindings(findings: ProofFinding[]): ProofFinding[] {
+function uniqueFindings(source: Analysis["source"], findings: ProofFinding[]): ProofFinding[] {
+  const resolved = resolveProofFindings(source, findings);
   const unique = new Map<string, ProofFinding>();
-  for (const finding of findings) {
+  for (const finding of resolved.findings) {
     const previous = unique.get(finding.id);
     if (previous && JSON.stringify(previous) !== JSON.stringify(finding)) throw new Error("export_conflicting_id");
     unique.set(finding.id, finding);
   }
-  const result = [...unique.values()];
-  for (let i = 0; i < result.length; i++) for (let j = i + 1; j < result.length; j++) {
-    const a = result[i].primarySpan, b = result[j].primarySpan;
-    if (a.partUri === b.partUri && JSON.stringify(a.paragraphPath) === JSON.stringify(b.paragraphPath) && a.textStart < b.textEnd && b.textStart < a.textEnd) throw new Error("export_overlapping_findings");
-  }
-  return result;
+  return [...unique.values()];
 }
 
 export function planProofExport(analysis: Analysis): ExportPlan {
   const plan = structuredClone(analysis.plan);
-  plan.findings = uniqueFindings(plan.findings);
+  plan.findings = uniqueFindings(analysis.source, plan.findings);
   for (const f of plan.findings) validateLaunchFinding(analysis, f);
   if (analysis.coverage === "limited") {
     const p = analysis.source.paragraphs.find((p) => p.safe && p.text.trim());

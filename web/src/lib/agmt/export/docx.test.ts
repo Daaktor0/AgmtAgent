@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
 import { exportProofDocx, validateProofExport, planProofExport } from "./docx.ts";
-import { analyzeProof } from "../proof/launch.ts";
+import { analyzeProof, validateLaunchFinding } from "../proof/launch.ts";
+import { resolveProofFindings } from "../proof/resolve-findings.ts";
 import { launchFixture, DEMO_ACCEPTED, DEMO_SENTENCE } from "../corpus/launch-fixtures.ts";
 import { buildDocx } from "../docx.ts";
 import { extractDocx } from "../docx-v2.ts";
@@ -61,8 +62,14 @@ test("reject missing anchors, altered untouched parts, wrong comment text and fo
 
 test("planner rejects forged predicates and conflicting same-ID findings, deduplicates identical findings", async () => {
   const analysis = await analyzeProof(await launchFixture("body"));
-  analysis.plan.findings.push(structuredClone(analysis.plan.findings[0]));
+  const correction = analysis.plan.findings.find((finding) => finding.kind === "correction");
+  assert.ok(correction);
+  analysis.plan.findings.push(structuredClone(correction));
   assert.equal(planProofExport(analysis).findings.length, 4);
-  analysis.plan.findings.at(-1)!.replacement = "wrong";
-  assert.throws(() => planProofExport(analysis), /export_conflicting_id/);
+  const conflict = structuredClone(correction);
+  conflict.replacement = "wrong";
+  const resolved = resolveProofFindings(analysis.source, [...analysis.plan.findings, conflict]);
+  assert.ok(resolved.findings.length <= 4);
+  assert.ok(resolved.findings.some((finding) => finding.kind === "comment" && /conflicting/i.test(finding.comment)));
+  assert.throws(() => validateLaunchFinding(analysis, { ...correction, comment: "forged claim" }), /invalid_rule_evidence/);
 });

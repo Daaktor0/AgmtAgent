@@ -9,6 +9,7 @@ import { ExportPlanSchema, type ProofFinding, type LaunchRuleId } from "./contra
 import { launchRuleFindings, type LaunchContext } from "./launch-checks.ts";
 import { EvidenceError, toFindingV2, validateFindingV2, type EvidenceContext } from "./evidence.ts";
 import { admitFinding } from "../export/edit-capabilities.ts";
+import { resolveProofFindings } from "./resolve-findings.ts";
 
 export function evidenceContext(ctx: LaunchContext): EvidenceContext {
   const receipt = ctx.extracted.packageCapabilityReceipt;
@@ -76,8 +77,10 @@ export async function analyzeProof(bytes: Buffer) {
     }
   }
   if (executions.every((e) => e.outcome === "failed" || e.outcome === "suppressed")) throw new Error("all_checks_failed");
-  if (findings.length > 500) throw new Error("excessive_findings");
-  const gaps = [...source.gaps, ...skippedReview];
+  const resolved = resolveProofFindings(source, findings);
+  findings.length = 0;
+  findings.push(...resolved.findings);
+  const gaps = [...source.gaps, ...skippedReview, ...resolved.coverageReasons];
   if (extracted.blocks.some((b) => b.isHeaderFooter && b.text.trim())) gaps.push("non_main_story_checks");
   if (source.paragraphs.some((p) => p.nodes.some((n) => !n.editable && !n.revision))) gaps.push("protected_text_language_checks");
   if (executions.some((e) => e.outcome === "failed" || e.outcome === "suppressed")) gaps.push("incomplete_checks");

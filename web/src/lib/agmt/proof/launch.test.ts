@@ -68,6 +68,8 @@ test("duplicate definitions and literal numbers anchor the second occurrence and
 test("all allowlist replacements work only in eligible prose and more than 500 findings fails", async () => {
   const r = await analyzeProof(await buildDocx(['The Company shall recieve teh seperate notice after the event has occured.']));
   assert.equal(r.plan.findings.filter((f) => f.kind === "correction").length, 4);
-  const bad = await buildDocx(Array.from({ length: 501 }, () => 'The Company shall recieve notice.'));
-  await assert.rejects(() => analyzeProof(bad), /excessive_findings/);
+  const bad = await analyzeProof(await buildDocx(Array.from({ length: 501 }, () => 'The Company shall recieve notice.')));
+  assert.ok(bad.plan.findings.length <= 100);
+  assert.equal(bad.coverage, "limited");
+  assert.ok(bad.gaps.includes("rule_budget"));
 });

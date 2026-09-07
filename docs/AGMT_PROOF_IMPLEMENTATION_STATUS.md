@@ -687,6 +687,39 @@ Actual: **4/4 pass**. Live R2 put/cancel/orphan drill: **not run**.
 - **Critical path (code-eligible, staging blocked):** PWC-19 depends on live PWC-18.
 - Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
 
+### PWC-14 — Create rule registry, budgets and promotion controls
+
+- **Baseline commit:** `cf5c3858212fa87032dbc04e45bd16068a339f19`.
+- **Change commit:** `b3755bc5431d478fdeb25fbb61add75907f811bb`.
+- **Files changed:** `web/src/lib/agmt/proof/registry.ts`, `web/src/lib/agmt/proof/rule-runtime.ts`, `web/src/lib/agmt/proof/rule-runtime.test.ts`, `web/src/lib/agmt/corpus/pwc/metrics.ts`, `web/package.json`.
+- **Status:** Implemented; Tested (4/4 rule-runtime). Browser coverage is PWC-32. Word not required. Not Deployed.
+- **Must-not-change held:** historical `CHECKS` remain regression-only and are not default-enabled; heuristic certainty is not a numeric probability; uploads remain disabled; `scanning` → `processing` still false.
+
+#### Behaviour
+
+- Versioned launch specs `proof-rule-registry-v1`: id, version, profile, phase A, defaultEnabled, capabilities, languages, actionPolicy, scope, exclusion policy, span_v2 validator, 2,000-candidate / 2 s budgets, evaluation receipt hash.
+- Default-enabled rules require a 64-hex evaluation receipt. The six launch rules keep that receipt; older experimental CHECKS IDs do not overlap and stay off.
+- Runtime outcomes: completed_with_findings / completed_zero_findings / not_applicable / suppressed / failed. Missing capability and budget exhaustion are suppressed. Unknown version and thrown rules are failed with zero findings, never a clean result.
+- Metrics: precision/recall null when the denominator is 0 (`not_evaluated`). Promotion refuses missing samples and zero denominators.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/proof/rule-runtime.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/proof/product.test.ts
+npx tsc --noEmit
+```
+
+Actual: **4/4 runtime + 4/4 launch + 4/4 product pass**. `tsc` **exit 0**. Network instrumentation observed 0 calls.
+
+#### Remaining blockers and next eligible tasks
+
+- Wiring the runtime into `analyzeProof` for published runs can proceed with PWC-15 (tighten six beta rules).
+- Per-rule 100/100 comment-rule corpus and 1,000 correction cases remain outstanding.
+- **Next executable (source lane):** PWC-15.
+- **Critical path (code-eligible, staging blocked):** PWC-19 depends on live PWC-18.
+- Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

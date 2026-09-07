@@ -258,6 +258,36 @@ Actual: **4/4**, **2/2**, **2/2** pass. Node v24.11.1. PGlite: scanning→proces
 - **Next executable (critical path):** PWC-17 — temporary R2 boundaries and adapter (code can be prepared; provisioning is D-02/D-03 / spend).
 - **Next executable (source lane):** PWC-04.
 
+### PWC-04 — Unify pre-expansion ZIP and resource limits
+
+- **Baseline commit:** `6059b69` (PWC-03/16 ledger).
+- **Change commit:** recorded after commit.
+- **Files changed:** `web/src/lib/agmt/zip-safety.ts`, `web/src/lib/agmt/zip-safety.test.ts`, `web/src/lib/server/proof-scan.ts`, `web/src/lib/server/proof-scan.test.ts`, `web/package.json`, `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
+- **Status:** Implemented; Tested (4/4 zip-safety + 3/3 proof-scan + 9/9 docx-v2 + 4/4 launch + 7/7 corpus = 27/27 in the combined run). Browser/Word not applicable. Not Deployed.
+- **Must-not-change held:** uploads remain disabled; no antivirus claim; `scanning` → `processing` untouched.
+
+#### Behaviour
+
+- Single versioned limits object `proof-zip-limits-v1`: 25 MiB source, 35 MiB output, 2,000 entries, 100 MiB expanded, 32 MiB/entry, 100:1, depth 128.
+- `inspectZipCentralDirectory` rejects ZIP64, encrypted entries, exact duplicates, case-colliding paths and over-depth paths.
+- `verifyZipInflation` inflates with `maxOutputLength`, compares declared size and CRC-32, aborts on discrepancy. No JSZip `_data`.
+- `scanProofDocx` runs central-directory inspection and bounded inflation before any JSZip load (it no longer uses JSZip or `extractDocx`). Cheap DOCTYPE/ENTITY/external-TargetMode substring checks only.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/zip-safety.test.ts src/lib/server/proof-scan.test.ts src/lib/agmt/docx-v2.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/corpus/pwc/corpus.test.ts
+```
+
+Actual: **27/27 pass**, 0 fail. Node v24.11.1.
+
+#### Remaining blockers and next eligible tasks
+
+- Live upload of a zip-bomb through the authenticated API: Blocked (uploads disabled; no authorized session).
+- **Next executable (source lane):** PWC-05 — DOCX capability inventory and refuse/coverage map.
+- **Critical path:** PWC-17 (provisioning blocked; adapter code eligible).
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

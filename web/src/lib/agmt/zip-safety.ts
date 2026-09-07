@@ -1,8 +1,16 @@
+import { crc32, inflateRawSync } from "node:zlib";
+
+export const ZIP_LIMITS_VERSION = "proof-zip-limits-v1";
+
+/** Section 20 Proof ingest ceilings. One object used by every ingest path. */
 export const ZIP_LIMITS = {
-  MAX_ENTRIES: 4096,
-  MAX_EXPANDED_BYTES: 150 * 1024 * 1024,
+  MAX_SOURCE_BYTES: 25 * 1024 * 1024,
+  MAX_OUTPUT_BYTES: 35 * 1024 * 1024,
+  MAX_ENTRIES: 2000,
+  MAX_EXPANDED_BYTES: 100 * 1024 * 1024,
   MAX_ENTRY_BYTES: 32 * 1024 * 1024,
-  MAX_COMPRESSION_RATIO: 250,
+  MAX_COMPRESSION_RATIO: 100,
+  MAX_PATH_DEPTH: 128,
   MAX_CENTRAL_DIRECTORY_BYTES: 4 * 1024 * 1024,
   MAX_ENTRY_NAME_BYTES: 1024,
   MAX_ENTRY_COMMENT_BYTES: 1024,
@@ -160,6 +168,7 @@ export type ZipCentralEntry = {
   compressedSize: number;
   uncompressedSize: number;
   localHeaderOffset: number;
+  crc32: number;
   isDirectory: boolean;
 };
 
@@ -212,6 +221,7 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
 
   const entries: ZipCentralEntry[] = [];
   const seenNames = new Set<string>();
+  const seenFoldedNames = new Set<string>();
   const ranges: Array<{ start: number; end: number }> = [];
   let cursor = centralDirectoryOffset;
   let compressedBytes = 0;
@@ -225,6 +235,7 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
     const versionMadeBy = readU16(view, cursor + 4);
     const flags = readU16(view, cursor + 8);
     const compressionMethod = readU16(view, cursor + 10);
+    const crc32Value = readU32(view, cursor + 16);
     const compressedSize = readU32(view, cursor + 20);
     const uncompressedSize = readU32(view, cursor + 24);
     const nameLength = readU16(view, cursor + 28);
@@ -263,10 +274,19 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
     const rawName = bytes.subarray(cursor + 46, cursor + 46 + nameLength);
     const name = decodeName(rawName, flags);
     validateName(name);
+    const depth = name.split("/").filter((segment) => segment.length > 0).length;
+    if (depth > ZIP_LIMITS.MAX_PATH_DEPTH) {
+      reject("package_too_complex", "ZIP entry path exceeds the bounded depth limit");
+    }
     if (seenNames.has(name)) {
       reject("duplicate_package_path", "ZIP contains duplicate entry paths");
     }
+    const folded = name.toLowerCase();
+    if (seenFoldedNames.has(folded)) {
+      reject("duplicate_package_path", "ZIP contains case-colliding entry paths");
+    }
     seenNames.add(name);
+    seenFoldedNames.add(folded);
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     if (((versionMadeBy >>> 8) & 0xff) === 3 && (unixMode & 0xf000) === 0xa000) {
@@ -318,6 +338,7 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
       compressedSize,
       uncompressedSize,
       localHeaderOffset,
+      crc32: crc32Value,
       isDirectory: name.endsWith("/"),
     });
     cursor = recordEnd;
@@ -344,4 +365,64 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
     centralDirectoryOffset,
     centralDirectorySize,
   };
-};
+}
+
+export function verifyZipInflation(
+  bytes: Uint8Array,
+  directory: ZipCentralDirectory,
+  onEntry?: (name: string, inflated: Uint8Array) => void,
+): { actualExpandedBytes: number } {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let actualExpandedBytes = 0;
+
+  for (const entry of directory.entries) {
+    if (entry.isDirectory) {
+      if (entry.compressedSize !== 0 || entry.uncompressedSize !== 0) {
+        reject("zip_local_header_invalid", "ZIP directory entry declares file data");
+      }
+      continue;
+    }
+
+    const offset = entry.localHeaderOffset;
+    const localNameLength = readU16(view, offset + 26);
+    const localExtraLength = readU16(view, offset + 28);
+    const dataStart = offset + 30 + localNameLength + localExtraLength;
+    const dataEnd = dataStart + entry.compressedSize;
+    if (dataEnd < dataStart || dataEnd > directory.centralDirectoryOffset) {
+      reject("zip_entry_out_of_bounds", "ZIP entry data exceeds the central directory boundary");
+    }
+    const compressed = bytes.subarray(dataStart, dataEnd);
+
+    let inflated: Uint8Array;
+    if (entry.compressionMethod === 0) {
+      inflated = compressed;
+    } else {
+      try {
+        inflated = inflateRawSync(Buffer.from(compressed), { maxOutputLength: ZIP_LIMITS.MAX_ENTRY_BYTES });
+      } catch {
+        reject("zip_inflate_failed", "ZIP entry could not be inflated within the bounded limit");
+      }
+    }
+
+    if (inflated.byteLength !== entry.uncompressedSize) {
+      reject("zip_size_mismatch", "ZIP inflated size differs from the central-directory declaration");
+    }
+    if ((crc32(Buffer.from(inflated)) >>> 0) !== (entry.crc32 >>> 0)) {
+      reject("zip_crc_mismatch", "ZIP CRC does not match the inflated entry");
+    }
+
+    actualExpandedBytes += inflated.byteLength;
+    if (actualExpandedBytes > ZIP_LIMITS.MAX_EXPANDED_BYTES) {
+      reject("package_expanded_too_large", "ZIP package exceeds the bounded expansion limit");
+    }
+    onEntry?.(entry.name, inflated);
+  }
+
+  const declaredFiles = directory.entries
+    .filter((entry) => !entry.isDirectory)
+    .reduce((sum, entry) => sum + entry.uncompressedSize, 0);
+  if (actualExpandedBytes !== declaredFiles) {
+    reject("zip_size_mismatch", "ZIP inflated size differs from the central-directory declaration");
+  }
+  return { actualExpandedBytes };
+}

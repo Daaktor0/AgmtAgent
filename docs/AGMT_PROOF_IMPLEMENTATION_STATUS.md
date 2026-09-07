@@ -290,10 +290,35 @@ Actual: **27/27 pass**, 0 fail. Node v24.11.1.
 
 ### Typecheck evidence — route generation vs `origin/main`
 
-- **Baseline:** `1cc8748345aedf912f7e825f8d2270693b6e5528` (`origin/proof-world-class-implementation` at session start).
+- **Baseline:** `98d6a30724ca0bad47ad5a076c57e2fd82e25d28` (`origin/proof-world-class-implementation` at this session start).
 - Isolated main worktree: `D:\AI Agent\agreement-agent-main-pwc-baseline` at `6a7e80d7cdc584f4b1c67f1fce822da0e230dc53`.
+- Root lockfile git blob is identical on both trees (`56a704edc1296d29cf3140caf1f79a634480d214`). Disk hash differs only by line endings.
 
-Commands (Windows PowerShell; `with-app-env.mjs` `spawn('vite')` is `ENOENT` here because it does not use a shell, so Vite is invoked as `node ./node_modules/vite/bin/vite.js`):
+The earlier main-worktree Nitro failure (`Cannot find package '@cloudflare/containers'` from `web/exports.cloudflare.ts` → `src/worker.ts`) was **incomplete root dependency installation**, not a genuine `origin/main` build defect and not a reason to change deployment configuration. `web/exports.cloudflare.ts` still re-exports the legacy `AgmtContainer` class so Cloudflare does not treat it as a delete-class migration. That wiring is unchanged.
+
+Root lockfile install in the isolated worktree (lockfile not modified):
+
+```
+cd D:\AI Agent\agreement-agent-main-pwc-baseline
+npm ci --ignore-scripts --no-audit --no-fund
+```
+
+Result: **exit 0**, 41 packages added, `node_modules/@cloudflare/containers` present, root `package-lock.json` hash unchanged (`A384D410…` before and after).
+
+Normal root build (both trees, after that install):
+
+```
+npm run build
+```
+
+| Tree | `npm run build` | Lockfile |
+|---|---|---|
+| Isolated `origin/main` | **exit 127** `[with-app-env] failed to run vite: spawn vite ENOENT` after `npm --prefix web ci` (447 packages). Route tree leftover present; Nitro wrangler missing until the Vite-js equivalent. | Unchanged |
+| Implementation `98d6a30` | **exit 127**, same `spawn vite ENOENT` after `npm --prefix web ci` (447 packages). | Unchanged |
+
+This Windows ENOENT is `web/scripts/with-app-env.mjs` spawning `vite` without a shell. It is **identical on both trees** and is not a missing-package defect. The wrapper and wrangler/Nitro deploy config were **not** changed to compensate.
+
+Equivalent Cloudflare build used for post-generation typecheck (same on both trees):
 
 ```
 cd web
@@ -301,17 +326,17 @@ node scripts/with-app-env.mjs node ./node_modules/vite/bin/vite.js build --mode 
 npx tsc --noEmit
 ```
 
-| Tree | Build | `npx tsc --noEmit` |
+| Tree | Vite/Nitro (`cloudflare_module`) | `npx tsc --noEmit` |
 |---|---|---|
-| Implementation after route generation | Cloudflare client/SSR/Nitro **exit 0** | **4 errors**, all `web/src/lib/agmt/corpus/pwc/corpus.test.ts` TS18047 (`finding.textStart`/`textEnd` possibly null inside the reconstruction callback). Attributable to PWC-03. |
-| `origin/main` worktree after route generation | Client/SSR built; Nitro failed resolving `@cloudflare/containers` from worktree-root `src/worker.ts` (worktree root `node_modules` not installed). `src/routeTree.gen.ts` **was** generated. | **exit 0**, 0 errors |
+| Isolated `origin/main` after root `npm ci` | Client/SSR/Nitro **exit 0**. Nitro detected `exports.cloudflare.ts`. Generated `.output/server/wrangler.json`. | **exit 0**, 0 errors |
+| Implementation `98d6a30` | Client/SSR/Nitro **exit 0** (1902/372/2897 modules vs main 1901/368/2893; extra PWC modules). Same wrangler output. | **exit 0**, 0 errors |
 
-The previous session’s leftover `routeTree.gen` / `createFileRoute` type errors are gone after the normal TanStack route-generation build. They were not an implementation-vs-main defect. The only attributable remainder was PWC-03 nullability, fixed in `904d21bd8deb1daef019b3c42b9ee18e039b1609`. After that fix, implementation `npx tsc --noEmit` is **exit 0**. Unrelated main/worktree Nitro resolution was not changed.
+No attributable typecheck or Nitro regression versus `origin/main` once the lockfile install is complete. Deployment configuration was not edited.
 
 ### PWC-03 follow-up — section 22 reconciliation
 
 - **Status:** Implemented; Tested (7/7 corpus + typecheck exit 0 after `904d21b`). Word-created fixtures **Blocked** (PWC-13). Release corpus size **outstanding**. Not Deployed.
-- “0 labelled misses” applies only to the **24 evaluated positive loci** against the six launch rules. It is not a per-rule 100% claim and not a catalogue-wide claim.
+- “0 labelled misses” applied only to the **24 evaluated positive loci** against the six launch rules at PWC-03 close. After PWC-08, one of those loci is labelled (`employment_typo_split`). It is not a per-rule 100% claim and not a catalogue-wide claim.
 
 #### Current 48 packages satisfy
 
@@ -335,11 +360,11 @@ The previous session’s leftover `routeTree.gen` / `createFileRoute` type error
 
 #### Rule-level engine evaluation denominators
 
-Evaluated launch rules (24 positives / 24 clean twins). Current `ENGINE_BASELINE_MISSES` is `{}`.
+Evaluated launch rules (24 positives / 24 clean twins). `ENGINE_BASELINE_MISSES` is no longer empty after PWC-08:
 
 | Rule | Positive packages | Clean twins | Labelled misses | Notes |
 |---|---:|---:|---:|---|
-| `language.typo_allowlist` | 10 | 10 | 0 | Includes split-run, party-name trap, prior revision, reused phrase, Latin, Indian numbers, header story |
+| `language.typo_allowlist` | 10 | 10 | 1 | `employment_typo_split` labelled `pwc-08-mixed-format-comment-only`: authored expected action is a correction; Phase A mixed-rPr policy admits a comment. The quote still exists. Includes party-name trap, prior revision, reused phrase, Latin, Indian numbers, header story |
 | `language.duplicate_word` | 4 | 4 | 0 | Includes table and multilingual excerpt |
 | `completion.placeholder` | 4 | 4 | 0 | `[●]`, `[insert date]`, `[TBD]`, existing classic comment |
 | `references.missing_target` | 2 | 2 | 0 | |
@@ -425,9 +450,76 @@ Actual: **4/4 pass**. Live put/read/delete/HEAD/list/multipart abort under restr
 #### Remaining blockers and next eligible tasks
 
 - Founder D-02 / D-03 and authorized bucket provisioning before marking PWC-17 Verified.
-- **Next executable (source lane):** PWC-07 — exact evidence and absence scopes (depends on PWC-06 and PWC-02).
+- **Next executable (source lane):** PWC-09 — duplicate and overlapping findings (depends on PWC-08).
 - **Critical path (code-eligible, staging blocked):** PWC-18 — transfer reservations and cancellation fencing.
 - Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
+
+### PWC-07 — Validate exact evidence and absence scopes
+
+- **Baseline commit:** `98d6a30724ca0bad47ad5a076c57e2fd82e25d28`.
+- **Change commit:** `01d510be3372895bd1a79331a5184224bc27229c` (shared with PWC-08).
+- **Files changed:** `web/src/lib/agmt/proof/evidence.ts`, `web/src/lib/agmt/proof/evidence.test.ts`, `web/src/lib/agmt/proof/contracts.ts`, `web/src/lib/agmt/source-map.ts`, `web/src/lib/agmt/proof/launch.ts`, `web/src/lib/agmt/proof/launch-checks.ts`, `web/package.json`.
+- **Status:** Implemented; Tested (5/5 evidence + launch/export/source-map regressions). Browser/Word not applicable until export gate. Not Deployed.
+- **Must-not-change held:** legacy `validateHit` substring/fallback validator not reused; metadata DTO still rejects `exactQuote`/findings; uploads remain disabled; `scanning` → `processing` still false.
+
+#### Behaviour
+
+- Section 14 `SpanV2` / `FindingV2` schemas: unknown fields rejected, grapheme-safe half-open offsets, quote bound to UTF-16 length, absence requires `matchCount === 0`.
+- Replay order: package hash → registered part → path → projection segments → tree text → quote → exporter capability → absence completeness.
+- `mapping_corruption` (hash/version/receipt/unregistered part/tree desync) fails the run. Wrong anchors are `invalid_evidence`. Unknown/imported parts suppress absence (`incomplete_scope`); they are not treated as zero matches.
+- Empty numbering labels are not fabricated. Same quote in a header story cannot satisfy a body span.
+- Launch findings convert to V2 before plan admission. Public `RunSummaryV2` still rejects evidence fields.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/proof/evidence.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/source-map.test.ts src/lib/agmt/export/docx.test.ts
+npx tsc --noEmit
+```
+
+Actual: **5/5 evidence + 4/4 launch + 4/4 source-map + 4/4 export**. `tsc` **exit 0**. Node v24.11.1.
+
+#### Remaining blockers
+
+- Word/SDK reconstruction of published anchors: PWC-13.
+- Header/note stories remain unread for absence (excluded regions, not implied complete).
+
+### PWC-08 — Preflight edit capability around existing review material
+
+- **Baseline commit:** `98d6a30724ca0bad47ad5a076c57e2fd82e25d28`.
+- **Change commit:** `01d510be3372895bd1a79331a5184224bc27229c` (shared with PWC-07).
+- **Files changed:** `web/src/lib/agmt/export/edit-capabilities.ts`, `web/src/lib/agmt/export/edit-capabilities.test.ts`, `web/src/lib/agmt/proof/launch.ts`, `web/src/lib/agmt/proof/launch.test.ts`, `web/src/lib/agmt/export/docx.test.ts`, `web/src/lib/agmt/corpus/pwc/expected.ts`, `web/package.json`.
+- **Status:** Implemented; Tested (5/5 edit-capabilities + launch/export/corpus). Word verification remains PWC-13. Not Deployed.
+- **Must-not-change held:** modern comments still refused; prior user revisions are not accepted/rejected; uploads remain disabled.
+
+#### Behaviour
+
+- Each exact span is classified correction-safe, comment-safe or unsupported before plan admission.
+- Prior `w:ins`/`w:del`, including existing `Agmt Proof` author IDs, cannot receive nested corrections.
+- Mixed-rPr replacements are comments unless every overlapping run shares the same `rPr`. No approximate character distribution.
+- Empty visible ranges, fields, protected/hyperlink runs and classic comment-reference intersections are unsupported; the finding is suppressed, not moved to a nearby paragraph.
+- Split-run launch fixture: typo is a comment; duplicate-word deletion remains a correction when format is uniform enough to export.
+
+#### Corpus labelling (not an expected-action rewrite)
+
+`ENGINE_BASELINE_MISSES["pwc-08-mixed-format-comment-only"]` = `employment_typo_split::language.typo_allowlist::recieve`. Independently authored expected action remains a correction. The engine now publishes a comment at that locus. Clean twins still do not fire.
+
+#### Commands and results
+
+```
+cd web
+npm run test:proof
+npx tsc --noEmit
+```
+
+Actual: **94/94 pass**, `tsc` **exit 0**. `canTransitionProductRun("scanning","processing")` **false**.
+
+#### Remaining blockers and next eligible tasks
+
+- Word checks of enabled correction/comment cases: PWC-13.
+- **Next executable (source lane):** PWC-09 — duplicate and overlapping findings.
+- **Critical path (code-eligible, staging blocked):** PWC-18.
 
 ---
 

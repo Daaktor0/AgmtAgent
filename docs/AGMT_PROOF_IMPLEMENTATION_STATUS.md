@@ -288,6 +288,147 @@ Actual: **27/27 pass**, 0 fail. Node v24.11.1.
 - **Next executable (source lane):** PWC-05 — DOCX capability inventory and refuse/coverage map.
 - **Critical path:** PWC-17 (provisioning blocked; adapter code eligible).
 
+### Typecheck evidence — route generation vs `origin/main`
+
+- **Baseline:** `1cc8748345aedf912f7e825f8d2270693b6e5528` (`origin/proof-world-class-implementation` at session start).
+- Isolated main worktree: `D:\AI Agent\agreement-agent-main-pwc-baseline` at `6a7e80d7cdc584f4b1c67f1fce822da0e230dc53`.
+
+Commands (Windows PowerShell; `with-app-env.mjs` `spawn('vite')` is `ENOENT` here because it does not use a shell, so Vite is invoked as `node ./node_modules/vite/bin/vite.js`):
+
+```
+cd web
+node scripts/with-app-env.mjs node ./node_modules/vite/bin/vite.js build --mode cloudflare
+npx tsc --noEmit
+```
+
+| Tree | Build | `npx tsc --noEmit` |
+|---|---|---|
+| Implementation after route generation | Cloudflare client/SSR/Nitro **exit 0** | **4 errors**, all `web/src/lib/agmt/corpus/pwc/corpus.test.ts` TS18047 (`finding.textStart`/`textEnd` possibly null inside the reconstruction callback). Attributable to PWC-03. |
+| `origin/main` worktree after route generation | Client/SSR built; Nitro failed resolving `@cloudflare/containers` from worktree-root `src/worker.ts` (worktree root `node_modules` not installed). `src/routeTree.gen.ts` **was** generated. | **exit 0**, 0 errors |
+
+The previous session’s leftover `routeTree.gen` / `createFileRoute` type errors are gone after the normal TanStack route-generation build. They were not an implementation-vs-main defect. The only attributable remainder was PWC-03 nullability, fixed in `904d21bd8deb1daef019b3c42b9ee18e039b1609`. After that fix, implementation `npx tsc --noEmit` is **exit 0**. Unrelated main/worktree Nitro resolution was not changed.
+
+### PWC-03 follow-up — section 22 reconciliation
+
+- **Status:** Implemented; Tested (7/7 corpus + typecheck exit 0 after `904d21b`). Word-created fixtures **Blocked** (PWC-13). Release corpus size **outstanding**. Not Deployed.
+- “0 labelled misses” applies only to the **24 evaluated positive loci** against the six launch rules. It is not a per-rule 100% claim and not a catalogue-wide claim.
+
+#### Current 48 packages satisfy
+
+- Starting representative set: 24 positive + 24 clean twins; family-separated; frozen `manifest.json` (`generatorSeed=pwc-03-synthetic-corpus-v1`).
+- Provenance, capability tags, language/profile, SHA-256, supported flag, expected finding IDs.
+- Synthetic-only names/authors/comments; identity canary.
+- Agreement families: SHA, SSA, SPA, NDA, services, licence, employment, loan, lease, amendment, schedule.
+- General families: board paper, policy, report, letter.
+- UK/US English, Indian grouping, multilingual excerpt, placeholders, similar parties, nested numbering, reused phrases, tables, tracked revisions, classic comments, repeated text, Latin names, schedule restarts, source-only header story.
+- Expected actions authored from specs, not engine output. Clean twins are the negative traps for those loci.
+
+#### Outstanding (not claimed complete)
+
+- Word-created synthetic files and Word protocol: PWC-13 / PWC-35.
+- ≥120 packages including ≥60 clean traps before PWC-35 (currently 48 / 24).
+- ≥1,000 correction microcases.
+- ≥100 positive and ≥100 negative cases **per enabled comment rule**.
+- 60/20/20 development/calibration/holdout split by template family.
+- Modern-comment fixtures; donated/anonymised non-synthetic fixtures (forbidden without a separate process).
+- Adversarial ZIP/XML cases live in PWC-04 tests, not in `corpus/pwc/manifest.json`.
+
+#### Rule-level engine evaluation denominators
+
+Evaluated launch rules (24 positives / 24 clean twins). Current `ENGINE_BASELINE_MISSES` is `{}`.
+
+| Rule | Positive packages | Clean twins | Labelled misses | Notes |
+|---|---:|---:|---:|---|
+| `language.typo_allowlist` | 10 | 10 | 0 | Includes split-run, party-name trap, prior revision, reused phrase, Latin, Indian numbers, header story |
+| `language.duplicate_word` | 4 | 4 | 0 | Includes table and multilingual excerpt |
+| `completion.placeholder` | 4 | 4 | 0 | `[●]`, `[insert date]`, `[TBD]`, existing classic comment |
+| `references.missing_target` | 2 | 2 | 0 | |
+| `references.duplicate_number` | 2 | 2 | 0 | Includes schedule restart |
+| `definitions.duplicate` | 2 | 2 | 0 | |
+
+Unevaluated (denominator 0 → **not evaluated**, never 100%): `language.spelling_candidate`, `language.missing_word_pattern`, `language.sentence_mechanics`, `punctuation.*`, `spacing.*`, `definitions.case_variant` / `undefined_use` / `unused`, `numbering.sequence_anomaly`, `references.ambiguous_target` / `range` / `bookmark`, `figures.*`, `dates.*`, `parties.*`, `stories.*`, `review.existing_material`, `formatting.run_anomaly`. Comment-rule 100/100 gate is outstanding for every enabled comment rule.
+
+### PWC-05 — Create namespace-aware package capability inventory
+
+- **Baseline commit:** `1cc8748345aedf912f7e825f8d2270693b6e5528`.
+- **Change commit:** `e9458a89d7248b66ea763aa32a9c610ff939b326` (shared with PWC-06).
+- **Files changed:** `web/src/lib/agmt/package-capabilities.ts`, `web/src/lib/agmt/package-capabilities.test.ts`, `web/src/lib/agmt/docx-v2.ts`, `web/src/lib/agmt/types.ts`, `web/package.json`.
+- **Status:** Implemented; Tested (8/8 package-capabilities + 9/9 docx-v2). Word support expansion gated at 13/44; no Word fidelity claim. Not Deployed.
+- **Must-not-change held:** unknown/macro parts are refused, not stripped; uploads remain disabled; `scanning` → `processing` still false.
+
+#### Behaviour
+
+- Versioned inventory `proof-package-capabilities-v1` / profile `proof-docx-phase-a-v1`.
+- Each part records preserve / read / edit separately. Unknown parts are `unknown` + opaque preserve; the package becomes `limited`, never silently complete.
+- Namespace URIs, not prefixes: WML alias is supported; `w` bound to a non-WML URI is `namespace_spoof` refuse.
+- Passive `http`/`https`/`mailto` hyperlinks are limited (never fetched). `attachedTemplate`, customXml, modern comments, protection, active content refuse.
+- AlternateContent is limited. Empty main body and main-document content-type mismatch refuse.
+- `extractDocx` throws on refused inventory; original bytes stay byte-identical.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/package-capabilities.test.ts src/lib/agmt/docx-v2.test.ts
+```
+
+Actual: **8/8 + 9/9 pass**. Combined later run with projection/corpus/launch/export: **47/47**.
+
+### PWC-06 — Implement exact visible-text and story projections
+
+- **Baseline commit:** `904d21bd8deb1daef019b3c42b9ee18e039b1609`.
+- **Change commit:** `e9458a89d7248b66ea763aa32a9c610ff939b326`.
+- **Files changed:** `web/src/lib/agmt/projection.ts`, `web/src/lib/agmt/projection.test.ts`, `web/src/lib/agmt/source-map.ts`, `web/src/lib/agmt/docx-v2.ts`, `web/src/lib/agmt/types.ts`.
+- **Status:** Implemented; Tested (7/7 projection + 4/4 source-map + launch/export regressions). Word-read semantics remain PWC-13. Not Deployed.
+- **Must-not-change held:** Latin script is not treated as English; source XML is not normalised.
+
+#### Behaviour
+
+- `proof-projection-v1` final-view projection per part. Deletion, field instructions and vanished runs are skipped and recorded.
+- Field stack is carried across paragraphs; leftover begin/end marks the story incomplete.
+- Inherited `w:lang` is recorded from pPr/rPr only. Body, table cells, headers, footers and notes stay separate stories; header text is not merged into the main ProofSource.
+- Empty cells produce empty table paragraphs; move revisions are disclosed (`complex_revision`) and omitted from visible text.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/projection.test.ts src/lib/agmt/source-map.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/export/docx.test.ts
+```
+
+Actual: **7/7 + 4/4 + 4/4 + 4/4 pass**.
+
+### PWC-17 — Provision temporary R2 boundaries and adapter
+
+- **Baseline commit:** `e9458a89d7248b66ea763aa32a9c610ff939b326`.
+- **Change commit:** `03875c18391c7fe9b8062e4d0fd1b40304af0c68`.
+- **Files changed:** `web/src/lib/server/proof-objects.ts`, `web/src/lib/server/proof-objects.test.ts`, `infra/proof/storage.md`, `infra/proof/wrangler-broker.jsonc`.
+- **Status:** Implemented (adapter + placeholder config); Tested (4/4 local contract tests). Provider verification **Blocked** (no authorized staging buckets). D-02 encryption and D-03 residency **unresolved**. Not Deployed. No production/staging apply.
+- **Must-not-change held:** historical envelope/`object_manifest` path untouched; memory provider rejected in deployed mode; uploads remain disabled.
+
+#### Behaviour
+
+- Keys: `proof/v2/<UTC-expiry-minute>/<128-bit-run-token>/<generation>/<attempt>/<kind>-<random-id>`. No filename/tenant text.
+- Source → quarantine role; marked/analysis → temporary role.
+- Reserve before write; immutable retry; HEAD checksum/size receipt; prefix list pagination; delete; multipart abort.
+- Encryption contract recorded as TLS + R2-managed; no `encryptBytes`.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-objects.test.ts
+```
+
+Actual: **4/4 pass**. Live put/read/delete/HEAD/list/multipart abort under restricted identities: **not run**.
+
+#### Remaining blockers and next eligible tasks
+
+- Founder D-02 / D-03 and authorized bucket provisioning before marking PWC-17 Verified.
+- **Next executable (source lane):** PWC-07 — exact evidence and absence scopes (depends on PWC-06 and PWC-02).
+- **Critical path (code-eligible, staging blocked):** PWC-18 — transfer reservations and cancellation fencing.
+- Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

@@ -450,7 +450,7 @@ Actual: **4/4 pass**. Live put/read/delete/HEAD/list/multipart abort under restr
 #### Remaining blockers and next eligible tasks
 
 - Founder D-02 / D-03 and authorized bucket provisioning before marking PWC-17 Verified.
-- **Next executable (source lane):** PWC-09 — duplicate and overlapping findings (depends on PWC-08).
+- **Next executable (source lane):** PWC-10 — surgical tracked-change and comment export (depends on PWC-09).
 - **Critical path (code-eligible, staging blocked):** PWC-18 — transfer reservations and cancellation fencing.
 - Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
 
@@ -518,7 +518,39 @@ Actual: **94/94 pass**, `tsc` **exit 0**. `canTransitionProductRun("scanning","p
 #### Remaining blockers and next eligible tasks
 
 - Word checks of enabled correction/comment cases: PWC-13.
-- **Next executable (source lane):** PWC-09 — duplicate and overlapping findings.
+- **Next executable (source lane):** PWC-10 — surgical tracked-change and comment export.
+- **Critical path (code-eligible, staging blocked):** PWC-18.
+
+### PWC-09 — Resolve duplicate and overlapping findings deterministically
+
+- **Baseline commit:** `558c14816b41a35d0d22324e5ea11b4683d5d72b`.
+- **Change commit:** `5fc4838a9e1069c25d0a679d90b38381aef48825`.
+- **Files changed:** `web/src/lib/agmt/proof/resolve-findings.ts`, `web/src/lib/agmt/proof/resolve-findings.test.ts`, `web/src/lib/agmt/proof/launch.ts`, `web/src/lib/agmt/proof/launch.test.ts`, `web/src/lib/agmt/export/docx.ts`, `web/src/lib/agmt/export/docx.test.ts`, `web/package.json`.
+- **Status:** Implemented; Tested (4/4 resolve-findings + launch/export/corpus). Word merge rendering remains PWC-13. Not Deployed.
+- **Must-not-change held:** different stories/locations with the same quote are not merged; no silent first-N trim; uploads remain disabled.
+
+#### Behaviour
+
+- Duplicate key: part, path, span, rule/version, quote, action, replacement. Exact duplicates collapse.
+- Same-span comments combine reasons into one comment. Overlapping comments union inside one paragraph when ≤300 UTF-16 units and the union is editable.
+- Conflicting corrections become one judgment comment; they are not auto-selected.
+- Correction/comment overlap downgrades to the combined comment.
+- Caps: 100/rule, 500/run, stable order exact-structural → exact-mechanical → bounded-heuristic then part/span/rule. Omitted counts recorded as `rule_budget` / `finding_cap` with limited coverage.
+
+#### Commands and results
+
+```
+cd web
+npm run test:proof
+npx tsc --noEmit
+```
+
+Actual: **98/98 pass**, `tsc` **exit 0**.
+
+#### Remaining blockers and next eligible tasks
+
+- Word checks of merged comments: PWC-13.
+- **Next executable (source lane):** PWC-10.
 - **Critical path (code-eligible, staging blocked):** PWC-18.
 
 ---

@@ -186,6 +186,78 @@ Fixture hashes: none (JSON fixtures only). Versions: API v2, envelope v1, `proof
 - **Next executable (critical path):** PWC-16 (depends on PWC-02). Source lane **PWC-03** is independently eligible.
 - **Parallel:** PWC-03, PWC-29 (UI presentation of these DTOs).
 
+### PWC-02 follow-up — typecheck import
+
+- This session re-ran PWC-00–02 tests independently: **17/17 pass** (capabilities 7, products 2, api-contracts 3, worker 3, product-runs 2).
+- `npx tsc --noEmit` reported an attributable PWC-02 error: `RunDeadlines` imported from `retention.ts` was type-only there. Fixed by importing `RunDeadlines` from `products/contracts.ts`. Remaining tsc errors are pre-existing (`routeTree.gen` absent without build; `createFileRoute` path types).
+- `canTransitionProductRun("scanning","processing")` remains **false**. Upload switch remains fail-closed.
+
+### PWC-03 — Build independently generated corpus fixtures
+
+- **Baseline commit:** `cc8f797b918d50d92ff6546ee5e5426125b84441` (PWC-02 SHA fill-in; branch head at session start). Type-fix `ac4c420e072c8742527da54aed90e245776c9e53`.
+- **Change commit:** `5379aa1b740524ea9122c50a1835d45a3c30736f`.
+- **Files changed:** `web/src/lib/agmt/corpus/pwc/generate.ts`, `web/src/lib/agmt/corpus/pwc/expected.ts`, `web/src/lib/agmt/corpus/pwc/manifest.json`, `web/src/lib/agmt/corpus/pwc/corpus.test.ts`, `web/package.json`, `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
+- **Status:** Implemented; Tested (7/7 corpus tests). Word-created independent files **Blocked** (deferred to PWC-13; this task does not fabricate Word receipts). Browser not applicable. Not Deployed.
+- **Must-not-change held:** expected actions authored from specs, not copied from engine output. `ENGINE_BASELINE_MISSES` is empty after evaluation; misses are labelled, not auto-updated.
+
+#### Behaviour
+
+- 24 representative synthetic packages plus 24 clean twins (48 total). Families: SHA, SSA, SPA, NDA, services, licence, employment, loan, lease, amendment, schedule, board paper, policy, report, letter.
+- Capability tags cover split runs, tables, headers, prior revisions, existing comments, nested numbering, schedule restarts, UK/US English, Indian grouping, multilingual excerpt, Latin phrases, similar parties, reused phrases, party-name trap.
+- Hand-authored OOXML via deterministic JSZip (`createFolders: false`, frozen DOS date). Synthetic author/reviewer only.
+- Frozen SHA-256 values live in `manifest.json` (`generatorSeed=pwc-03-synthetic-corpus-v1`). Example: `sha_typo_body` = `151f328109233dc17e9892c8fc4157dd8351f9cab93f7c2991873371116845fc`.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/agmt/corpus/pwc/corpus.test.ts
+```
+
+Actual: **7/7 pass**, 0 fail. Node v24.11.1. Engine evaluation: 0 labelled misses; clean twins silent on the target rule.
+
+#### Remaining blockers and next eligible tasks
+
+- Word-created synthetic files and human Word protocol: PWC-13 / PWC-35.
+- Extend to 120 packages before PWC-35.
+- **Next executable (source lane):** PWC-04 — unify pre-expansion ZIP and resource limits.
+- **Critical path (already unblocked by PWC-02):** PWC-16.
+
+### PWC-16 — Extend metadata schema and owner-safe lifecycle
+
+- **Baseline commit:** `5379aa1b740524ea9122c50a1835d45a3c30736f`.
+- **Change commit:** `35a88c8f0d053c9f9017602099c0ec4a7a11c921`.
+- **Files changed:** `web/migrations/0009_pwc_run_lifecycle.sql`, `web/src/lib/server/product-runs.ts`, `web/src/lib/server/product-runs.test.ts`, `web/scripts/pwc-migration.test.mjs`, `web/scripts/product-run-migration.test.mjs` (exclude 0009 from the T06 apply-before-0006 list), `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`.
+- **Status:** Implemented; Tested (4/4 product-runs unit + 2/2 PGlite migration). Staging role matrix Verified **Blocked** (no authorized staging apply). Production apply **not performed**. Not Deployed.
+- **Must-not-change held:** 0001–0008 untouched; no Matter rows; `scanning` → `processing` still illegal in app table and SQL trigger; original deadline columns remain immutable; uploads remain disabled.
+
+#### Behaviour
+
+- Next unused migration number confirmed **0009**.
+- Additive run columns: profile, language, versions, coverage_manifest, notice_count, lease, retry_after, deleted_reason, deletion_receipt, options_digest, scan_receipt, authorised_at (existing rows backfilled from `upload_started_at`).
+- Artifact: attempt_id, generation, expected_size, provider_etag, write_status, absence_verified_at. Unique `(tenant_id, run_id, generation, attempt_id, kind)`. One published settled `marked_docx` per run. Composite FK `(tenant_id, run_id, owner_user_id)`.
+- `createProductRun` authorises with database `now()` (not application timestamps).
+- Transitions: queued→failed; failed→scanning/queued; deleting→deleting. Retry does not widen deadlines. Attempt counter increments only on exclusive claim.
+- `job_outbox` accepts `aggregate_type = 'product_run'`.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/product-runs.test.ts
+node --test scripts/pwc-migration.test.mjs
+node --test scripts/product-run-migration.test.mjs
+```
+
+Actual: **4/4**, **2/2**, **2/2** pass. Node v24.11.1. PGlite: scanning→processing rejected; same-tenant other-owner artifact rejected; retry left 2026-01-01 deadlines unchanged; deleting→deleting restart incremented generation; stale generation updated 0 rows.
+
+#### Remaining blockers and next eligible tasks
+
+- Do not apply 0009 to production without explicit authorization.
+- Real staging role matrix: Blocked.
+- **Next executable (critical path):** PWC-17 — temporary R2 boundaries and adapter (code can be prepared; provisioning is D-02/D-03 / spend).
+- **Next executable (source lane):** PWC-04.
+
 ---
 
 ## Current temporary Proof release — 5 September 2026

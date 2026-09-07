@@ -1,16 +1,30 @@
 import type { ErrorComponentProps } from "@tanstack/react-router";
-import { TriangleAlert } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { STATES, CTA } from "@/brand/copy";
 
-export function AppErrorComponent({ error }: ErrorComponentProps) {
+export function AppErrorComponent({ error: _error }: ErrorComponentProps) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-paper px-6 text-center text-ink">
-      <span className="text-pen" aria-hidden="true">
-        <TriangleAlert className="size-10" strokeWidth={2} />
-      </span>
-      <h1 className="font-serif text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-muted">
-        {error.message || "An unexpected error occurred. Try reloading the page."}
-      </p>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-paper px-6 text-center text-ink">
+      <h1 className="text-product-title">{STATES.pageError.heading}</h1>
+      <p className="max-w-md text-[1.0625rem] text-[var(--color-ash)]">{STATES.pageError.body}</p>
+      <button type="button" onClick={() => window.location.reload()} className="btn btn-primary">
+        {STATES.pageError.action}
+      </button>
+      <Link to="/" className="text-link">
+        {CTA.backToAgmt}
+      </Link>
+    </main>
+  );
+}
+
+export function NotFoundComponent() {
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-paper px-6 text-center text-ink">
+      <h1 className="text-product-title">{STATES.notFound.heading}</h1>
+      <p className="max-w-md text-[1.0625rem] text-[var(--color-ash)]">{STATES.notFound.body}</p>
+      <Link to="/" className="btn btn-primary">
+        {STATES.notFound.action}
+      </Link>
     </main>
   );
 }

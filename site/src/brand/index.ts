@@ -1,3 +1,4 @@
-export { brand, SEAT_OPEN, SEAT_RESERVED, SEAT_TOTAL } from "./tokens";
+export { brand, APP_URL } from "./tokens";
 export { Wordmark } from "./wordmark";
+export { AgmtSymbol, AgmtWordmark } from "./logo";
 export * as copy from "./copy";

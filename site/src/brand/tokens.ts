@@ -1,31 +1,36 @@
-/** Shared Agmt brand tokens. */
+/**
+ * Open Form design tokens. Source: Agmt-Brand-System.md §08 and the brand
+ * kit's design-tokens.json. Values are the approved handoff, not sampled
+ * from any mockup screenshot.
+ */
 export const brand = {
   name: "Agmt",
-  mark: "Ag",
-  tagline: "Find what changed. Catch what broke.",
+  domain: "agmt.legal",
+  appUrl: "https://app.agmt.legal",
   colors: {
-    paper: "#f5efe5",
-    paperSunk: "#e9dfd0",
-    card: "#fffaf1",
-    ink: "#171c22",
-    ink2: "#343b44",
-    muted: "#6f6c66",
-    faint: "#9b958b",
-    rule: "#d9cfc0",
-    ruleStrong: "#b8ab9a",
-    accent: "#9b3028",
-    accentHover: "#7c241f",
-    accentInk: "#fff8ee",
-    accentSoft: "#ecd7d0",
-    brass: "#b8894a",
+    plum: "#292331",
+    plumHover: "#40364C",
+    plumActive: "#1F1A26",
+    chalk: "#F5F3ED",
+    citron: "#D7F279",
+    citronHover: "#CAE46D",
+    white: "#FFFFFF",
+    ash: "#625D68",
+    rule: "#D7D2DB",
+    iris: "#B8ADE8",
+    mist: "#DDE5E9",
+    deepSurface: "#352E3E",
+    darkSecondary: "#C2BAC9",
+    error: "#A12D3F",
+    success: "#226448",
+    warning: "#77500C",
   },
   fonts: {
-    serif: '"Spectral", "Iowan Old Style", Georgia, serif',
-    sans: '"IBM Plex Sans", "Segoe UI", system-ui, sans-serif',
-    mono: '"IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace',
+    sans: '"Manrope", Arial, system-ui, sans-serif',
+    specimen: 'Georgia, "Times New Roman", serif',
+    mono: 'ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace',
   },
 } as const;
 
-export const SEAT_OPEN = 30;
-export const SEAT_RESERVED = 20;
-export const SEAT_TOTAL = SEAT_OPEN + SEAT_RESERVED;
+/** Principal Proof launch CTAs point exactly here, in the same tab. */
+export const APP_URL = brand.appUrl;

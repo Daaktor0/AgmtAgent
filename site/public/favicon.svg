@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Agmt">
-  <rect width="32" height="32" fill="#faf8f4"/>
-  <rect x="7" y="7" width="18" height="2.5" fill="#7a1c1c"/>
-  <text x="7" y="25" font-family="Spectral, Georgia, serif" font-size="15" fill="#191612">Ag</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img"><title>Agmt favicon</title><rect x="0" y="0" width="32" height="32" rx="0" fill="#292331"/><g transform="translate(5.76 4.48) scale(0.24761904761904763)"><g fill="#F5F3ED"><path d="M71.715 23.944 A37 37 0 1 1 60.152 11.969 L49.804 27.904 A18 18 0 1 0 55.429 33.729 Z"/><path d="M62 42H77V80H62Z"/></g></g></svg>

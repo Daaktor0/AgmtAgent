@@ -12,9 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as BetaRouteImport } from './routes/beta'
+import { Route as BuildersRouteImport } from './routes/builders'
 import { Route as HowRouteImport } from './routes/how'
 import { Route as LegalRouteImport } from './routes/legal'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TrustRouteImport } from './routes/trust'
 import { Route as WhatRouteImport } from './routes/what'
+import { Route as ProductsIndexRouteImport } from './routes/products/index'
+import { Route as ProductsProofRouteImport } from './routes/products/proof'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -31,6 +37,11 @@ const BetaRoute = BetaRouteImport.update({
   path: '/beta',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BuildersRoute = BuildersRouteImport.update({
+  id: '/builders',
+  path: '/builders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HowRoute = HowRouteImport.update({
   id: '/how',
   path: '/how',
@@ -41,9 +52,34 @@ const LegalRoute = LegalRouteImport.update({
   path: '/legal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrustRoute = TrustRouteImport.update({
+  id: '/trust',
+  path: '/trust',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WhatRoute = WhatRouteImport.update({
   id: '/what',
   path: '/what',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsIndexRoute = ProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsProofRoute = ProductsProofRouteImport.update({
+  id: '/products/proof',
+  path: '/products/proof',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -51,42 +87,103 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
+  '/builders': typeof BuildersRoute
   '/how': typeof HowRoute
   '/legal': typeof LegalRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
   '/what': typeof WhatRoute
+  '/products/proof': typeof ProductsProofRoute
+  '/products/': typeof ProductsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
+  '/builders': typeof BuildersRoute
   '/how': typeof HowRoute
   '/legal': typeof LegalRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
   '/what': typeof WhatRoute
+  '/products/proof': typeof ProductsProofRoute
+  '/products': typeof ProductsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
+  '/builders': typeof BuildersRoute
   '/how': typeof HowRoute
   '/legal': typeof LegalRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
   '/what': typeof WhatRoute
+  '/products/proof': typeof ProductsProofRoute
+  '/products/': typeof ProductsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/beta' | '/how' | '/legal' | '/what'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/beta'
+    | '/builders'
+    | '/how'
+    | '/legal'
+    | '/privacy'
+    | '/terms'
+    | '/trust'
+    | '/what'
+    | '/products/proof'
+    | '/products/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/beta' | '/how' | '/legal' | '/what'
-  id: '__root__' | '/' | '/admin' | '/beta' | '/how' | '/legal' | '/what'
+  to:
+    | '/'
+    | '/admin'
+    | '/beta'
+    | '/builders'
+    | '/how'
+    | '/legal'
+    | '/privacy'
+    | '/terms'
+    | '/trust'
+    | '/what'
+    | '/products/proof'
+    | '/products'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/beta'
+    | '/builders'
+    | '/how'
+    | '/legal'
+    | '/privacy'
+    | '/terms'
+    | '/trust'
+    | '/what'
+    | '/products/proof'
+    | '/products/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   BetaRoute: typeof BetaRoute
+  BuildersRoute: typeof BuildersRoute
   HowRoute: typeof HowRoute
   LegalRoute: typeof LegalRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
+  TrustRoute: typeof TrustRoute
   WhatRoute: typeof WhatRoute
+  ProductsProofRoute: typeof ProductsProofRoute
+  ProductsIndexRoute: typeof ProductsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -112,6 +209,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BetaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/builders': {
+      id: '/builders'
+      path: '/builders'
+      fullPath: '/builders'
+      preLoaderRoute: typeof BuildersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/how': {
       id: '/how'
       path: '/how'
@@ -126,11 +230,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trust': {
+      id: '/trust'
+      path: '/trust'
+      fullPath: '/trust'
+      preLoaderRoute: typeof TrustRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/what': {
       id: '/what'
       path: '/what'
       fullPath: '/what'
       preLoaderRoute: typeof WhatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/': {
+      id: '/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/proof': {
+      id: '/products/proof'
+      path: '/products/proof'
+      fullPath: '/products/proof'
+      preLoaderRoute: typeof ProductsProofRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -140,9 +279,15 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BetaRoute: BetaRoute,
+  BuildersRoute: BuildersRoute,
   HowRoute: HowRoute,
   LegalRoute: LegalRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
+  TrustRoute: TrustRoute,
   WhatRoute: WhatRoute,
+  ProductsProofRoute: ProductsProofRoute,
+  ProductsIndexRoute: ProductsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

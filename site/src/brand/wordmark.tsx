@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { brand } from "./tokens";
-import { cn } from "@/lib/utils";
+import { AgmtWordmark } from "@/brand/logo";
 
 export function Wordmark({
   size = "sm",
@@ -11,32 +10,17 @@ export function Wordmark({
   asLink?: boolean;
   inverse?: boolean;
 }) {
-  const body = (
-    <span className="inline-flex items-start gap-1.5">
-      <span
-        className={cn(
-          "block font-serif leading-none tracking-[-0.035em]",
-          inverse ? "text-on-hero" : "text-ink",
-          size === "lg" ? "text-[3.25rem] sm:text-[4.5rem]" : "text-[1.625rem]",
-        )}
-      >
-        {brand.name}
-      </span>
-      <span
-        aria-hidden
-        className={cn(
-          "mt-[0.18em] rounded-full bg-accent",
-          size === "lg" ? "size-2.5 sm:size-3" : "size-1.5",
-        )}
-      />
-    </span>
+  const mark = (
+    <AgmtWordmark
+      aria-hidden
+      className={`wordmark ${size === "lg" ? "wordmark-large" : ""} ${inverse ? "wordmark-inverse" : ""}`}
+    />
   );
-
-  if (!asLink) return body;
-
-  return (
-    <Link to="/" aria-label={`${brand.name} — home`} className="inline-flex no-underline">
-      {body}
+  return asLink ? (
+    <Link to="/" aria-label="Agmt home" className="wordmark-link">
+      {mark}
     </Link>
+  ) : (
+    mark
   );
 }

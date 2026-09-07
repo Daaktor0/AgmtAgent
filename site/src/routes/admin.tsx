@@ -3,17 +3,35 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Wordmark } from "@/brand/wordmark";
-import { FOOTER } from "@/brand/copy";
-import { SEAT_OPEN, SEAT_RESERVED } from "@/brand/tokens";
+import { FOOTER_DESCRIPTION } from "@/brand/copy";
 import { SeatMeter } from "@/components/site/seat-meter";
 import {
   adminAllotReserved,
   adminExportCsv,
   adminUnlock,
+  SEAT_OPEN,
+  SEAT_RESERVED,
   type SeatCounts,
   type WaitlistRow,
 } from "@/lib/waitlist";
+import { adminListBuilderInterest, type BuilderInterestRow } from "@/lib/builders";
 import { cn } from "@/lib/utils";
+
+/** Same CSV-injection guard as adminExportCsv: quote a leading =, +, - or @. */
+function csvCell(value: string): string {
+  const v = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v;
+}
+
+function downloadCsv(rows: string[][], filename: string) {
+  const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -25,6 +43,7 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const [password, setPassword] = useState("");
   const [view, setView] = useState<{ counts: SeatCounts; rows: WaitlistRow[] } | null>(null);
+  const [builders, setBuilders] = useState<BuilderInterestRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -45,6 +64,21 @@ function AdminPage() {
     void run(
       () => adminUnlock({ data: { password } }),
       (r) => (r.ok ? setView({ counts: r.counts, rows: r.rows }) : setError(r.error)),
+    );
+    void run(
+      () => adminListBuilderInterest({ data: { password } }),
+      (r) => (r.ok ? setBuilders(r.rows) : undefined),
+    );
+  };
+
+  const exportBuildersCsv = () => {
+    if (!builders) return;
+    downloadCsv(
+      [
+        ["time", "email", "product_url", "consent"],
+        ...builders.map((r) => [r.created_at, r.email, r.product_url ?? "", r.consent ? "yes" : "no"]),
+      ],
+      `agmt-builders-${new Date().toISOString().slice(0, 10)}.csv`,
     );
   };
 
@@ -202,12 +236,59 @@ function AdminPage() {
                 </table>
               </div>
             )}
+
+            <div className="mt-14 flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <h2 className="text-[1.5rem] text-ink">Builder interest</h2>
+                <p className="mt-1 text-sm text-muted">
+                  {builders ? `${builders.length} registration${builders.length === 1 ? "" : "s"}` : "Loading…"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={exportBuildersCsv}
+                disabled={!builders || builders.length === 0}
+                className="inline-flex min-h-11 items-center border border-rule-strong bg-card px-4 text-[0.9375rem] text-ink-2 hover:border-ink disabled:opacity-60"
+              >
+                Export CSV
+              </button>
+            </div>
+
+            {builders && builders.length === 0 ? (
+              <p className="mt-6 text-muted">No registrations yet.</p>
+            ) : builders && builders.length > 0 ? (
+              <div className="mt-6 overflow-x-auto border border-rule bg-card">
+                <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-rule">
+                      {["Time", "Email", "Product URL", "Consent"].map((h) => (
+                        <th key={h} scope="col" className="label px-3 py-2.5">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {builders.map((row) => (
+                      <tr key={row.id} className="border-b border-rule last:border-0 align-top">
+                        <td className="whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-muted">
+                          {row.created_at.slice(0, 16).replace("T", " ")}
+                        </td>
+                        <td className="px-3 py-3 text-ink-2">{row.email}</td>
+                        <td className="px-3 py-3 text-muted">{row.product_url ?? "—"}</td>
+                        <td className="px-3 py-3 text-muted">{row.consent ? "Yes" : "No"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </>
         )}
       </main>
 
       <footer className="border-t border-rule">
-        <div className="mx-auto max-w-6xl px-6 py-8 text-sm text-muted">{FOOTER}</div>
+        <div className="mx-auto max-w-6xl px-6 py-8 text-sm text-muted">{FOOTER_DESCRIPTION}</div>
       </footer>
     </div>
   );

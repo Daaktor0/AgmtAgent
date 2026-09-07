@@ -1,5 +1,4 @@
-import { SEAT_OPEN, SEAT_RESERVED } from "@/brand/tokens";
-import type { SeatCounts } from "@/lib/waitlist";
+import { SEAT_OPEN, SEAT_RESERVED, type SeatCounts } from "@/lib/waitlist";
 import { cn } from "@/lib/utils";
 
 /**

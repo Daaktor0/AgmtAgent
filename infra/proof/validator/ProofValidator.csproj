@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    PWC-12 Open XML SDK harness.
+    Package: DocumentFormat.OpenXml 3.5.1
+    Licence: MIT (https://github.com/dotnet/Open-XML-SDK/blob/main/LICENSE)
+    Advisory review date: 2026-09-08. Pin remains 3.x; no known exploitable
+    critical/high advisory recorded at pin time. Schema validation only;
+    this is not Microsoft Word fidelity.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Agmt.Proof.Validator</RootNamespace>
+    <AssemblyName>ProofValidator</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+  </ItemGroup>
+</Project>

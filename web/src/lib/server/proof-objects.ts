@@ -54,6 +54,12 @@ export type ProofObjectReceipt = {
   encryption: typeof PROOF_OBJECT_ENCRYPTION;
 };
 
+export type ProofObjectInspect = {
+  presence: "absent" | "present" | "corrupt" | "unknown";
+  receipt: ProofObjectReceipt | null;
+  error?: unknown;
+};
+
 export type ProofObjectReservation = {
   key: string;
   bucketRole: ProofBucketRole;
@@ -300,20 +306,47 @@ export class ProofObjectStore {
   }
 
   async head(input: { key: string }): Promise<ProofObjectReceipt | null> {
-    const parts = parseProofObjectKey(input.key);
-    const role = bucketRoleFor(parts.kind);
-    const object = await this.bucket(role).head(input.key);
-    if (!object) return null;
-    const meta = parseHeadMetadata(object.customMetadata, object.size);
-    return {
-      provider: "r2",
-      bucketRole: role,
-      key: input.key,
-      sha256: meta.sha256,
-      byteSize: meta.byteSize,
-      etag: object.etag,
-      encryption: PROOF_OBJECT_ENCRYPTION,
-    };
+    const inspected = await this.inspect({ key: input.key });
+    if (inspected.presence === "absent") return null;
+    if (inspected.presence === "present") return inspected.receipt;
+    if (inspected.error instanceof ObjectStoreError) throw inspected.error;
+    throw new ObjectStoreError("object_metadata_invalid", "R2 object metadata does not contain a valid Proof integrity receipt");
+  }
+
+  /**
+   * Presence without treating integrity as ownership. Publication still
+   * requires a valid matching receipt; deletion may proceed on corrupt bytes.
+   */
+  async inspect(input: { key: string }): Promise<ProofObjectInspect> {
+    let parts;
+    try {
+      parts = parseProofObjectKey(input.key);
+    } catch (error) {
+      return { presence: "unknown", receipt: null, error };
+    }
+    try {
+      const object = await this.bucket(bucketRoleFor(parts.kind)).head(input.key);
+      if (!object) return { presence: "absent", receipt: null };
+      try {
+        const meta = parseHeadMetadata(object.customMetadata, object.size);
+        return {
+          presence: "present",
+          receipt: {
+            provider: "r2",
+            bucketRole: bucketRoleFor(parts.kind),
+            key: input.key,
+            sha256: meta.sha256,
+            byteSize: meta.byteSize,
+            etag: object.etag,
+            encryption: PROOF_OBJECT_ENCRYPTION,
+          },
+        };
+      } catch (error) {
+        return { presence: "corrupt", receipt: null, error };
+      }
+    } catch (error) {
+      return { presence: "unknown", receipt: null, error };
+    }
   }
 
   async list(input: {

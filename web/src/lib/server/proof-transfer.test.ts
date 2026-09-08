@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { MemoryProofR2Bucket, createProofObjectStore } from "./proof-objects.ts";
 import {
   ProofTransferError,
+  admitPublication,
   createProofTransfer,
   type RunFence,
   type TransferLedger,
@@ -165,4 +166,60 @@ test("PWC-18 timeout after a successful write is uncertain and reconcilable, nev
   const receipt = await noWriterReceipt({ objects, ledger, runId: "run1", generation: 1 });
   assert.ok(receipt);
   assert.equal(receipt.uncertainCount, 0);
+});
+
+test("PWC-18 late completion after timeout stays unpublished and is deleted once fenced", async () => {
+  const { transfer, objects, ledger } = harness();
+  const bytes = Buffer.from("late-complete");
+  const result = await transfer.putObject({
+    runId: "run1",
+    tenantId: "t1",
+    ownerUserId: "u1",
+    generation: 0,
+    attempt: 1,
+    kind: "marked_docx",
+    bytes,
+    deadlineMs: Date.UTC(2026, 0, 1, 4, 0, 0),
+    afterProviderWrite: async () => {
+      ledger.run.generation = 1;
+      ledger.run.status = "deleting";
+    },
+  });
+  assert.equal(result.status, "uncertain");
+  const head = await objects.head({ key: result.key });
+  const writer = (await ledger.listWriters("run1"))[0];
+  assert.ok(writer);
+  assert.equal(admitPublication({ writer, head }).admitted, false);
+  const reconciled = await reconcileRunWriters({ objects, ledger, runId: "run1" });
+  assert.equal(reconciled[0]?.status, "deleted");
+  assert.equal(await objects.head({ key: result.key }), null);
+});
+
+test("PWC-18 repeated cancellation is idempotent, drains writers, and never infers absence from HEAD alone", async () => {
+  const { transfer, objects, ledger } = harness();
+  const bytes = Buffer.from("repeat-cancel");
+  const first = await transfer.putObject({
+    runId: "run1",
+    tenantId: "t1",
+    ownerUserId: "u1",
+    generation: 0,
+    attempt: 1,
+    kind: "marked_docx",
+    bytes,
+    deadlineMs: Date.UTC(2026, 0, 1, 4, 0, 0),
+  });
+  assert.equal(first.status, "settled");
+  const once = await transfer.cancel({ runId: "run1", tenantId: "t1", ownerUserId: "u1" });
+  assert.equal(once.generation, 1);
+  assert.equal(ledger.run.status, "deleting");
+  const twice = await transfer.cancel({ runId: "run1", tenantId: "t1", ownerUserId: "u1" });
+  assert.equal(twice.generation, 2);
+  assert.equal(ledger.run.status, "deleting");
+  assert.ok(await objects.head({ key: first.key }));
+  assert.equal(await noWriterReceipt({ objects, ledger, runId: "run1", generation: 2 }), null);
+  const reconciled = await reconcileRunWriters({ objects, ledger, runId: "run1" });
+  assert.equal(reconciled.some((item) => item.status === "deleted"), true);
+  assert.equal(await objects.head({ key: first.key }), null);
+  const receipt = await noWriterReceipt({ objects, ledger, runId: "run1", generation: 2 });
+  assert.ok(receipt);
 });

@@ -7,6 +7,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import {
+  parseProofObjectKey,
   type ProofObjectKind,
   type ProofObjectReceipt,
   type ProofObjectStore,
@@ -294,4 +295,35 @@ export function createLocalProofTransfer(input: {
     throw new ObjectStoreError("object_store_unconfigured", "legacy envelope encryption is not used for new-lane transfers");
   }
   return createProofTransfer(input);
+}
+
+/** Ownership is the server-reserved writer key in the proof/v2 namespace. Never a caller-supplied path. */
+export function ownedReservedKey(writer: WriterRecord, key: string): boolean {
+  if (typeof key !== "string" || key !== writer.key) return false;
+  try {
+    parseProofObjectKey(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Publication gate. Checksum/size mismatch, unsettled writers and unowned keys
+ * cannot become downloadable output. This is independent of deletion authority.
+ */
+export function admitPublication(input: {
+  writer: WriterRecord;
+  head: ProofObjectReceipt | null;
+}): { admitted: boolean; code: string } {
+  if (!ownedReservedKey(input.writer, input.writer.key)) {
+    return { admitted: false, code: "ownership_uncertain" };
+  }
+  if (!input.head) return { admitted: false, code: "object_absent" };
+  if (input.head.key !== input.writer.key) return { admitted: false, code: "ownership_uncertain" };
+  if (input.head.sha256 !== input.writer.expectedSha256 || input.head.byteSize !== input.writer.expectedSize) {
+    return { admitted: false, code: "integrity_mismatch" };
+  }
+  if (input.writer.writeStatus !== "settled") return { admitted: false, code: "writer_not_settled" };
+  return { admitted: true, code: "ok" };
 }

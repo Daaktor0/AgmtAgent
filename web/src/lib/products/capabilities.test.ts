@@ -110,6 +110,8 @@ test("PWC-01 home and Proof share paused copy; upload admission is POST-only", (
   assert.equal(PROOF_UPLOADS_PAUSED_HEADING, "Proof is temporarily unavailable for new uploads.");
   assert.equal(PROOF_UPLOADS_PAUSED_DETAIL, "Existing downloads and deletion remain available.");
   assert.equal(proofRouteRequiresUploadAdmission("POST", ["upload"]), true);
+  assert.equal(proofRouteRequiresUploadAdmission("POST", ["runs"]), true);
+  assert.equal(proofRouteRequiresUploadAdmission("PUT", ["runs", "run-1", "source"]), true);
   assert.equal(proofRouteRequiresUploadAdmission("POST", ["upload", "extra"]), false);
   assert.equal(proofRouteRequiresUploadAdmission("GET", ["download", "run-1"]), false);
   assert.equal(proofRouteRequiresUploadAdmission("DELETE", ["run", "run-1"]), false);
@@ -172,7 +174,8 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   const uploadFn = service.slice(service.indexOf("export async function uploadAndProcessProof"));
   assert.match(uploadFn.slice(0, 280), /assertProofUploadsAccepted\(\)/);
   assert.match(api, /proofUploadAdmissionResponse\(\)/);
-  assert.ok(api.indexOf("proofUploadAdmissionResponse()") < api.indexOf("request.arrayBuffer()"));
+  assert.ok(api.indexOf("proofUploadAdmissionResponse()") < api.indexOf("request.json()"));
+  assert.doesNotMatch(api, /request\.arrayBuffer\(\)/);
   assert.match(home, /proofAvailabilityCopy/);
   assert.match(proof, /proofAvailabilityCopy/);
   assert.match(home, /PROOF_CAPABILITIES_FALLBACK/);

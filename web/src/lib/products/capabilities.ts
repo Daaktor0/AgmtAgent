@@ -114,7 +114,9 @@ export function proofAvailabilityCopy(acceptingUploads: boolean): { heading: str
 }
 
 export function proofRouteRequiresUploadAdmission(method: string, path: readonly string[]): boolean {
-  return method === "POST" && path.length === 1 && path[0] === "upload";
+  if (method === "POST" && path.length === 1 && (path[0] === "upload" || path[0] === "runs")) return true;
+  if (method === "PUT" && path.length === 3 && path[0] === "runs" && path[2] === "source") return true;
+  return false;
 }
 
 export function proofCapabilitiesPath(path: readonly string[], method: string): boolean {

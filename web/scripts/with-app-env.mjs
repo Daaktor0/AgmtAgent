@@ -20,7 +20,7 @@
  * `process.env`, which is why the merge has to happen before Vite starts.
  */
 import { spawn } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { constants as osConstants } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -104,6 +104,23 @@ export function isMainModule(moduleUrl) {
   }
 }
 
+/**
+ * Resolve workspace binaries without `shell: true`.
+ *
+ * `spawn("vite")` is ENOENT on Windows because npm's shim is `vite.cmd`.
+ * Invoking the package's `bin/vite.js` through the current Node executable
+ * keeps the Cloudflare/Nitro deploy architecture unchanged.
+ */
+export function resolveSpawnCommand(command, args, root = projectRoot()) {
+  if (command === "vite") {
+    const viteJs = join(root, "node_modules", "vite", "bin", "vite.js");
+    if (existsSync(viteJs)) {
+      return { command: process.execPath, args: [viteJs, ...args] };
+    }
+  }
+  return { command, args };
+}
+
 function main(argv) {
   const [command, ...args] = argv;
   if (!command) {
@@ -111,7 +128,8 @@ function main(argv) {
     process.exit(2);
   }
   const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  const child = spawn(command, args, { stdio: "inherit", env });
+  const resolved = resolveSpawnCommand(command, args);
+  const child = spawn(resolved.command, resolved.args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));

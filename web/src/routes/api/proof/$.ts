@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireUserId } from "@/lib/auth/verify.server";
 import { withAuthenticatedDatabaseContext } from "@/lib/auth/runtime-context.server";
 import { proofCapabilitiesPath, proofRouteRequiresUploadAdmission } from "@/lib/products/capabilities";
-import { authenticatedProofUpload, deleteProofRun, getProofCapabilities, proofDownload, proofUploadAdmissionResponse } from "@/lib/server/proof-service";
+import { deleteProofRun, getProofCapabilities, proofDownload, proofUploadAdmissionResponse } from "@/lib/server/proof-service";
+import { legacyProofUploadClosed, parseCreateProofRunRequest } from "@/lib/server/proof-upload";
 
 function parts(request: Request): string[] {
   return new URL(request.url).pathname.replace(/^\/api\/proof\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
@@ -20,12 +21,13 @@ function errorResponse(error: unknown): Response {
     "unverified_email", "disabled", "proof_not_available", "proof_object_missing",
     "processing_deadline_reached", "upload_grant_closed", "source_too_large",
     "unsupported_content_type", "invalid_docx", "unsafe_docx", "proof_failed",
-    "uploads_paused",
+    "uploads_paused", "upgrade_needed",
   ]);
   const safeCode = known.has(code) ? code : "proof_request_failed";
   const status = safeCode === "source_too_large" ? 413
     : safeCode === "unsupported_content_type" ? 415
       : safeCode === "uploads_paused" ? 503
+        : safeCode === "upgrade_needed" ? 410
         : ["unverified_email", "disabled", "proof_not_available", "proof_object_missing"].includes(safeCode) ? 403
           : 400;
   return Response.json({ error: safeCode }, { status });
@@ -44,12 +46,15 @@ async function handler(request: Request): Promise<Response> {
       if (proofRouteRequiresUploadAdmission(request.method, path)) {
         const paused = proofUploadAdmissionResponse();
         if (paused) return paused;
-        const declared = Number(request.headers.get("content-length") ?? "0");
-        if (declared > 25 * 1024 * 1024) return Response.json({ error: "source_too_large" }, { status: 413, headers: noStore });
-        const bytes = Buffer.from(await request.arrayBuffer());
-        const key = request.headers.get("idempotency-key") ?? `proof-${crypto.randomUUID()}`;
-        const result = await authenticatedProofUpload(userId, bytes, key, request.headers.get("content-type") ?? undefined);
-        return Response.json(result, { status: result.status === "rejected" || result.status === "failed" ? 422 : 200, headers: noStore });
+        if (request.method === "POST" && path[0] === "upload") {
+          const closed = legacyProofUploadClosed();
+          return Response.json(closed.body, { status: closed.status, headers: noStore });
+        }
+        if (request.method === "POST" && path[0] === "runs") {
+          parseCreateProofRunRequest(await request.json());
+          return Response.json({ error: "uploads_paused" }, { status: 503, headers: noStore });
+        }
+        return Response.json({ error: "uploads_paused" }, { status: 503, headers: noStore });
       }
       if (request.method === "GET" && path[0] === "download" && path[1]) {
         const bytes = await proofDownload(userId, path[1]);
@@ -66,4 +71,4 @@ async function handler(request: Request): Promise<Response> {
   }
 }
 
-export const Route = createFileRoute("/api/proof/$")({ server: { handlers: { GET: ({ request }) => handler(request), POST: ({ request }) => handler(request), DELETE: ({ request }) => handler(request) } } });
+export const Route = createFileRoute("/api/proof/$")({ server: { handlers: { GET: ({ request }) => handler(request), POST: ({ request }) => handler(request), PUT: ({ request }) => handler(request), DELETE: ({ request }) => handler(request) } } });

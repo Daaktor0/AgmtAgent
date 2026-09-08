@@ -11,6 +11,7 @@ import {
   parseAppEnv,
   projectRoot,
   readAppEnv,
+  resolveSpawnCommand,
 } from "./with-app-env.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -113,11 +114,26 @@ test("a signal-killed command is never reported as success", async () => {
   );
 });
 
+test("vite is resolved to the local Node entrypoint without a shell", () => {
+  const resolved = resolveSpawnCommand("vite", ["build", "--mode", "cloudflare"]);
+  assert.equal(resolved.command, process.execPath);
+  assert.equal(resolved.args[0].endsWith(join("node_modules", "vite", "bin", "vite.js")), true);
+  assert.deepEqual(resolved.args.slice(1), ["build", "--mode", "cloudflare"]);
+  const other = resolveSpawnCommand("tsc", ["--noEmit"]);
+  assert.equal(other.command, "tsc");
+  assert.deepEqual(other.args, ["--noEmit"]);
+});
+
 test("the CLI still runs when invoked through a symlinked path", async () => {
   // node realpaths import.meta.url but not process.argv[1], so a raw comparison
   // turns the wrapper into a no-op that exits 0 without starting anything.
   const link = join(mkdtempSync(join(tmpdir(), "app-env-link-")), "scripts");
-  symlinkSync(join(projectRoot(), "scripts"), link);
+  try {
+    symlinkSync(join(projectRoot(), "scripts"), link);
+  } catch (error) {
+    if (error && error.code === "EPERM") return;
+    throw error;
+  }
   const { stdout } = await execFileAsync(process.execPath, [
     join(link, "with-app-env.mjs"),
     process.execPath,

@@ -65,6 +65,14 @@ test("duplicate definitions and literal numbers anchor the second occurrence and
   }
 });
 
+test("PWC-15 tabs are not duplicate-word deletions and explicit non-English language is skipped", async () => {
+  const tab = await analyzeProof(await buildDocx(["The Company shall pay the\tthe interest."]));
+  assert.equal(tab.plan.findings.some((finding) => finding.ruleId === "language.duplicate_word"), false);
+  const { docxWithLang } = await import("../corpus/pwc/beta-rule-cases.ts");
+  const french = await analyzeProof(await docxWithLang("The Company shall recieve the notice.", "fr-FR"));
+  assert.equal(french.plan.findings.some((finding) => finding.exactQuote === "recieve"), false);
+});
+
 test("all allowlist replacements work only in eligible prose and more than 500 findings fails", async () => {
   const r = await analyzeProof(await buildDocx(['The Company shall recieve teh seperate notice after the event has occured.']));
   assert.equal(r.plan.findings.filter((f) => f.kind === "correction").length, 4);

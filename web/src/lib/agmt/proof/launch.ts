@@ -3,13 +3,14 @@ import JSZip from "jszip";
 import { extractDocx } from "../docx-v2.ts";
 import { resolveExtractedNumbering } from "../numbering.ts";
 import { validateSourceSpan, type ProofSource } from "../source-map.ts";
-import type { RuleOutcome } from "../../products/contracts.ts";
-import { LAUNCH_CHECKS, LAUNCH_RULE_SET_VERSION } from "./registry.ts";
-import { ExportPlanSchema, type ProofFinding, type LaunchRuleId } from "./contracts.ts";
+import type { ExtractedDocument } from "../types.ts";
+import { LAUNCH_RULE_SET_VERSION } from "./registry.ts";
+import { ExportPlanSchema, type ProofFinding } from "./contracts.ts";
 import { launchRuleFindings, type LaunchContext } from "./launch-checks.ts";
 import { EvidenceError, toFindingV2, validateFindingV2, type EvidenceContext } from "./evidence.ts";
 import { admitFinding } from "../export/edit-capabilities.ts";
 import { resolveProofFindings } from "./resolve-findings.ts";
+import { executeLaunchRules } from "./rule-runtime.ts";
 
 export function evidenceContext(ctx: LaunchContext): EvidenceContext {
   const receipt = ctx.extracted.packageCapabilityReceipt;
@@ -32,7 +33,18 @@ export function validateLaunchFinding(ctx: LaunchContext, finding: ProofFinding)
   validateFindingV2(evidenceContext(ctx), toFindingV2(evidenceContext(ctx), finding));
 }
 
-export async function analyzeProof(bytes: Buffer) {
+function availableCapabilities(extracted: ExtractedDocument): Set<string> {
+  const set = new Set<string>();
+  for (const capability of extracted.capabilities ?? []) {
+    if (capability.state !== "unsupported") set.add(capability.name);
+  }
+  if (!(extracted.capabilities ?? []).some((capability) => capability.name === "numbering" && capability.state === "unsupported")) {
+    set.add("numbering");
+  }
+  return set;
+}
+
+export async function analyzeProof(bytes: Buffer, options: { profile?: "agreement" | "general"; language?: "en-GB" | "en-US" } = {}) {
   let source: ProofSource | undefined;
   const raw = await extractDocx(bytes, (s) => { source = s; });
   if (!source || !source.paragraphs.some((p) => p.text.trim())) throw new Error("no_supported_text");
@@ -45,46 +57,63 @@ export async function analyzeProof(bytes: Buffer) {
   const extracted = await resolveExtractedNumbering(bytes, raw);
   const sourceSha256 = createHash("sha256").update(bytes).digest("hex");
   const ctx = { source, extracted, sourceSha256 };
-  const findings: ProofFinding[] = [];
-  const executions: { ruleId: LaunchRuleId; version: 1; outcome: RuleOutcome; findingCount: number; code: string | null }[] = [];
+  const runtime = executeLaunchRules(ctx, {
+    profile: options.profile ?? "agreement",
+    language: options.language ?? "en-GB",
+    capabilities: availableCapabilities(extracted),
+  });
   const skippedReview: string[] = [];
-  for (const spec of LAUNCH_CHECKS) {
+  const findings: ProofFinding[] = [];
+  const evidence = evidenceContext(ctx);
+  for (const proposed of runtime.findings) {
     try {
-      const proposed = launchRuleFindings(ctx, spec.checkId);
-      const evidence = evidenceContext(ctx);
-      const admitted: ProofFinding[] = [];
-      for (const f of proposed) {
-        validateSourceSpan(source, f.primarySpan, f.exactQuote);
-        for (const span of f.relatedSpans) {
-          const p = source.paragraphs.find((p) => JSON.stringify(p.paragraphPath) === JSON.stringify(span.paragraphPath));
-          if (!p) throw new Error("invalid_related_evidence");
-          validateSourceSpan(source, span, p.text.slice(span.textStart, span.textEnd));
-        }
-        const accepted = admitFinding(source, f);
-        if (!accepted.finding) {
-          if (accepted.skipped) skippedReview.push(accepted.skipped);
-          continue;
-        }
-        validateFindingV2(evidence, toFindingV2(evidence, accepted.finding));
-        admitted.push(accepted.finding);
+      validateSourceSpan(source, proposed.primarySpan, proposed.exactQuote);
+      for (const span of proposed.relatedSpans) {
+        const paragraph = source.paragraphs.find((item) => JSON.stringify(item.paragraphPath) === JSON.stringify(span.paragraphPath));
+        if (!paragraph) throw new Error("invalid_related_evidence");
+        validateSourceSpan(source, span, paragraph.text.slice(span.textStart, span.textEnd));
       }
-      findings.push(...admitted);
-      executions.push({ ruleId: spec.checkId, version: 1, outcome: admitted.length ? "completed_with_findings" : "completed_zero_findings", findingCount: admitted.length, code: null });
-    } catch (e) {
-      if (e instanceof EvidenceError && e.code === "mapping_corruption") throw e;
-      const incomplete = (e instanceof EvidenceError && e.abstention) || (e instanceof Error && /^incomplete_/.test(e.message));
-      executions.push({ ruleId: spec.checkId, version: 1, outcome: incomplete ? "suppressed" : "failed", findingCount: 0, code: incomplete ? "incomplete_scope" : "invalid_evidence" });
+      const accepted = admitFinding(source, proposed);
+      if (!accepted.finding) {
+        if (accepted.skipped) skippedReview.push(accepted.skipped);
+        continue;
+      }
+      validateFindingV2(evidence, toFindingV2(evidence, accepted.finding));
+      findings.push(accepted.finding);
+    } catch (error) {
+      if (error instanceof EvidenceError && error.code === "mapping_corruption") throw error;
     }
   }
-  if (executions.every((e) => e.outcome === "failed" || e.outcome === "suppressed")) throw new Error("all_checks_failed");
+  if (runtime.executions.every((execution) => execution.outcome === "failed" || execution.outcome === "suppressed")) {
+    throw new Error("all_checks_failed");
+  }
   const resolved = resolveProofFindings(source, findings);
-  findings.length = 0;
-  findings.push(...resolved.findings);
-  const gaps = [...source.gaps, ...skippedReview, ...resolved.coverageReasons];
-  if (extracted.blocks.some((b) => b.isHeaderFooter && b.text.trim())) gaps.push("non_main_story_checks");
-  if (source.paragraphs.some((p) => p.nodes.some((n) => !n.editable && !n.revision))) gaps.push("protected_text_language_checks");
-  if (executions.some((e) => e.outcome === "failed" || e.outcome === "suppressed")) gaps.push("incomplete_checks");
+  const gaps = [...source.gaps, ...skippedReview, ...resolved.coverageReasons, ...runtime.coverageReasons];
+  if (extracted.blocks.some((block) => block.isHeaderFooter && block.text.trim())) gaps.push("non_main_story_checks");
+  if (source.paragraphs.some((paragraph) => paragraph.nodes.some((node) => !node.editable && !node.revision))) {
+    gaps.push("protected_text_language_checks");
+  }
+  if (runtime.executions.some((execution) => execution.outcome === "failed" || execution.outcome === "suppressed")) {
+    gaps.push("incomplete_checks");
+  }
   const coverage = gaps.length ? "limited" : "complete";
-  const plan = ExportPlanSchema.parse({ sourceSha256, ruleSetVersion: LAUNCH_RULE_SET_VERSION, exporterVersion: "proof-ooxml-v1", author: "Agmt Proof", initials: "AP", findings, notices: [] });
-  return { source, extracted, plan, executions, coverage, gaps, sourceSha256, llmCalls: 0 as const };
+  const plan = ExportPlanSchema.parse({
+    sourceSha256,
+    ruleSetVersion: LAUNCH_RULE_SET_VERSION,
+    exporterVersion: "proof-ooxml-v1",
+    author: "Agmt Proof",
+    initials: "AP",
+    findings: resolved.findings,
+    notices: [],
+  });
+  return {
+    source,
+    extracted,
+    plan,
+    executions: runtime.executions,
+    coverage,
+    gaps,
+    sourceSha256,
+    llmCalls: 0 as const,
+  };
 }

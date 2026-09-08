@@ -6,6 +6,7 @@
  */
 import type { RuleOutcome } from "../../products/contracts.ts";
 import type { ProofFinding } from "./contracts.ts";
+import { EvidenceError } from "./evidence.ts";
 import { launchRuleFindings, type LaunchContext } from "./launch-checks.ts";
 import {
   LAUNCH_RULE_REGISTRY_VERSION,
@@ -106,9 +107,17 @@ export function executeLaunchRules(ctx: LaunchContext, options: RuleRuntimeOptio
         findingCount: proposed.length,
         code: null,
       });
-    } catch {
-      executions.push({ ruleId: spec.id, version: spec.version, outcome: "failed", findingCount: 0, code: "rule_failed" });
-      coverageReasons.push("rule_failed");
+    } catch (error) {
+      const incomplete = (error instanceof EvidenceError && error.abstention)
+        || (error instanceof Error && /^incomplete_/.test(error.message));
+      executions.push({
+        ruleId: spec.id,
+        version: spec.version,
+        outcome: incomplete ? "suppressed" : "failed",
+        findingCount: 0,
+        code: incomplete ? "incomplete_scope" : "rule_failed",
+      });
+      coverageReasons.push(incomplete ? "incomplete_scope" : "rule_failed");
     }
   }
 

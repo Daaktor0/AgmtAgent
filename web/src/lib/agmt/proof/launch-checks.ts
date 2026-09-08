@@ -24,8 +24,15 @@ function quoted(text: string, start: number, end: number): boolean {
   return false;
 }
 
+function explicitEnglish(p: SourceParagraph): boolean {
+  if (!p.language) return true;
+  const lang = p.language.toLowerCase();
+  return lang === "en" || lang.startsWith("en-");
+}
+
 function ordinaryProse(p: SourceParagraph, start: number, end: number, ctx: LaunchContext): boolean {
   if (!p.safe || /heading|title|address|signature/i.test(p.style ?? "")) return false;
+  if (!explicitEnglish(p)) return false;
   if (/\b(?:between|registered office|residing at|on behalf of|signed by|witness|address|party name)\b/i.test(p.text)) return false;
   const at = ctx.source.paragraphs.indexOf(p);
   if (ctx.source.paragraphs.slice(0, at + 1).some((s) => /^\s*(?:IN WITNESS|SIGNATURES|EXECUTION BLOCK)/i.test(s.text))) return false;
@@ -48,7 +55,8 @@ function ordinaryProse(p: SourceParagraph, start: number, end: number, ctx: Laun
 function language(ctx: LaunchContext, rule: LaunchRuleId): ProofFinding[] {
   const out: ProofFinding[] = [];
   for (const p of ctx.source.paragraphs) {
-    const regex = rule === "language.typo_allowlist" ? /\b(?:teh|recieve|occured|seperate)\b/g : /\b([a-z]+)([ \t]+)(\1)\b/g;
+    // Duplicate-word deletion is ordinary ASCII spaces only. Tabs/alignment are skipped.
+    const regex = rule === "language.typo_allowlist" ? /\b(?:teh|recieve|occured|seperate)\b/g : /\b([a-z]+)( +)(\1)\b/g;
     for (const m of p.text.matchAll(regex)) {
       if (rule === "language.duplicate_word" && !(DUPLICATE_FUNCTION_WORDS as readonly string[]).includes(m[1])) continue;
       const start = m.index + (rule === "language.duplicate_word" ? m[1].length : 0), end = m.index + m[0].length;

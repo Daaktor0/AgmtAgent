@@ -1,0 +1,57 @@
+[
+  {
+    "fixture": "body",
+    "sourceSha256": "f082403a59ea9c6cb90811218720b77dd49ac2f6ee93b1260888a738c3ec9335",
+    "outputSha256": "de476a5e4f5398a75ea132ea8c53fd87ef82282550cd0aa1f65ca11c620bb4ed",
+    "corrections": 2,
+    "comments": 2,
+    "notices": 0,
+    "wordValidation": "not_run",
+    "openXmlSdkValidation": "not_run",
+    "developmentOnly": true
+  },
+  {
+    "fixture": "split_runs",
+    "sourceSha256": "34db067707fe59c70856dceb59f71a82da1ab85d81bc9a3484da2ebb56b0f4ee",
+    "outputSha256": "10b7446d45108e4953e67cac4f3a1a1ee2c0581e8dabd4531e603995c773247f",
+    "corrections": 1,
+    "comments": 3,
+    "notices": 0,
+    "wordValidation": "not_run",
+    "openXmlSdkValidation": "not_run",
+    "developmentOnly": true
+  },
+  {
+    "fixture": "table",
+    "sourceSha256": "71ca7a01a4e8390c887aa28230f211930149f16ae76df23fda065c79def10605",
+    "outputSha256": "a186d79e49ef646f52af668fc5222fe2cbe9258d8b18ea423691cbab8b6fff9a",
+    "corrections": 2,
+    "comments": 2,
+    "notices": 0,
+    "wordValidation": "not_run",
+    "openXmlSdkValidation": "not_run",
+    "developmentOnly": true
+  },
+  {
+    "fixture": "prior_review",
+    "sourceSha256": "cc43f8b0c86d234bfa2f02becfd575cd24b6a19dfc7bae6f30c7c7e55840cb04",
+    "outputSha256": "036f0e35a04cd11a1d59b603efb5bdd93d60a1ecd799230b19b29aca21cc325b",
+    "corrections": 2,
+    "comments": 2,
+    "notices": 0,
+    "wordValidation": "not_run",
+    "openXmlSdkValidation": "not_run",
+    "developmentOnly": true
+  },
+  {
+    "fixture": "party_name",
+    "sourceSha256": "4ff59a6080ccbe8dd6797d040e4c7c3f3b338a67b4a5bd283df1d81a74fc3a21",
+    "outputSha256": "4ff59a6080ccbe8dd6797d040e4c7c3f3b338a67b4a5bd283df1d81a74fc3a21",
+    "corrections": 0,
+    "comments": 0,
+    "notices": 0,
+    "wordValidation": "not_run",
+    "openXmlSdkValidation": "not_run",
+    "developmentOnly": true
+  }
+]

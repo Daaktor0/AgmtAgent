@@ -1,7 +1,10 @@
 /** Metadata only. Content-bearing Proof findings/plans must never enter these DTOs. */
 export type ProductId = "proof" | "review" | "executed-copy" | "signature-pack";
+/** Database product_run.status values. Do not extend without a forward migration. */
 export type RunStatus = "uploading" | "scanning" | "queued" | "processing" | "exporting" |
   "ready" | "rejected" | "failed" | "deleting" | "deleted";
+/** UI/API stage. `validating` is an exporting substage, not a DB status (section 17). */
+export type ProofStage = RunStatus | "validating";
 export type RunDeadlines = Readonly<{
   uploadStartedAt: number;
   retentionDeadline: number;

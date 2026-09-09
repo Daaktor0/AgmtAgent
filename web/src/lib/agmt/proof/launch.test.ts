@@ -22,11 +22,18 @@ test("all four demonstration variants produce exactly two corrections and two an
     assert.equal(result.coverage, "complete");
     assert.equal(result.plan.findings.length, 4);
     assert.equal(result.executions.length, 6);
+    assert.equal(result.plan.findings.filter((f) => f.kind === "correction").length, kind === "split_runs" ? 1 : 2);
     for (const e of DEMO_EXPECTED) {
       const f = result.plan.findings.find((f) => f.ruleId === e.ruleId)!;
       assert.ok(f, e.ruleId);
-      assert.equal(f.exactQuote, e.quote); assert.equal(f.replacement, e.replacement);
+      assert.equal(f.exactQuote, e.quote);
       assert.equal(f.primarySpan.textStart, e.start); assert.equal(f.primarySpan.textEnd, e.end);
+      if (kind === "split_runs" && e.ruleId === "language.typo_allowlist") {
+        assert.equal(f.kind, "comment");
+        assert.equal(f.replacement, null);
+      } else {
+        assert.equal(f.replacement, e.replacement);
+      }
       validateLaunchFinding(result, f);
       assert.throws(() => validateLaunchFinding(result, { ...f, comment: "forged claim" }), /invalid_rule_evidence/);
     }
@@ -58,9 +65,19 @@ test("duplicate definitions and literal numbers anchor the second occurrence and
   }
 });
 
+test("PWC-15 tabs are not duplicate-word deletions and explicit non-English language is skipped", async () => {
+  const tab = await analyzeProof(await buildDocx(["The Company shall pay the\tthe interest."]));
+  assert.equal(tab.plan.findings.some((finding) => finding.ruleId === "language.duplicate_word"), false);
+  const { docxWithLang } = await import("../corpus/pwc/beta-rule-cases.ts");
+  const french = await analyzeProof(await docxWithLang("The Company shall recieve the notice.", "fr-FR"));
+  assert.equal(french.plan.findings.some((finding) => finding.exactQuote === "recieve"), false);
+});
+
 test("all allowlist replacements work only in eligible prose and more than 500 findings fails", async () => {
   const r = await analyzeProof(await buildDocx(['The Company shall recieve teh seperate notice after the event has occured.']));
   assert.equal(r.plan.findings.filter((f) => f.kind === "correction").length, 4);
-  const bad = await buildDocx(Array.from({ length: 501 }, () => 'The Company shall recieve notice.'));
-  await assert.rejects(() => analyzeProof(bad), /excessive_findings/);
+  const bad = await analyzeProof(await buildDocx(Array.from({ length: 501 }, () => 'The Company shall recieve notice.')));
+  assert.ok(bad.plan.findings.length <= 100);
+  assert.equal(bad.coverage, "limited");
+  assert.ok(bad.gaps.includes("rule_budget"));
 });

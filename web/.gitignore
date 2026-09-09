@@ -4,3 +4,6 @@ dist/
 .output/
 src/routeTree.gen.ts
 *.log
+tmp-proof-local-sdk/
+tmp-proof-local-word/
+scripts/proof-local-dist/

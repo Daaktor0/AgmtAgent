@@ -18,6 +18,13 @@ export function executableProduct(value: unknown): "proof" {
   return value;
 }
 
-export function safeProofReturn(value: unknown): "/" | "/proof" {
-  return value === "/proof" ? "/proof" : "/";
+export type ProofReturnPath = "/" | "/proof" | `/proof?run=${string}`;
+
+export function safeProofReturn(value: unknown): ProofReturnPath {
+  if (value === "/proof") return "/proof";
+  if (typeof value === "string") {
+    const match = value.match(/^\/proof\?run=([A-Za-z0-9_-]{16,64})$/);
+    if (match) return value as `/proof?run=${string}`;
+  }
+  return "/";
 }

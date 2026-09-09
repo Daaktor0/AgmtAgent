@@ -1,12 +1,12 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { authClient, authEnabled } from "@/lib/auth/client";
 import { AUTH_ERROR_CODES } from "@/lib/auth/error-codes";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { safeProofReturn } from "@/lib/products/registry";
+import { safeProofReturn, type ProofReturnPath } from "@/lib/products/registry";
 import { Card } from "@/components/ui/card";
 
-export const Route = createFileRoute("/login")({ validateSearch: (s: Record<string, unknown>): { returnTo?: "/" | "/proof" } => ({ returnTo: safeProofReturn(s.returnTo) }), component: Login });
+export const Route = createFileRoute("/login")({ validateSearch: (s: Record<string, unknown>): { returnTo?: ProofReturnPath } => ({ returnTo: safeProofReturn(s.returnTo) }), component: Login });
 
 /**
  * Friendly text for the stable codes the auth backend can return (see
@@ -48,7 +48,6 @@ function withAuthClientTimeout<T>(promise: Promise<T>): Promise<T> {
 
 function Login() {
   const { user, isPending } = useCurrentUserState();
-  const navigate = useNavigate();
   const returnTo = safeProofReturn(Route.useSearch().returnTo);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -58,8 +57,10 @@ function Login() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isPending && user) void navigate({ to: returnTo });
-  }, [isPending, navigate, user, returnTo]);
+    if (!isPending && user) {
+      window.location.assign(returnTo);
+    }
+  }, [isPending, user, returnTo]);
 
   async function submitEmail(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,7 +71,7 @@ function Login() {
         ? await withAuthClientTimeout(authClient.signUp.email({ email, password, name: name || email }))
         : await withAuthClientTimeout(authClient.signIn.email({ email, password, callbackURL: returnTo }));
       if (result.error) throw new Error(describeAuthError(result.error));
-      if (creating && typeof window !== "undefined") window.location.href = returnTo;
+      if (creating && typeof window !== "undefined") window.location.assign(returnTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed.");
     } finally {

@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -11,6 +12,42 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
+
+const webRoot = dirname(fileURLToPath(import.meta.url));
+
+/** Client/worker Node stand-ins. SSR keeps real `node:*` modules. */
+function proofLocalBrowserShims(): Plugin {
+  const platform = join(webRoot, "src/lib/platform");
+  const aliases: Record<string, string> = {
+    "node:crypto": join(platform, "node-crypto.ts"),
+    "node:assert/strict": join(platform, "node-assert.ts"),
+    "node:assert": join(platform, "node-assert.ts"),
+    "node:zlib": join(platform, "node-zlib.ts"),
+  };
+  const envelope = join(platform, "envelope-forbidden.ts");
+  const forbidden = ["proof-antivirus", "proof-service", "runtime-env.server", "better-auth", "node:fs", "node:net", "node:child_process"];
+  return {
+    name: "agmt-proof-local-shims",
+    enforce: "pre",
+    resolveId(id, importer, options) {
+      if (options.ssr) return null;
+      const fromWorker = (importer ?? "").includes("proof-local") || (importer ?? "").includes("proof.worker");
+      if (fromWorker && forbidden.some((part) => id.includes(part))) {
+        throw new Error(`forbidden in browser Proof worker: ${id}`);
+      }
+      if (aliases[id]) return aliases[id];
+      const importerNorm = (importer ?? "").split(/[/\\]/).join("/");
+      const idNorm = id.split(/[/\\]/).join("/");
+      if (
+        importerNorm.includes("/src/lib/agmt/")
+        && (idNorm.endsWith("crypto.ts") || idNorm.endsWith("/agmt/crypto"))
+      ) {
+        return envelope;
+      }
+      return null;
+    },
+  };
+}
 
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
@@ -86,7 +123,12 @@ export default defineConfig(({ command, isPreview, mode }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  worker: {
+    format: "es",
+    plugins: () => [proofLocalBrowserShims()],
+  },
   plugins: [
+    proofLocalBrowserShims(),
     pgliteBootstrapPlugin(),
     disabledAuthPopupPlugin(),
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.

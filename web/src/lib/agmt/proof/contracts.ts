@@ -65,3 +65,59 @@ export const EXPORT_INVARIANTS = Object.freeze({
   sourcePackage: "immutable",
   offsets: "half_open_utf16_no_surrogate_splits",
 } as const);
+
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
+const evidenceQuote = z.string().min(1).max(1_000);
+const messageArg = z.string().min(1).max(600);
+
+/** Section 14 content evidence. Memory/temporary R2 only; never a public DTO field. */
+export const PROJECTION_VERSION_V2 = "proof-projection-v1" as const;
+export const EXCLUSION_POLICY_VERSION = "proof-exclusion-v1" as const;
+export const INDEX_VERSION_V2 = "proof-index-v1" as const;
+
+export const SpanV2Schema = z.strictObject({
+  sourceSha256: sha256Hex,
+  partUri: z.string().regex(/^\/word\/[a-zA-Z0-9_-]+\.xml$/),
+  storyId: z.string().min(1).max(128),
+  paragraphPath: path,
+  textStart: offset,
+  textEnd: offset,
+  projectionVersion: z.literal(PROJECTION_VERSION_V2),
+  view: z.literal("final"),
+  exactQuote: evidenceQuote,
+  nodeSegments: z.array(segment).min(1),
+}).refine((s) => s.textEnd > s.textStart, "empty_span")
+  .refine((s) => s.nodeSegments.reduce((n, x) => n + x.end - x.start, 0) === s.textEnd - s.textStart, "invalid_span_length")
+  .refine((s) => s.exactQuote.length === s.textEnd - s.textStart, "quote_length");
+export type SpanV2 = z.infer<typeof SpanV2Schema>;
+
+export const ScopeEvidenceV2Schema = z.strictObject({
+  scopeIds: z.array(z.string().min(1)).min(1),
+  inventoryDigest: sha256Hex,
+  indexVersion: z.literal(INDEX_VERSION_V2),
+  evaluatedParts: z.array(z.string().min(1)).min(1),
+  excludedRegions: z.array(z.string().min(1)),
+  completeness: z.literal("complete"),
+  query: evidenceQuote,
+  matchCount: offset,
+});
+export type ScopeEvidenceV2 = z.infer<typeof ScopeEvidenceV2Schema>;
+
+export const FindingV2Schema = z.strictObject({
+  id: z.string().min(1),
+  ruleId: z.string().min(1).max(128),
+  ruleVersion: z.number().int().positive().max(1_000),
+  evidenceTier: z.enum(["exact-mechanical", "exact-structural", "bounded-heuristic"]),
+  action: z.enum(["correction", "comment"]),
+  primary: SpanV2Schema,
+  related: z.array(SpanV2Schema).max(32),
+  replacement: z.string().max(1_000).nullable(),
+  messageCode: z.string().min(1).max(128),
+  messageArgs: z.array(messageArg).max(8),
+  capabilityReceipt: sha256Hex,
+  exclusionPolicyVersion: z.literal(EXCLUSION_POLICY_VERSION),
+  scopeEvidence: ScopeEvidenceV2Schema.nullable(),
+}).refine((f) => f.action === "correction" ? f.replacement !== null : f.replacement === null, "invalid_markup_action")
+  .refine((f) => f.ruleId !== "references.missing_target" || f.scopeEvidence?.matchCount === 0, "missing_absence_evidence")
+  .refine((f) => f.messageArgs.reduce((n, arg) => n + arg.length, 0) <= 600, "comment_length");
+export type FindingV2 = z.infer<typeof FindingV2Schema>;

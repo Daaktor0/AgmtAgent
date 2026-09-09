@@ -1,17 +1,75 @@
 import { sha256Hex } from "../crypto.ts";
 import type { Severity } from "../types.ts";
-import type { LaunchRuleId } from "./contracts.ts";
+import { EXCLUSION_POLICY_VERSION, type LaunchRuleId } from "./contracts.ts";
 
 /** Explicit new Proof selection; CHECKS below remains the historical regression registry. */
 export const LAUNCH_RULE_SET_VERSION = "proof-launch-v1";
-export const LAUNCH_CHECKS: readonly Readonly<{ checkId: LaunchRuleId; version: 1 }>[] = Object.freeze([
-  { checkId: "language.typo_allowlist", version: 1 },
-  { checkId: "language.duplicate_word", version: 1 },
-  { checkId: "completion.placeholder", version: 1 },
-  { checkId: "references.missing_target", version: 1 },
-  { checkId: "references.duplicate_number", version: 1 },
-  { checkId: "definitions.duplicate", version: 1 },
-].map((spec) => Object.freeze(spec)) as { checkId: LaunchRuleId; version: 1 }[]);
+export const LAUNCH_RULE_REGISTRY_VERSION = "proof-rule-registry-v1";
+export const MAX_CANDIDATES_PER_RULE = 2_000;
+export const RULE_TIME_BUDGET_MS = 2_000;
+
+export type LaunchRuleSpec = {
+  id: LaunchRuleId;
+  version: 1;
+  profile: "agreement" | "general" | "both";
+  phase: "A";
+  defaultEnabled: boolean;
+  requiresCapabilities: readonly string[];
+  languages: readonly ("en-GB" | "en-US")[];
+  actionPolicy: "correction" | "comment";
+  scopeKind: string;
+  exclusionPolicyVersion: typeof EXCLUSION_POLICY_VERSION;
+  evidenceValidator: "span_v2";
+  maxCandidates: number;
+  timeBudgetMs: number;
+  evaluationReceiptHash: string;
+  evidenceTier: "exact-mechanical" | "exact-structural" | "bounded-heuristic";
+};
+
+function evaluationReceipt(spec: Omit<LaunchRuleSpec, "evaluationReceiptHash">): string {
+  return sha256Hex(JSON.stringify([
+    LAUNCH_RULE_REGISTRY_VERSION,
+    spec.id,
+    spec.version,
+    spec.profile,
+    spec.phase,
+    spec.actionPolicy,
+    spec.exclusionPolicyVersion,
+    spec.evidenceValidator,
+  ]));
+}
+
+function launchSpec(input: Omit<LaunchRuleSpec, "evaluationReceiptHash" | "exclusionPolicyVersion" | "evidenceValidator" | "maxCandidates" | "timeBudgetMs"> & Partial<Pick<LaunchRuleSpec, "maxCandidates" | "timeBudgetMs">>): LaunchRuleSpec {
+  const base = {
+    ...input,
+    exclusionPolicyVersion: EXCLUSION_POLICY_VERSION,
+    evidenceValidator: "span_v2" as const,
+    maxCandidates: input.maxCandidates ?? MAX_CANDIDATES_PER_RULE,
+    timeBudgetMs: input.timeBudgetMs ?? RULE_TIME_BUDGET_MS,
+  };
+  const spec: LaunchRuleSpec = { ...base, evaluationReceiptHash: evaluationReceipt(base) };
+  if (!spec.evaluationReceiptHash || (spec.defaultEnabled && spec.evaluationReceiptHash.length !== 64)) {
+    throw new Error("missing_evaluation_receipt");
+  }
+  return Object.freeze(spec);
+}
+
+export const LAUNCH_RULE_SPECS: readonly LaunchRuleSpec[] = Object.freeze([
+  launchSpec({ id: "language.typo_allowlist", version: 1, profile: "both", phase: "A", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "correction", scopeKind: "ordinary_prose", evidenceTier: "exact-mechanical" }),
+  launchSpec({ id: "language.duplicate_word", version: 1, profile: "both", phase: "A", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "correction", scopeKind: "ordinary_prose", evidenceTier: "exact-mechanical" }),
+  launchSpec({ id: "completion.placeholder", version: 1, profile: "both", phase: "A", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "exact-mechanical" }),
+  launchSpec({ id: "references.missing_target", version: 1, profile: "agreement", phase: "A", defaultEnabled: true, requiresCapabilities: ["numbering"], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "main_body_numbering", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "references.duplicate_number", version: 1, profile: "agreement", phase: "A", defaultEnabled: true, requiresCapabilities: ["numbering"], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "main_body_numbering", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "definitions.duplicate", version: 1, profile: "agreement", phase: "A", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "declaration_inventory", evidenceTier: "exact-structural" }),
+]);
+
+export const LAUNCH_CHECKS: readonly Readonly<{ checkId: LaunchRuleId; version: 1 }>[] = Object.freeze(
+  LAUNCH_RULE_SPECS.map((spec) => Object.freeze({ checkId: spec.id, version: spec.version })),
+);
+
+export const LAUNCH_RULE_BY_ID: Readonly<Record<LaunchRuleId, LaunchRuleSpec>> = Object.freeze(
+  Object.fromEntries(LAUNCH_RULE_SPECS.map((spec) => [spec.id, spec])) as Record<LaunchRuleId, LaunchRuleSpec>,
+);
 
 export type CheckSpec = {
   checkId: string;

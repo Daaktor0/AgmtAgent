@@ -17,6 +17,13 @@ import type { ExtractedBlock, ExtractedBookmark, ExtractedDocument, ExtractedNot
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
 import { ZIP_LIMITS, inspectZipCentralDirectory } from "./zip-safety.ts";
+import {
+  PACKAGE_CAPABILITY_INVENTORY_VERSION,
+  PackageCapabilityError,
+  inventoryPackageCapabilities,
+  type PackageCapabilityReceipt,
+} from "./package-capabilities.ts";
+import { projectPart, type StoryKind, type StoryProjection } from "./projection.ts";
 
 const objectParser = new XMLParser({
   ignoreAttributes: false,
@@ -613,6 +620,21 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
   }
 
   const manifest = inspectZipCentralDirectory(bytes);
+  let capabilityReceipt: PackageCapabilityReceipt;
+  try {
+    capabilityReceipt = await inventoryPackageCapabilities(bytes);
+  } catch (error) {
+    if (error instanceof PackageCapabilityError) {
+      throw parserError(error.code, error.message);
+    }
+    throw error;
+  }
+  if (capabilityReceipt.disposition === "refused") {
+    throw parserError(
+      capabilityReceipt.refusedReason ?? "unsupported_package",
+      "Package capability inventory refused this document",
+    );
+  }
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(bytes, { checkCRC32: true, createFolders: false });
@@ -667,6 +689,15 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
 
   const documentXml = await readEntryText(documentFile, documentMetadata.uncompressedSize);
   const orderedDocument = orderedParser.parse(documentXml) as OrderedNode[];
+  const storyProjections: StoryProjection[] = [
+    projectPart({
+      xml: documentXml,
+      tree: orderedDocument,
+      partUri: "/word/document.xml",
+      storyKind: "body",
+      storyId: "body:main",
+    }),
+  ];
   // Optional memory-only source map. Existing durable ingestion never receives or persists it.
   if (captureProofSource) captureProofSource(mapProofSource(documentXml, orderedDocument));
   const documentChildren = firstTag(orderedDocument, "w:document");
@@ -713,6 +744,15 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
     const xml = await readEntryText(headerFile, headerMetadata.uncompressedSize);
     storyObjects.push(parseObject(xml));
     const ordered = orderedParser.parse(xml) as OrderedNode[];
+    storyProjections.push(
+      projectPart({
+        xml,
+        tree: ordered,
+        partUri: "/" + name,
+        storyKind: story as StoryKind,
+        storyId: `${story}:${name}`,
+      }),
+    );
     const root = firstTag(ordered, story === "header" ? "w:hdr" : "w:ftr");
     for (const paragraph of paragraphsInOrder(root, name)) {
       const extracted = extractOrderedParagraph(
@@ -751,6 +791,15 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
     }
     const notesXml = await readEntryText(noteFile, noteMetadata.uncompressedSize);
     storyObjects.push(parseObject(notesXml));
+    storyProjections.push(
+      projectPart({
+        xml: notesXml,
+        tree: orderedParser.parse(notesXml) as OrderedNode[],
+        partUri: "/" + noteSpec.name,
+        storyKind: noteSpec.story,
+        storyId: `${noteSpec.story}:${noteSpec.name}`,
+      }),
+    );
     const extractedNotes = extractNotesStory(
       notesXml,
       noteSpec.name,
@@ -933,7 +982,18 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
         ? "evaluated_present"
         : "evaluated_absent",
       detectorVersion: "ooxml-v3-story",
-      suppressionReason: null,
+      suppressionReason: capabilityReceipt.coverageReasons.includes("headers_footers_not_checked")
+        ? "headers_footers_not_checked"
+        : null,
+    },
+    {
+      name: "package_profile",
+      available: true,
+      state: "evaluated_present",
+      detectorVersion: PACKAGE_CAPABILITY_INVENTORY_VERSION,
+      suppressionReason: capabilityReceipt.disposition === "limited"
+        ? capabilityReceipt.coverageReasons.join(",")
+        : null,
     },
   ];
 
@@ -952,6 +1012,8 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
     headersFooters,
     hiddenChars,
     capabilities,
+    packageCapabilityReceipt: capabilityReceipt,
+    storyProjections,
     relationships: relationships.map(({ resolvedTarget: _resolvedTarget, ...relationship }) => relationship),
     notes,
     bookmarks,

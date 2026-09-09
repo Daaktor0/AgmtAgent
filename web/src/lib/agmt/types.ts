@@ -1,3 +1,6 @@
+import type { PackageCapabilityReceipt } from "./package-capabilities.ts";
+import type { StoryProjection } from "./projection.ts";
+
 export const INSTRUMENTS = [
   "sha",
   "ssa",
@@ -136,6 +139,8 @@ export type ExtractedDocument = {
   headersFooters: string[];
   hiddenChars: { blockIndex: number; start: number; end: number; kind: string }[];
   capabilities: SourceCapability[];
+  packageCapabilityReceipt?: PackageCapabilityReceipt;
+  storyProjections?: StoryProjection[];
   /** Package-level inventories are optional for legacy extracted fixtures. */
   relationships?: PackageRelationship[];
   notes?: ExtractedNote[];

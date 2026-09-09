@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { APIError } from "better-auth/api";
 import { AUTH_ERROR_CODES } from "./error-codes.ts";
-import { guardAuthPool, type GuardablePool, type GuardablePoolClient } from "./db-guard.server.ts";
+import { guardAuthClientFactory, guardAuthPool, logDriverError, type GuardablePool, type GuardablePoolClient } from "./db-guard.server.ts";
 
 function never(): Promise<never> {
   return new Promise(() => {
@@ -116,5 +116,43 @@ describe("guardAuthPool", () => {
     guardAuthPool(pool);
     assert.equal(typeof handler, "function");
     assert.doesNotThrow(() => handler?.(new Error("terminating connection due to administrator command")));
+  });
+
+  it("does not log raw driver messages, SQL or connection strings", () => {
+    const lines: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      lines.push(args.map(String).join(" "));
+    };
+    try {
+      logDriverError("query", Object.assign(new Error('password authentication failed for user "postgres" postgres://secret@db/app'), { code: "28P01" }));
+    } finally {
+      console.error = original;
+    }
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /query failed name=Error code=28P01/);
+    assert.doesNotMatch(lines[0]!, /password|postgres:\/\/|secret|select /i);
+  });
+});
+
+describe("guardAuthClientFactory", () => {
+  it("closes the client after a query timeout so the connection is not leaked", async () => {
+    let ended = 0;
+    const guarded = guardAuthClientFactory(
+      () => ({
+        connect: () => Promise.resolve(),
+        query: never,
+        end: async () => {
+          ended += 1;
+        },
+        on: () => undefined,
+      }),
+      { queryMs: 25, closeOnRelease: true },
+    );
+    const client = await guarded.connect();
+    await expectAPIError(client.query("select 1", []), AUTH_ERROR_CODES.AUTH_REQUEST_TIMEOUT);
+    client.release();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(ended, 1);
   });
 });

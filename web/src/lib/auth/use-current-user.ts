@@ -6,6 +6,7 @@ export type AppUser = {
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
+  emailVerified: boolean;
   /** True when this is the sandbox/dev fallback (auth not configured). */
   isDevFallback: boolean;
 };
@@ -22,6 +23,7 @@ export const DEV_USER: AppUser = {
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
   profileImageUrl: null,
+  emailVerified: false,
   isDevFallback: true,
 };
 
@@ -66,6 +68,7 @@ export function useCurrentUserState(): CurrentUserState {
           displayName: user.name ?? null,
           primaryEmail: user.email ?? null,
           profileImageUrl: user.image ?? null,
+          emailVerified: Boolean(user.emailVerified),
           isDevFallback: false,
         }
       : null,

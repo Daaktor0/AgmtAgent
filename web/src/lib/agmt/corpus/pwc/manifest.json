@@ -1,0 +1,806 @@
+{
+  "generatorSeed": "pwc-03-synthetic-corpus-v1",
+  "generatorVersion": "pwc-03-generate-v1",
+  "wordCreatedReceipts": "deferred-to-PWC-13",
+  "packageCount": 48,
+  "packages": [
+    {
+      "id": "sha_typo_body",
+      "kind": "positive",
+      "family": "sha",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Shareholders agreement body typo",
+      "capabilityTags": [
+        "body",
+        "uk_english"
+      ],
+      "supported": true,
+      "sha256": "151f328109233dc17e9892c8fc4157dd8351f9cab93f7c2991873371116845fc",
+      "byteSize": 4211,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "sha_typo_body_clean",
+      "kind": "clean_twin",
+      "family": "sha",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Shareholders agreement body typo (clean twin)",
+      "capabilityTags": [
+        "body",
+        "uk_english"
+      ],
+      "supported": true,
+      "sha256": "ef53d1dc1f41d6722b11a5d3d126e43493cb9bf1bb18769daa04c9e5a77a23fe",
+      "byteSize": 4230,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "ssa_duplicate_word",
+      "kind": "positive",
+      "family": "ssa",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Share subscription duplicate function word",
+      "capabilityTags": [
+        "body",
+        "uk_english"
+      ],
+      "supported": true,
+      "sha256": "f1b19353c1603f88d8a9d925723431f186ae141e589fc62510de3e5c6bc9eb60",
+      "byteSize": 4136,
+      "expectedFindingIds": [
+        "language.duplicate_word: the"
+      ]
+    },
+    {
+      "id": "ssa_duplicate_word_clean",
+      "kind": "clean_twin",
+      "family": "ssa",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Share subscription duplicate function word (clean twin)",
+      "capabilityTags": [
+        "body",
+        "uk_english"
+      ],
+      "supported": true,
+      "sha256": "2c6728c8ff8f607950c11226879880530137d540ea175d7268b7bf7ebab35194",
+      "byteSize": 4151,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "spa_placeholder",
+      "kind": "positive",
+      "family": "spa",
+      "profile": "agreement",
+      "language": "en-US",
+      "title": "Share purchase unfilled placeholder",
+      "capabilityTags": [
+        "body",
+        "us_english",
+        "placeholder"
+      ],
+      "supported": true,
+      "sha256": "4e3b772fcd81a591bd94dca642de328a964c23d2762959c7d0bda830e156579f",
+      "byteSize": 4180,
+      "expectedFindingIds": [
+        "completion.placeholder:[●]"
+      ]
+    },
+    {
+      "id": "spa_placeholder_clean",
+      "kind": "clean_twin",
+      "family": "spa",
+      "profile": "agreement",
+      "language": "en-US",
+      "title": "Share purchase unfilled placeholder (clean twin)",
+      "capabilityTags": [
+        "body",
+        "us_english",
+        "placeholder"
+      ],
+      "supported": true,
+      "sha256": "e7ab3750ff1076908ef4594240a7ccce36364490b078f83666020ff76ed2503a",
+      "byteSize": 4206,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "nda_missing_ref",
+      "kind": "positive",
+      "family": "nda",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "NDA missing internal clause reference",
+      "capabilityTags": [
+        "body",
+        "nested_numbering"
+      ],
+      "supported": true,
+      "sha256": "fc661b75ddcd473cf838e69ba809a70c77bc2716bbab30fc7f3caa3cb4c0e970",
+      "byteSize": 4226,
+      "expectedFindingIds": [
+        "references.missing_target:Clause 99.2"
+      ]
+    },
+    {
+      "id": "nda_missing_ref_clean",
+      "kind": "clean_twin",
+      "family": "nda",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "NDA missing internal clause reference (clean twin)",
+      "capabilityTags": [
+        "body",
+        "nested_numbering"
+      ],
+      "supported": true,
+      "sha256": "55b8f05005a147e816e61177e604366e98252842ea03c66858aab3aeb7afe47e",
+      "byteSize": 4242,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "services_dup_number",
+      "kind": "positive",
+      "family": "services",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Services agreement duplicate clause number",
+      "capabilityTags": [
+        "body",
+        "nested_numbering"
+      ],
+      "supported": true,
+      "sha256": "ea522f9d23aed3897f336085592fa5ed74edd5ed99f9487cbc0989237170d7ad",
+      "byteSize": 4201,
+      "expectedFindingIds": [
+        "references.duplicate_number:4.1"
+      ]
+    },
+    {
+      "id": "services_dup_number_clean",
+      "kind": "clean_twin",
+      "family": "services",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Services agreement duplicate clause number (clean twin)",
+      "capabilityTags": [
+        "body",
+        "nested_numbering"
+      ],
+      "supported": true,
+      "sha256": "bb85bfc36f6283e4e061dc0ce087f93125c695fae67e551e2949cb5c0ddec86d",
+      "byteSize": 4220,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "licence_dup_def",
+      "kind": "positive",
+      "family": "licence",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Licence duplicate definition",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "f360d7a2a00b1df7c760535c4e4ef396998a4f67c98441c414ab373696fb4708",
+      "byteSize": 4245,
+      "expectedFindingIds": [
+        "definitions.duplicate:Licensed Materials"
+      ]
+    },
+    {
+      "id": "licence_dup_def_clean",
+      "kind": "clean_twin",
+      "family": "licence",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Licence duplicate definition (clean twin)",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "00b9d32b997e670557920d8166016e9938448416fac81c240af72b6218d75740",
+      "byteSize": 4259,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "employment_typo_split",
+      "kind": "positive",
+      "family": "employment",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Employment typo split across runs",
+      "capabilityTags": [
+        "split_runs"
+      ],
+      "supported": true,
+      "sha256": "3da3907ddb9e22c76adf323a5c377d4e2ced230cb1040b197e1b29e87fd8bec7",
+      "byteSize": 4216,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "employment_typo_split_clean",
+      "kind": "clean_twin",
+      "family": "employment",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Employment typo split across runs (clean twin)",
+      "capabilityTags": [
+        "split_runs"
+      ],
+      "supported": true,
+      "sha256": "2d63d2332776eb1b9d09e7f81042f3b83109876b2e879ec0ecd9a177dcc495e1",
+      "byteSize": 4128,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "loan_dup_word_table",
+      "kind": "positive",
+      "family": "loan",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Facility agreement duplicate word in a table",
+      "capabilityTags": [
+        "table"
+      ],
+      "supported": true,
+      "sha256": "41a6752ea7aff46368eb3f370590f4975aa2d7eb7db6ba673d90f8ca891cee92",
+      "byteSize": 4315,
+      "expectedFindingIds": [
+        "language.duplicate_word: the"
+      ]
+    },
+    {
+      "id": "loan_dup_word_table_clean",
+      "kind": "clean_twin",
+      "family": "loan",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Facility agreement duplicate word in a table (clean twin)",
+      "capabilityTags": [
+        "table"
+      ],
+      "supported": true,
+      "sha256": "6ec330bc214a8bd925d6753f3e48e0efd4d8587bce47d8d3a7e05783d2a9bf3e",
+      "byteSize": 4330,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "lease_placeholder_insert_date",
+      "kind": "positive",
+      "family": "lease",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Lease unfilled insert-date placeholder",
+      "capabilityTags": [
+        "body",
+        "placeholder",
+        "uk_english"
+      ],
+      "supported": true,
+      "sha256": "18a917ff8d91adf73298c78c325905ffd7958980d7a32e4f03129c5a601c5048",
+      "byteSize": 4086,
+      "expectedFindingIds": [
+        "completion.placeholder:[insert date]"
+      ]
+    },
+    {
+      "id": "lease_placeholder_insert_date_clean",
+      "kind": "clean_twin",
+      "family": "lease",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Lease unfilled insert-date placeholder (clean twin)",
+      "capabilityTags": [
+        "body",
+        "placeholder",
+        "uk_english"
+      ],
+      "supported": true,
+      "sha256": "d1a88b9ddcf2db09552be0342aad60fd6c89175833f731f2a7ac1a62eb04540a",
+      "byteSize": 4104,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "amendment_typo_teh_us",
+      "kind": "positive",
+      "family": "amendment",
+      "profile": "agreement",
+      "language": "en-US",
+      "title": "Amendment US-English allowlist typo",
+      "capabilityTags": [
+        "body",
+        "us_english"
+      ],
+      "supported": true,
+      "sha256": "adc09f6e15640907fe4f7eab105851fb809b4255804e81e33e1bd2d5bacf67ff",
+      "byteSize": 4133,
+      "expectedFindingIds": [
+        "language.typo_allowlist:teh"
+      ]
+    },
+    {
+      "id": "amendment_typo_teh_us_clean",
+      "kind": "clean_twin",
+      "family": "amendment",
+      "profile": "agreement",
+      "language": "en-US",
+      "title": "Amendment US-English allowlist typo (clean twin)",
+      "capabilityTags": [
+        "body",
+        "us_english"
+      ],
+      "supported": true,
+      "sha256": "ca10595d9977d1d065b1d464004f16c3cf140d948843be1209631d5720429766",
+      "byteSize": 4152,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "schedule_dup_number",
+      "kind": "positive",
+      "family": "schedule",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Schedule duplicate number with a restarted later schedule",
+      "capabilityTags": [
+        "schedule_restart",
+        "nested_numbering"
+      ],
+      "supported": true,
+      "sha256": "cc4ae5848669039316cca9ee850a496c4a1f132e26e5eb02982337126c2e66d8",
+      "byteSize": 4436,
+      "expectedFindingIds": [
+        "references.duplicate_number:1"
+      ]
+    },
+    {
+      "id": "schedule_dup_number_clean",
+      "kind": "clean_twin",
+      "family": "schedule",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Schedule duplicate number with a restarted later schedule (clean twin)",
+      "capabilityTags": [
+        "schedule_restart",
+        "nested_numbering"
+      ],
+      "supported": true,
+      "sha256": "37d265f16f5203e54179605757789f1055e9e62d4d0ec49b16198de8afdb01ed",
+      "byteSize": 4455,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "board_missing_ref",
+      "kind": "positive",
+      "family": "board_paper",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Board paper missing section reference",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "00faa112bd47da63941eb6632f0c4c38f7b3703a1c60feeb7503570bf23175cc",
+      "byteSize": 4191,
+      "expectedFindingIds": [
+        "references.missing_target:Section 12"
+      ]
+    },
+    {
+      "id": "board_missing_ref_clean",
+      "kind": "clean_twin",
+      "family": "board_paper",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Board paper missing section reference (clean twin)",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "e8036d61b29a47a2640b41306d303e746b600fc754f02b5e562e43ce5718d720",
+      "byteSize": 4209,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "policy_placeholder_tbd",
+      "kind": "positive",
+      "family": "policy",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Policy unfilled TBD placeholder",
+      "capabilityTags": [
+        "placeholder"
+      ],
+      "supported": true,
+      "sha256": "09a384c35af44a8cad5f89a0bc07e8dc13e62528702a93de7fbd3d9cd8ac9c87",
+      "byteSize": 4108,
+      "expectedFindingIds": [
+        "completion.placeholder:[TBD]"
+      ]
+    },
+    {
+      "id": "policy_placeholder_tbd_clean",
+      "kind": "clean_twin",
+      "family": "policy",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Policy unfilled TBD placeholder (clean twin)",
+      "capabilityTags": [
+        "placeholder"
+      ],
+      "supported": true,
+      "sha256": "b478edff3ea6e82c773bc9504444f139ec6e2def300a06b6379edc39c4f0c3a3",
+      "byteSize": 4137,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "report_typo_occured",
+      "kind": "positive",
+      "family": "report",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Report allowlist typo",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "9ba3cbaaabf17d1b780c050a46af01ff17d4a4f5d9c6797a83e1967d7168d9cd",
+      "byteSize": 4103,
+      "expectedFindingIds": [
+        "language.typo_allowlist:occured"
+      ]
+    },
+    {
+      "id": "report_typo_occured_clean",
+      "kind": "clean_twin",
+      "family": "report",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Report allowlist typo (clean twin)",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "3a6775337801792e8d0dace938b131f10e3cf9ce1a68fcc9054b89624ec23f31",
+      "byteSize": 4123,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "letter_dup_word_to",
+      "kind": "positive",
+      "family": "letter",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Formal letter duplicate function word",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "0ba3b18e4fae4db02a68d0a022b671f864a144c9f37ed6b9de50f5dea29e93eb",
+      "byteSize": 4100,
+      "expectedFindingIds": [
+        "language.duplicate_word: to"
+      ]
+    },
+    {
+      "id": "letter_dup_word_to_clean",
+      "kind": "clean_twin",
+      "family": "letter",
+      "profile": "general",
+      "language": "en-GB",
+      "title": "Formal letter duplicate function word (clean twin)",
+      "capabilityTags": [
+        "body"
+      ],
+      "supported": true,
+      "sha256": "c2e69e6a8c47a0b1caabbb4daee198c9023d09bc5dcc1c6cf60d768594b97e48",
+      "byteSize": 4116,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "sha_party_name_and_typo",
+      "kind": "positive",
+      "family": "sha",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Party-name Recieve trap with a genuine prose typo",
+      "capabilityTags": [
+        "party_name_trap",
+        "similar_parties",
+        "repeated_text"
+      ],
+      "supported": true,
+      "sha256": "d4a730956092f2a36041406d2a0a677b99f822b4e08b4fbf3b2b8ed94255d023",
+      "byteSize": 4419,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "sha_party_name_and_typo_clean",
+      "kind": "clean_twin",
+      "family": "sha",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Party-name Recieve trap with a genuine prose typo (clean twin)",
+      "capabilityTags": [
+        "party_name_trap",
+        "similar_parties",
+        "repeated_text"
+      ],
+      "supported": true,
+      "sha256": "ab5b2f563c23adae1963c68533fb473ae729bb1d44190bbfbef41d285464429c",
+      "byteSize": 4438,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "nda_prior_revision",
+      "kind": "positive",
+      "family": "nda",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "NDA typo beside preserved prior tracked changes",
+      "capabilityTags": [
+        "tracked_revision"
+      ],
+      "supported": true,
+      "sha256": "6f0754ffbecd100e3785d8e2d0ccc1238f14713b3784e0d7fa396a80a2e1e2c5",
+      "byteSize": 4489,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "nda_prior_revision_clean",
+      "kind": "clean_twin",
+      "family": "nda",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "NDA typo beside preserved prior tracked changes (clean twin)",
+      "capabilityTags": [
+        "tracked_revision"
+      ],
+      "supported": true,
+      "sha256": "3a2acc2416c9195184d812fc82f6941757a4ea3b23a69843db79b86f94acdba3",
+      "byteSize": 4508,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "spa_existing_comment",
+      "kind": "positive",
+      "family": "spa",
+      "profile": "agreement",
+      "language": "en-US",
+      "title": "SPA placeholder beside an existing comment",
+      "capabilityTags": [
+        "existing_comment",
+        "placeholder"
+      ],
+      "supported": true,
+      "sha256": "90b8766bf0b818e61ce7cb177cd8bfb538c0f9d4dca7608d4eadadf0f51ea998",
+      "byteSize": 5002,
+      "expectedFindingIds": [
+        "completion.placeholder:[●]"
+      ]
+    },
+    {
+      "id": "spa_existing_comment_clean",
+      "kind": "clean_twin",
+      "family": "spa",
+      "profile": "agreement",
+      "language": "en-US",
+      "title": "SPA placeholder beside an existing comment (clean twin)",
+      "capabilityTags": [
+        "existing_comment",
+        "placeholder"
+      ],
+      "supported": true,
+      "sha256": "b25bbc140b426986600169c33e41fb8b9836bb2acc3a2a889eda4b2887d9fd39",
+      "byteSize": 5028,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "services_reused_phrase",
+      "kind": "positive",
+      "family": "services",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Reused phrase with a typo in only one occurrence",
+      "capabilityTags": [
+        "reused_phrase",
+        "repeated_text"
+      ],
+      "supported": true,
+      "sha256": "5d12733cb7005a0753b3fe71e4f7c0c094632ad058e4f441de9314f086da242a",
+      "byteSize": 4228,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "services_reused_phrase_clean",
+      "kind": "clean_twin",
+      "family": "services",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Reused phrase with a typo in only one occurrence (clean twin)",
+      "capabilityTags": [
+        "reused_phrase",
+        "repeated_text"
+      ],
+      "supported": true,
+      "sha256": "93844f7c078c1487c7a8d9b67e34e03915aa79bc24a21e7575624ea95b6abc27",
+      "byteSize": 4247,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "licence_latin_names",
+      "kind": "positive",
+      "family": "licence",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Latin legal phrase with a genuine allowlist typo",
+      "capabilityTags": [
+        "latin_names"
+      ],
+      "supported": true,
+      "sha256": "e90514cd1353541b671ffc6f14ed70969799d923bcd1b0ebb09c016a06bd0d09",
+      "byteSize": 4236,
+      "expectedFindingIds": [
+        "language.typo_allowlist:seperate"
+      ]
+    },
+    {
+      "id": "licence_latin_names_clean",
+      "kind": "clean_twin",
+      "family": "licence",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Latin legal phrase with a genuine allowlist typo (clean twin)",
+      "capabilityTags": [
+        "latin_names"
+      ],
+      "supported": true,
+      "sha256": "cae408a8acad73e1b2f7fc00e3a4e21bbe21a32887d2b851165fe2d39c0023dc",
+      "byteSize": 4255,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "employment_indian_numbers",
+      "kind": "positive",
+      "family": "employment",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Indian grouping with a genuine allowlist typo",
+      "capabilityTags": [
+        "indian_numbers"
+      ],
+      "supported": true,
+      "sha256": "9b63ee59f1fc1404d7a615ec8cb0371ce069b19975879dbf047f713e3d64a266",
+      "byteSize": 4238,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "employment_indian_numbers_clean",
+      "kind": "clean_twin",
+      "family": "employment",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Indian grouping with a genuine allowlist typo (clean twin)",
+      "capabilityTags": [
+        "indian_numbers"
+      ],
+      "supported": true,
+      "sha256": "734dcd75e1850cc38d1239217903d16cca0ce0eef15008594f737f38aefb96a9",
+      "byteSize": 4257,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "loan_multilingual",
+      "kind": "positive",
+      "family": "loan",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Non-English excerpt plus English duplicate word",
+      "capabilityTags": [
+        "multilingual"
+      ],
+      "supported": true,
+      "sha256": "797949828c70977c5b9ee665c160a9d39382ca0ce3b2377d0aacdb8cc2a31ccf",
+      "byteSize": 4222,
+      "expectedFindingIds": [
+        "language.duplicate_word: the"
+      ]
+    },
+    {
+      "id": "loan_multilingual_clean",
+      "kind": "clean_twin",
+      "family": "loan",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Non-English excerpt plus English duplicate word (clean twin)",
+      "capabilityTags": [
+        "multilingual"
+      ],
+      "supported": true,
+      "sha256": "8290c3858f964ec864973e80aa362f85402b863c6db5740c782fb6b306dbfc28",
+      "byteSize": 4237,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "lease_header_footer",
+      "kind": "positive",
+      "family": "lease",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Header story plus body typo",
+      "capabilityTags": [
+        "header_footer",
+        "source_only_story"
+      ],
+      "supported": true,
+      "sha256": "577f75535e6b50853eae78b52c14212c41c200b81df96d7eb615b409222428eb",
+      "byteSize": 4747,
+      "expectedFindingIds": [
+        "language.typo_allowlist:recieve"
+      ]
+    },
+    {
+      "id": "lease_header_footer_clean",
+      "kind": "clean_twin",
+      "family": "lease",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Header story plus body typo (clean twin)",
+      "capabilityTags": [
+        "header_footer",
+        "source_only_story"
+      ],
+      "supported": true,
+      "sha256": "fedc0a3c060f374ed4cbf49cbfa523b2de0c8c66ad663e4a00bffcae21d5635e",
+      "byteSize": 4766,
+      "expectedFindingIds": []
+    },
+    {
+      "id": "amendment_similar_parties",
+      "kind": "positive",
+      "family": "amendment",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Similar party names with a duplicate definition",
+      "capabilityTags": [
+        "similar_parties"
+      ],
+      "supported": true,
+      "sha256": "5e006c6a4da9149e9f4f36a09a642474006874ba8a007aa285a283b5e6d9f595",
+      "byteSize": 4394,
+      "expectedFindingIds": [
+        "definitions.duplicate:Services"
+      ]
+    },
+    {
+      "id": "amendment_similar_parties_clean",
+      "kind": "clean_twin",
+      "family": "amendment",
+      "profile": "agreement",
+      "language": "en-GB",
+      "title": "Similar party names with a duplicate definition (clean twin)",
+      "capabilityTags": [
+        "similar_parties"
+      ],
+      "supported": true,
+      "sha256": "48e4c1eecf68262649fa3549d72a98ebe544d5aed5edbef529928388c66c4e9f",
+      "byteSize": 4424,
+      "expectedFindingIds": []
+    }
+  ]
+}

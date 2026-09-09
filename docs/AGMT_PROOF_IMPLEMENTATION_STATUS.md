@@ -892,9 +892,114 @@ Actual: **1/1 admission + 1/1 events pass**. Live cost/health capture: **not run
 - Live PWC-18/19 R2 races, staging buckets and the transfer broker remain Blocked (D-02/D-03). Do not mark the upload journey complete.
 - PWC-13 Microsoft Word. PWC-12 Word fidelity is not claimed from SDK schema results.
 - Staging PWC-20 accounts and live RLS remain Blocked.
-- **Next executable (local):** PWC-28 remaining API surface / PWC-29 UI contracts where they do not require live upload; source-lane PWC-13 is human-gated.
+- **Next executable (local):** PWC-29 UI contracts where they do not require live upload; source-lane PWC-13 is human-gated.
 - **Critical path:** live 19/22 still blocked on provisioning.
 - Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
+- **PWC-28 is not complete.** Status/list/ticket handlers exist locally, but publication, independent purge (PWC-27) and live download of a published object are missing.
+
+### Local start (this session)
+
+From `web/`:
+
+```
+npm run dev
+```
+
+URLs (host `0.0.0.0`, port **8080**):
+
+| URL | What it is |
+|---|---|
+| http://127.0.0.1:8080/proof | Live Proof page. Uploads remain paused. File picker, options, sign-in and paused copy are real. |
+| http://127.0.0.1:8080/proof/dev | Development-only section 9 fixtures. Banner states they are not live runs. |
+| http://127.0.0.1:8080/proof/help | Help copy. |
+| http://127.0.0.1:8080/ | Home, same paused availability as Proof. |
+
+`PROOF_UPLOADS_ENABLED` remains unset. A create/source attempt while paused returns 503. A source PUT with the live transfer broker still `null` is `processing_unavailable`, never a simulated ready result.
+
+### PWC-29 — Build pure complete run-state presentation
+
+- **Baseline commit:** `b766c72083a1f4011cafee720d880eb9e2a41111`.
+- **Change commit:** `ac064208e2dc240be9d448d90ac47e113c68c0f3` (UI) / `49991d44ca2fd4c85b7b3b866e0c358dbe32c46b` (feedback, compute, Word pairs) / this ledger commit.
+- **Files changed:** `web/src/lib/products/proof-state.ts`, `web/src/lib/products/proof-state.test.ts`, `web/src/components/agmt/proof-run.tsx`, `web/src/components/agmt/proof-stage.tsx`, `web/src/components/agmt/proof-coverage.tsx`, `web/src/lib/products/products.test.ts`.
+- **Status:** Implemented; Tested (8/8 proof-state + products download/expiry). Browser visual review is local `/proof/dev`. Word not applicable. Not Deployed.
+- **Must-not-change held:** no fake deployed runs; no dashboard score; mixed-format discrepancy untouched; uploads disabled; `scanning` → `processing` false.
+
+#### Behaviour
+
+`presentProofRun` maps `RunSummaryV2` plus local overlays onto every section 9 state. Null counts stay null. Zero-finding ready is distinct from limited coverage. Availability uses `summary.serverNow`, not the client clock. Out-of-order polls cannot regress ready/rejected/failed/deleted. Coverage codes render as plain language.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/products/proof-state.test.ts src/lib/products/products.test.ts
+```
+
+Actual: **8/8 proof-state + products pass**.
+
+### PWC-30 — Refine Proof layout and accessible components
+
+- **Baseline commit:** `b766c72083a1f4011cafee720d880eb9e2a41111`.
+- **Change commit:** `ac064208e2dc240be9d448d90ac47e113c68c0f3`.
+- **Status:** Implemented; Tested (selection/drop unit tests). Browser 320/390/768/1440 visual check is the local fixture route; not a live Chromium receipt this session. Word not applicable. Not Deployed.
+- **Files:** `proof-intro.tsx`, `proof-file-picker.tsx`, `proof-options.tsx`, `proof-actions.tsx`, `shell.tsx`, `styles.css`, `proof.tsx`, `index.tsx`.
+- **Behaviour:** Proof is the primary product nav; Matters sits under Account. 720 px select column / 960 px results. Native file picker plus optional drop; multi-drop keeps the current file. Agreement/General and UK/US radios. 44 px targets. Skip link. No new design library.
+
+### PWC-31 — Wire local selection, verification gate and upload progress
+
+- **Status:** Implemented (local UI + hash/idempotency); Tested (5/5 use-proof-run). Live create→source→scan **Blocked** (uploads paused; transfer broker null). Not a completed upload journey.
+- **Behaviour:** Local extension/size/one-file checks; SHA-256 of selected bytes; stable idempotency per hash+profile+language. Session memory stores run ID/options/idempotency/hash only — no filename or bytes. Create then measured XHR PUT. Paused switch prevents submit. `processing_unavailable` is shown as disconnected processing, never as ready. Sign-in return path allows `/proof?run=<id>`.
+
+### PWC-32 / PWC-28 — not complete
+
+Status polling, ticket POST and download POST are wired in the page against the existing local HTTP surface. **PWC-28 remains incomplete** because live publication, independent purge and a validated R2 object are missing. **PWC-32 remains incomplete** because it depends on PWC-28. Help (`/proof/help`) and result/coverage/active-run components exist as presentation only.
+
+### PWC-33A — Metadata-only feedback endpoint
+
+- **Status:** Implemented; Tested (schema/cap/extra-key + HTTP 204/400/404). Browser optional interaction later in PWC-33. Not Deployed.
+- **Behaviour:** Strict `{ruleId,category,verdict}`; extra keys and bodies over 1 KiB rejected; 20/run and 100/owner/UTC day; 404 other owner; 410 after metadata gone. No free text. Does not extend deletion.
+
+### PWC-22–27 — local contracts only (live processing prepared, not provisioned)
+
+| Task | Local status | Live |
+|---|---|---|
+| PWC-22 scan receipt + `infra/proof/compute/scan.mjs` | Implemented/Tested: missing ClamAV is `scanner_unavailable`, never clean | Blocked D-01 |
+| PWC-23 `runLocalProofCompute` | Implemented/Tested on launch `body` fixture | Blocked D-01 Container |
+| PWC-24 queue envelope | Implemented/Tested: scanning→processing throws | Blocked Queues |
+| PWC-25 publication | Existing `admitPublication` (PWC-18); not a new complete task | Blocked R2 |
+| PWC-26 deletion outcome | Implemented/Tested: writing/unknown HEAD cannot verify | Blocked live R2 |
+| PWC-27 purge paging | Implemented/Tested algorithm in `infra/proof/purge` | Blocked independent Worker |
+
+Provisioning checklist (no apply): `infra/proof/provisioning.md`.
+
+### Synthetic Word pairs (human checklist, not a Word receipt)
+
+Generated with `npm run proof:word-review` into `docs/proof/word-review/`. Checklist: `docs/proof/word-review/CHECKLIST.md`.
+
+| Fixture | source SHA-256 | output SHA-256 | corrections | comments |
+|---|---|---|---|---|
+| body | `f082403a59ea9c6cb90811218720b77dd49ac2f6ee93b1260888a738c3ec9335` | `de476a5e4f5398a75ea132ea8c53fd87ef82282550cd0aa1f65ca11c620bb4ed` | 2 | 2 |
+| split_runs | `34db067707fe59c70856dceb59f71a82da1ab85d81bc9a3484da2ebb56b0f4ee` | `10b7446d45108e4953e67cac4f3a1a1ee2c0581e8dabd4531e603995c773247f` | 1 | 3 |
+| table | `71ca7a01a4e8390c887aa28230f211930149f16ae76df23fda065c79def10605` | `a186d79e49ef646f52af668fc5222fe2cbe9258d8b18ea423691cbab8b6fff9a` | 2 | 2 |
+| prior_review | `cc43f8b0c86d234bfa2f02becfd575cd24b6a19dfc7bae6f30c7c7e55840cb04` | `036f0e35a04cd11a1d59b603efb5bdd93d60a1ecd799230b19b29aca21cc325b` | 2 | 2 |
+| party_name | `4ff59a6080ccbe8dd6797d040e4c7c3f3b338a67b4a5bd283df1d81a74fc3a21` | identical to source | 0 | 0 |
+
+`party_name` is byte-identical (Recieve as a party name is not “corrected”). `split_runs` mixed formatting produced a comment-heavy output; that discrepancy stays labelled. Word validation: **not_run**.
+
+### Commands this session (UI + local processing)
+
+```
+cd web
+node --experimental-strip-types --test src/lib/products/proof-state.test.ts src/lib/products/use-proof-run.test.ts src/lib/products/products.test.ts src/lib/server/proof-feedback.test.ts src/lib/server/proof-download.test.ts src/lib/server/proof-queue.test.ts src/lib/server/proof-delete.test.ts src/lib/server/proof-scan-receipt.test.ts src/lib/server/proof-http.test.ts src/lib/server/proof-compute.test.ts
+node --test ../infra/proof/compute/scan.test.mjs
+node --experimental-strip-types --test ../infra/proof/purge/worker.test.ts
+npm run typecheck
+node --experimental-strip-types --input-type=module -e "import { canTransitionProductRun } from './src/lib/server/product-runs.ts'; ..."
+```
+
+Actual: focused suites pass as recorded above; typecheck **exit 0**; `scanning→processing` **false**.
+
+Untracked preserved: `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs`.
 
 ---
 

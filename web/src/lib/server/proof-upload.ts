@@ -123,6 +123,45 @@ export async function consumeProofSourceStream(input: {
   return { bytes, sha256, byteSize: size };
 }
 
+export function runSummaryFromProductRun(run: {
+  runId: string;
+  status: RunSummaryV2["status"];
+  deadlines: RunSummaryV2["deadlines"];
+  correctionCount: number;
+  commentCount: number;
+  noticeCount: number;
+  coverageStatus: "complete" | "limited" | null;
+  errorCode: string | null;
+  deletedAt: number | null;
+  deletionVerifiedAt: number | null;
+}, now: number, supportId = "a1b2c3d4e5f60718"): RunSummaryV2 {
+  const ready = run.status === "ready";
+  return parseRunSummaryV2({
+    apiVersion: PROOF_API_VERSION,
+    runId: run.runId,
+    status: run.status,
+    stage: run.status,
+    serverNow: now,
+    deadlines: run.deadlines,
+    correctionCount: ready ? run.correctionCount : null,
+    commentCount: ready ? run.commentCount : null,
+    noticeCount: ready ? run.noticeCount : null,
+    coverage: ready && run.coverageStatus
+      ? { status: run.coverageStatus, checked: [], skipped: [], notApplicable: [] }
+      : null,
+    retry: { allowed: run.status === "failed", code: run.status === "failed" ? "retry_eligible" : null },
+    download: { available: ready && now < run.deadlines.accessDeadline },
+    deletion: {
+      requestedAt: run.status === "deleting" || run.status === "deleted" ? (run.deletedAt ?? now) : null,
+      verifiedAt: run.status === "deleted" ? (run.deletionVerifiedAt ?? now) : null,
+      reason: run.status === "deleting" || run.status === "deleted" ? "manual" : null,
+    },
+    error: run.errorCode
+      ? { code: run.errorCode.replace(/[^a-z0-9_]/g, "").slice(0, 64) || "proof_failed", messageKey: "proof_failed", retryable: false, supportId }
+      : null,
+  });
+}
+
 export function sourcePutAccepted(summary: RunSummaryV2): { status: 202; summary: RunSummaryV2 } {
   const parsed = parseRunSummaryV2(summary);
   if (parsed.status !== "scanning" && parsed.status !== "uploading") {

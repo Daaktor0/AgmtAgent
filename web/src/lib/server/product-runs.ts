@@ -231,6 +231,36 @@ export function retryDestination(input: {
   return input.hasCleanScanReceipt ? "queued" : "scanning";
 }
 
+export async function getOwnedProductRun(sql: Sql, input: {
+  tenantId: string;
+  ownerUserId: string;
+  runId: string;
+}): Promise<ProductRunRow | null> {
+  requireTenantContext(input.tenantId, input.ownerUserId, ["app", "worker"]);
+  const rows = await sql.query<Record<string, unknown>>(
+    `select ${selectColumns} from product_run where tenant_id = $1 and owner_user_id = $2 and run_id = $3`,
+    [input.tenantId, input.ownerUserId, input.runId],
+  );
+  return rows[0] ? hydrate(rows[0]) : null;
+}
+
+export async function listOwnedProductRuns(sql: Sql, input: {
+  tenantId: string;
+  ownerUserId: string;
+  limit?: number;
+}): Promise<ProductRunRow[]> {
+  requireTenantContext(input.tenantId, input.ownerUserId, ["app", "worker"]);
+  const limit = input.limit ?? 20;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
+    throw new ProductRunError("invalid_run_request", "List limit must be between 1 and 20");
+  }
+  const rows = await sql.query<Record<string, unknown>>(
+    `select ${selectColumns} from product_run where tenant_id = $1 and owner_user_id = $2 order by upload_started_at desc limit $3`,
+    [input.tenantId, input.ownerUserId, limit],
+  );
+  return rows.map(hydrate);
+}
+
 export async function retryProductRun(sql: Sql, input: {
   tenantId: string;
   ownerUserId: string;

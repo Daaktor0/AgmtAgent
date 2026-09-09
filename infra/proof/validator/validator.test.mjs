@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
@@ -23,9 +23,21 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function dotnetAvailable() {
+function resolveDotnet() {
+  const exe = process.platform === "win32" ? "dotnet.exe" : "dotnet";
+  const candidates = [
+    process.env.DOTNET_ROOT ? join(process.env.DOTNET_ROOT, exe) : null,
+    join(homedir(), ".dotnet", exe),
+  ];
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) return candidate;
+  }
   const probe = spawnSync("dotnet", ["--version"], { encoding: "utf8" });
-  return probe.status === 0;
+  return probe.status === 0 ? "dotnet" : null;
+}
+
+function dotnetAvailable() {
+  return resolveDotnet() != null;
 }
 
 async function minimalDocx(paragraph = "The Company shall recieve the notice.") {
@@ -62,13 +74,19 @@ async function minimalDocx(paragraph = "The Company shall recieve the notice.") 
 }
 
 function runValidator(sourcePath, outputPath, sourceSha, outputSha) {
+  const dotnet = resolveDotnet();
+  const env = { ...process.env };
+  if (dotnet && dotnet !== "dotnet") {
+    env.DOTNET_ROOT = dirname(dotnet);
+    env.PATH = `${env.DOTNET_ROOT}${process.platform === "win32" ? ";" : ":"}${env.PATH ?? ""}`;
+  }
   return spawnSync(
-    "dotnet",
+    dotnet ?? "dotnet",
     ["run", "--project", join(here, "ProofValidator.csproj"), "--",
       "--source", sourcePath, "--output", outputPath,
       "--source-sha256", sourceSha, "--output-sha256", outputSha,
       "--target", "Office2016"],
-    { encoding: "utf8", timeout: 120_000 },
+    { encoding: "utf8", timeout: 180_000, env },
   );
 }
 
@@ -104,6 +122,36 @@ test("PWC-12 local SDK harness validates synthetic packages when dotnet is insta
     const unsupportedBody = JSON.parse(unsupported.stdout.trim().split("\n").at(-1));
     assert.equal(unsupportedBody.code, "unsupported_extension");
     assert.equal(unsupportedBody.valid, false);
+
+    const { default: JSZipRels } = await import(pathToFileURL(join(here, "../../../web/node_modules/jszip/lib/index.js")).href);
+    const relsZip = await JSZipRels.loadAsync(valid);
+    relsZip.file(
+      "word/_rels/document.xml.rels",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>`,
+    );
+    const scripted = Buffer.from(await relsZip.generateAsync({ type: "uint8array" }));
+    const scriptPath = join(dir, "script.docx");
+    writeFileSync(scriptPath, scripted);
+    const scriptedResult = runValidator(scriptPath, scriptPath, sha256(scripted), sha256(scripted));
+    const scriptedBody = JSON.parse(scriptedResult.stdout.trim().split("\n").at(-1));
+    assert.equal(scriptedBody.valid, false);
+    assert.equal(scriptedBody.code, "invalid_package");
+
+    const zip = await JSZipRels.loadAsync(valid);
+    zip.file("[Content_Types].xml", (await zip.file("[Content_Types].xml").async("string")).replace(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+      "application/javascript",
+    ));
+    const badType = Buffer.from(await zip.generateAsync({ type: "uint8array" }));
+    const typePath = join(dir, "type.docx");
+    writeFileSync(typePath, badType);
+    const typeResult = runValidator(typePath, typePath, sha256(badType), sha256(badType));
+    const typeBody = JSON.parse(typeResult.stdout.trim().split("\n").at(-1));
+    assert.equal(typeBody.valid, false);
+    assert.equal(typeBody.code, "invalid_package");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

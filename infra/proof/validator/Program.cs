@@ -69,6 +69,11 @@ internal static class Program
             return Result(false, "hash_mismatch", 0, sourceSha, outputSha);
         }
 
+        if (ForbiddenPackage(sourceBytes) || ForbiddenPackage(outputBytes))
+        {
+            return Result(false, "invalid_package", 0, sourceSha, outputSha);
+        }
+
         var sourceCount = CountErrors(sourceBytes);
         var outputCount = CountErrors(outputBytes);
         if (sourceCount < 0 || outputCount < 0)
@@ -92,6 +97,46 @@ internal static class Program
         {
             return -1;
         }
+    }
+
+    private static bool ForbiddenPackage(byte[] bytes)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes, writable: false);
+            using var document = WordprocessingDocument.Open(stream, false);
+            return Walk(document);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool Walk(OpenXmlPartContainer container)
+    {
+        foreach (var rel in container.ExternalRelationships)
+        {
+            var target = rel.Uri.ToString();
+            if (target.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
+                || target.StartsWith("file:", StringComparison.OrdinalIgnoreCase)
+                || target.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase)
+                || target.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        foreach (var idPart in container.Parts)
+        {
+            var part = idPart.OpenXmlPart;
+            if (part.ContentType.Contains("javascript", StringComparison.OrdinalIgnoreCase)
+                || part.ContentType.Contains("x-msdownload", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            if (Walk(part)) return true;
+        }
+        return false;
     }
 
     private static bool Unsupported(string path)

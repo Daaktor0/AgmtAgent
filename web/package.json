@@ -26,7 +26,8 @@
     "proof:demo": "node --experimental-strip-types scripts/proof-demo.ts",
     "proof:word-review": "node --experimental-strip-types scripts/proof-word-review.ts",
     "proof:browser-prototype": "node --experimental-strip-types scripts/browser-proof-prototype/run.mjs",
-    "proof:local-release": "node --experimental-strip-types scripts/proof-local-release.mjs"
+    "proof:local-release": "node --experimental-strip-types scripts/proof-local-release.mjs",
+    "proof:production-journey": "node --experimental-strip-types scripts/proof-production-journey.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

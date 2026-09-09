@@ -6,4 +6,6 @@ src/routeTree.gen.ts
 *.log
 tmp-proof-local-sdk/
 tmp-proof-local-word/
+tmp-proof-production/
+.proof-production.env
 scripts/proof-local-dist/

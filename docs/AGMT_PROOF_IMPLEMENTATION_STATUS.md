@@ -1069,7 +1069,7 @@ Actual: **19/19 pass**; typecheck **exit 0**; `scanning→processing` **false**.
 
 Founder approved browser-only Proof as the launch architecture on 2026-09-09. The controlling plan section 0 supersedes server-upload, R2 document storage, Cloudflare Containers, Hostinger scanning and two-hour Agmt content deletion for this release. Hostinger remains excluded. Containers remain unprovisioned. Spending freeze unchanged. Existing engine, ZIP safety, mapping, tracked-change export, JS validators and tests are retained.
 
-- **Status:** Implemented and Tested locally. Chromium Verified for `/`, `/proof`, `/proof/help` copy, file selection and no document POST. Open XML SDK and Word COM Tested on browser-generated outputs (regression oracles). Live `https://app.agmt.legal/proof` Verified only after this commit is deployed. Not a silent substitute for ClamAV.
+- **Status:** Implemented and Tested locally. Deployed. Chromium Verified on the live anonymous `/proof` journey (explicit control waits, not `networkidle`). Signed-in live Proofread → download **outstanding**. Open XML SDK and Word COM Tested on lab browser-generated outputs (regression oracles), not on a live signed-in download this session. Not a silent substitute for ClamAV.
 - **Must-not-change held:** zero LLM; `scanning` → `processing` still false; `PROOF_UPLOADS_ENABLED` unset; Hostinger compute false; Containers not provisioned; no document bytes sent to Agmt servers.
 
 User-facing promises now in force:
@@ -1098,6 +1098,38 @@ node --test scripts/proof-local-build.test.mjs
 ```
 
 Actual: platform/admit/pipeline pass; typecheck exit 0; Chromium desktop+mobile harness pass; SDK ok on five browser outputs; Word COM PASS on body/table/prior_review/party_name; worker present in client build. Evidence: `web/src/lib/proof-local/evidence.json`.
+
+### Production verification of deployed browser-only Proof (this session)
+
+Deployed artifact:
+
+| Item | Value |
+|---|---|
+| Source commit | `ca5e934816f008e097e8572399013cebfaac462c` (`chore(web): pin lru-cache so Cloudflare CI npm ci succeeds`) |
+| Includes | merge `fc44f12` of `8d10a13` (browser-only `/proof`) plus the lockfile pin |
+| Worker `agmt` 100% version | `bf26652f-b240-4c2b-b96d-bdfd3df89d91` (GitHub Actions `wrangler-action` at 2026-09-09T15:00:10Z) |
+| Previous manual deploy | `5edda3a5-4df2-423f-a3f5-f8994c0f510e` (superseded) |
+| Live worker asset | `/assets/proof.worker-BKKWjkIl.js` (391,402 bytes): `network_forbidden` and `cannot_run_in_browser` present; `createCipheriv`, `ClamAV`, `hstgr.cloud`, `runtime-env.server` absent |
+
+GitHub Actions `Deploy Cloudflare` run 40 for `ca5e934` built, `npm ci`'d and wrangler-deployed, then failed the custom-domain **HTTP** smoke: `https://app.agmt.legal/login` returned **403** from GitHub runners. Direct browser and curl from this workstation received **200**. That HTTP check is not a substitute for the Proof journey.
+
+Live Chromium against `https://app.agmt.legal/proof` (explicit waits for “Choose a Word document”, “Proofread document”, “Processing happens on this device.”, oversized copy; **not** `networkidle`):
+
+| Check | Result |
+|---|---|
+| On-device copy; no upload / two-hour / virus-scan-claim copy | Pass |
+| Oversized input (>1 MiB) | Pass (“This file exceeds the 1 MiB limit.”) |
+| Signed-out Proofread disabled after file select | Pass |
+| Document bytes / filenames / snippets in requests | None. No `POST /api/proof/upload` |
+| Persistent storage (localStorage, sessionStorage, IndexedDB) | Empty |
+| Analytics / session replay | None |
+| Third-party on the page | Google Fonts; `https://grok.com/grok-app-builder/extensions.js` (platform PWA chrome). No document content in those requests |
+| Signed-in process → download → Word | **Not run.** No verified test session in env/`web/.proof-production.env`. Headed Chromium login window waited 10 minutes without a completed sign-in. Chrome Default has no `app.agmt.legal` session cookie |
+| Firefox / Safari / physical iOS | Untested (Firefox executable not installed) |
+
+**Verdict:** deployed with end-to-end verification outstanding. The real signed-in production journey has not passed.
+
+To finish it: set `AGMT_PROOF_TEST_EMAIL` and `AGMT_PROOF_TEST_PASSWORD` in the environment or gitignored `web/.proof-production.env` (never paste the password in chat), or sign in with a verified Agmt account in the headed Chromium window at `https://app.agmt.legal/login?returnTo=%2Fproof`, then from `web/` run `npm run proof:production-journey`. That script waits for rendered Proof controls and processing states, not `networkidle`.
 
 ### Browser-side processing feasibility (synthetic prototype, retained)
 

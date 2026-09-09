@@ -276,6 +276,10 @@ export class ProofTransfer {
     }
     return { generation: tombstone.generation, writers: await this.ledger.listWriters(input.runId) };
   }
+
+  listWriters(runId: string): Promise<WriterRecord[]> {
+    return this.ledger.listWriters(runId);
+  }
 }
 
 export function createProofTransfer(input: {

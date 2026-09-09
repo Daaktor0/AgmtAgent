@@ -313,6 +313,20 @@ export class ProofObjectStore {
     throw new ObjectStoreError("object_metadata_invalid", "R2 object metadata does not contain a valid Proof integrity receipt");
   }
 
+  async get(input: { key: string; expectedSha256?: string; expectedSize?: number }): Promise<Uint8Array | null> {
+    const parts = parseProofObjectKey(input.key);
+    const bytes = await this.bucket(bucketRoleFor(parts.kind)).get(input.key);
+    if (!bytes) return null;
+    const digest = sha256Hex(bytes);
+    if (input.expectedSha256 && digest !== input.expectedSha256.toLowerCase()) {
+      throw new ObjectStoreError("object_integrity_mismatch", "downloaded object hash does not match the reserved receipt");
+    }
+    if (input.expectedSize != null && bytes.byteLength !== input.expectedSize) {
+      throw new ObjectStoreError("object_integrity_mismatch", "downloaded object size does not match the reserved receipt");
+    }
+    return bytes;
+  }
+
   /**
    * Presence without treating integrity as ownership. Publication still
    * requires a valid matching receipt; deletion may proceed on corrupt bytes.

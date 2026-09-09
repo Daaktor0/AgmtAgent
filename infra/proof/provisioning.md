@@ -35,6 +35,22 @@ One-day R2 lifecycle is an orphan backstop only. It does **not** implement the t
 - Upload switch: unset / not `true`
 - Migration `0009` exists in repo and is **not** applied to production
 
+## Founder decision request (required before uploads are enabled)
+
+This supersedes the earlier no-apply checklist. Existing approved resources
+already in the account: Workers Paid (`agmt`), R2 `agmt-proof-objects`,
+Hyperdrive `AGMT_APP_DB` / `AGMT_AUTH_DB`, Resend. Incremental cost of the
+work below is **$0 until included Workers Paid Container allotment is
+exceeded**.
+
+| Decision | Recommendation | Consequence if accepted | Incremental cost |
+|---|---|---|---|
+| **D-02** encryption | Accept TLS + Cloudflare-managed R2 encryption for new 2-hour objects. Do not introduce customer-managed keys at launch. Historical envelope keys stay untouched. | New Proof objects are written without `encryptBytes` / `object_manifest`. | $0 |
+| **D-03** residency | Do not claim India-only storage. Launch only for users whose policies permit Cloudflare’s disclosed locations. | Copy and contracts stay honest. | $0 |
+| **D-01** compute | Approve using the **included** Workers Paid Container allotment (25 GiB-hours, 375 vCPU-minutes, 200 GB-hours) for an on-demand `standard-1` (4 GiB) ClamAV scan Container that sleeps after 15s. Hard stop: do not keep a warm instance. | Real antivirus receipts become possible. Uploads stay disabled until that health signal is fresh. Exceeding the included allotment at ~1,000 short jobs/month is still expected to stay well under $5 extra; a 4 GiB instance left idle all month is ~$26 memory after allowance — that idle mode is rejected. | $0 inside included allotment; I will not raise a $50 operating budget |
+
+I will not set `PROOF_UPLOADS_ENABLED` until D-01/D-02/D-03 are accepted **and** ClamAV health, purge health and validator health are actually fresh on production.
+
 ## Founder decisions still open
 
 1. **D-01** — approve a staged compute/purge pilot with a $50 / month initial ceiling.

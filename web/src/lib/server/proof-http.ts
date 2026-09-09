@@ -43,6 +43,8 @@ import {
 import { ProofAdmissionError, countActiveRuns, reserveProofAdmission } from "./proof-admission.ts";
 import { emitProofEvent, sizeBucketFor } from "./proof-events.ts";
 import { ProofFeedbackError, admitProofFeedback, memoryFeedbackStore } from "./proof-feedback.ts";
+import { ProofDownloadError, signProofDownloadTicket, ticketExpiry, verifyProofDownloadTicket } from "./proof-download.ts";
+import { ProofTransferError } from "./proof-transfer.ts";
 
 const PARSER_VERSION = "proof-docx-v2";
 const EXPORTER_VERSION = "proof-ooxml-v1";
@@ -91,6 +93,8 @@ export type ProofHttpDeps = {
     globalComputeAttempts: number;
   };
   feedback?: ReturnType<typeof memoryFeedbackStore>;
+  downloadSecret?: string;
+  onSourceAccepted?: (run: ProductRunRow) => void;
 };
 
 const defaultFeedback = memoryFeedbackStore();
@@ -390,6 +394,7 @@ export async function handleProofRequest(request: Request, deps: ProofHttpDeps):
       await deps.transfer.putSource({ run: stored, bytes: consumed.bytes, sha256: consumed.sha256 });
       const scanning = { ...stored, status: "scanning" as const };
       await deps.catalog.save(scanning);
+      deps.onSourceAccepted?.(scanning);
       const accepted = sourcePutAccepted(runSummaryFromProductRun(scanning, deps.now()));
       return json(accepted.summary, accepted.status);
     }
@@ -409,9 +414,20 @@ export async function handleProofRequest(request: Request, deps: ProofHttpDeps):
     }
 
     if (action === "ticket") {
-      if (stored!.status !== "ready") return errorBody("not_found", 404, now);
+      if (stored!.status !== "ready" || !stored!.outputArtifactId) return errorBody("not_found", 404, now);
+      const expiresAt = ticketExpiry(now, stored!.deadlines.accessDeadline);
+      if (deps.downloadSecret) {
+        const token = signProofDownloadTicket({
+          runId: stored!.runId,
+          ownerUserId: authorized.actor.userId,
+          tenantId: authorized.actor.tenantId,
+          generation: stored!.cancellationGeneration,
+          outputArtifactId: stored!.outputArtifactId,
+          expiresAt,
+        }, deps.downloadSecret);
+        return json({ token, expiresAt }, 200);
+      }
       const token = randomBytes(16).toString("hex");
-      const expiresAt = Math.min(now + 60_000, stored!.deadlines.accessDeadline);
       await deps.catalog.issueTicket({
         token,
         runId: stored!.runId,
@@ -425,9 +441,21 @@ export async function handleProofRequest(request: Request, deps: ProofHttpDeps):
     if (action === "download") {
       if (request.method === "POST") {
         const header = request.headers.get("x-proof-download-ticket");
-        const ticket = header ? await deps.catalog.takeTicket(header) : null;
-        if (!ticket || ticket.expiresAt <= now || ticket.ownerUserId !== authorized.actor.userId || ticket.tenantId !== authorized.actor.tenantId) {
-          return errorBody("not_found", 404, now);
+        if (deps.downloadSecret) {
+          if (!header || !stored!.outputArtifactId) return errorBody("not_found", 404, now);
+          verifyProofDownloadTicket(header, deps.downloadSecret, now, {
+            runId: stored!.runId,
+            ownerUserId: authorized.actor.userId,
+            tenantId: authorized.actor.tenantId,
+            generation: stored!.cancellationGeneration,
+            outputArtifactId: stored!.outputArtifactId,
+            expiresAt: 0,
+          });
+        } else {
+          const ticket = header ? await deps.catalog.takeTicket(header) : null;
+          if (!ticket || ticket.expiresAt <= now || ticket.ownerUserId !== authorized.actor.userId || ticket.tenantId !== authorized.actor.tenantId) {
+            return errorBody("not_found", 404, now);
+          }
         }
       }
       const bytes = await deps.catalog.outputBytes(authorized.actor, stored!.runId);
@@ -487,5 +515,7 @@ export function proofHttpError(error: unknown, now = Date.now()): Response {
     return response;
   }
   if (error instanceof ProofFeedbackError) return errorBody(error.code, error.status, now, error.status === 429);
+  if (error instanceof ProofDownloadError) return errorBody(error.code, error.status, now);
+  if (error instanceof ProofTransferError) return errorBody(error.code, 409, now, error.code === "write_uncertain");
   return json({ error: "proof_request_failed" }, 400);
 }

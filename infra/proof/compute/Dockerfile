@@ -1,20 +1,25 @@
-# Isolated Proof scan/compute image (PWC-22/23).
-# Do not build or push this image without founder D-01 authorization.
-# No secrets, no database, no R2 credentials, no outbound network in the
-# processing runtime. Signature updates use a separate daily workflow.
+# Isolated Proof scan image (PWC-22). Signatures are baked at build time.
+# Runtime has no secrets, no database, no R2 credentials, and no outbound
+# network. Processing of OOXML happens in the web Worker after a clean receipt.
 
 FROM node:22-bookworm-slim
 
 USER root
 RUN apt-get update \
   && apt-get install -y --no-install-recommends clamav clamav-freshclam ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && freshclam \
+  && date +%s > /proof-SIGNATURE_BUILT_AT \
+  && mkdir -p /proof \
+  && mv /proof-SIGNATURE_BUILT_AT /proof/SIGNATURE_BUILT_AT \
+  && chown -R nobody:nogroup /proof
 
 WORKDIR /proof
-COPY scan.mjs process.mjs ./
-# Application engine/validator bind-mounts are added at image build time after
-# licence review. This file does not pull unpinned third-party scanners.
-
+COPY scan.mjs process.mjs server.mjs ./
+RUN chown -R nobody:nogroup /proof
+ENV NODE_ENV=production \
+    PORT=8080 \
+    PROOF_SIGNATURE_BUILT_AT=/proof/SIGNATURE_BUILT_AT
 USER nobody
-ENV NODE_ENV=production
-CMD ["node", "scan.mjs"]
+EXPOSE 8080
+CMD ["node", "server.mjs"]

@@ -174,7 +174,8 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   const proof = readFileSync(join(here, "../../routes/proof.tsx"), "utf8");
   const uploadFn = service.slice(service.indexOf("export async function uploadAndProcessProof"));
   assert.match(uploadFn.slice(0, 280), /assertProofUploadsAccepted\(\)/);
-  assert.match(api, /proofUploadAdmissionResponse\(\)/);
+  assert.match(api, /liveAcceptingUploads/);
+  assert.match(api, /proofAcceptingUploads/);
   assert.match(http, /proofRouteRequiresUploadAdmission/);
   assert.ok(http.indexOf("proofRouteRequiresUploadAdmission") < http.indexOf("request.json()"));
   assert.doesNotMatch(api, /request\.arrayBuffer\(\)/);

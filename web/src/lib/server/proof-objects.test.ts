@@ -24,6 +24,26 @@ function store() {
   });
 }
 
+test("PWC-17 get returns reserved bytes and rejects a hash mismatch", async () => {
+  const objects = store();
+  const bytes = Buffer.from("PK-source");
+  const digest = sha256(bytes);
+  const reserved = objects.reserve({ deadlineMs: Date.UTC(2026, 0, 1, 4, 0, 0), generation: 0, attempt: 1, kind: "source" });
+  await objects.write({
+    key: reserved.key,
+    bytes,
+    sha256: digest,
+    byteSize: bytes.byteLength,
+    deadlineMs: Date.UTC(2026, 0, 1, 4, 0, 0),
+  });
+  const loaded = await objects.get({ key: reserved.key, expectedSha256: digest });
+  assert.deepEqual(loaded, bytes);
+  await assert.rejects(
+    () => objects.get({ key: reserved.key, expectedSha256: "a".repeat(64) }),
+    (error: unknown) => error instanceof ObjectStoreError && error.code === "object_integrity_mismatch",
+  );
+});
+
 test("PWC-17 opaque keys parse round-trip and reject filenames", () => {
   const parts: ProofObjectKeyParts = {
     version: "v2",

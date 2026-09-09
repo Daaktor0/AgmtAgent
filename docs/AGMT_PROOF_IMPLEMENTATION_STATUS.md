@@ -947,44 +947,74 @@ Actual: **8/8 proof-state + products pass**.
 
 ### PWC-31 — Wire local selection, verification gate and upload progress
 
-- **Status:** Implemented (local UI + hash/idempotency); Tested (5/5 use-proof-run). Live create→source→scan **Blocked** (uploads paused; transfer broker null). Not a completed upload journey.
+- **Status:** Implemented (local UI + hash/idempotency); Tested (5/5 use-proof-run). Live create→source→scan **Blocked** (uploads paused; ClamAV health missing). Transfer broker is no longer `null` when `AGMT_OBJECTS` is bound. Not a completed upload journey.
 - **Behaviour:** Local extension/size/one-file checks; SHA-256 of selected bytes; stable idempotency per hash+profile+language. Session memory stores run ID/options/idempotency/hash only — no filename or bytes. Create then measured XHR PUT. Paused switch prevents submit. `processing_unavailable` is shown as disconnected processing, never as ready. Sign-in return path allows `/proof?run=<id>`.
 
 ### PWC-32 / PWC-28 — not complete
 
-Status polling, ticket POST and download POST are wired in the page against the existing local HTTP surface. **PWC-28 remains incomplete** because live publication, independent purge and a validated R2 object are missing. **PWC-32 remains incomplete** because it depends on PWC-28. Help (`/proof/help`) and result/coverage/active-run components exist as presentation only.
+HMAC tickets, owner status/list and R2 download streaming are wired. **PWC-28 remains incomplete**: live publication of a validated output still requires a clean ClamAV receipt and applied 0009/0010. Independent purge Worker is deployed (see PWC-27) but does not by itself complete downloads. **PWC-32 remains incomplete** because it depends on PWC-28. `/proof/dev` stays `import.meta.env.DEV` only.
 
 ### PWC-33A — Metadata-only feedback endpoint
 
 - **Status:** Implemented; Tested (schema/cap/extra-key + HTTP 204/400/404). Browser optional interaction later in PWC-33. Not Deployed.
 - **Behaviour:** Strict `{ruleId,category,verdict}`; extra keys and bodies over 1 KiB rejected; 20/run and 100/owner/UTC day; 404 other owner; 410 after metadata gone. No free text. Does not extend deletion.
 
-### PWC-22–27 — local contracts only (live processing prepared, not provisioned)
+### PWC-19 live transfer (this session)
 
-| Task | Local status | Live |
+- Live `POST /api/proof/runs` + `PUT /runs/:id/source` now inject `createLiveProofRuntime` against the existing `AGMT_OBJECTS` → `agmt-proof-objects` bucket. `transfer: null` only when the binding is missing.
+- Source PUT still returns 202 `scanning` and does not process inside the request. `waitUntil` plus the 1-minute cron dispatch the pipeline.
+- Journey is **not complete**: ClamAV is unprovisioned, so the pipeline records `scanner_unavailable` and never marks ready. Uploads remain fail-closed.
+- Migrations `0009` and `0010` are **not applied** to production.
+
+### PWC-22–27 — live wiring started; ClamAV still Blocked on D-01
+
+| Task | Local | Live |
 |---|---|---|
-| PWC-22 scan receipt + `infra/proof/compute/scan.mjs` | Implemented/Tested: missing ClamAV is `scanner_unavailable`, never clean | Blocked D-01 |
-| PWC-23 `runLocalProofCompute` | Implemented/Tested on launch `body` fixture | Blocked D-01 Container |
-| PWC-24 queue envelope | Implemented/Tested: scanning→processing throws | Blocked Queues |
-| PWC-25 publication | Existing `admitPublication` (PWC-18); not a new complete task | Blocked R2 |
-| PWC-26 deletion outcome | Implemented/Tested: writing/unknown HEAD cannot verify | Blocked live R2 |
-| PWC-27 purge paging | Implemented/Tested algorithm in `infra/proof/purge` | Blocked independent Worker |
+| PWC-22 antivirus | Implemented/Tested: EICAR infected; missing ClamAV is `scanner_unavailable`, never clean | Compute Worker/Container prepared (`infra/proof/compute`). **Not deployed** (no local Docker; D-01). Workflow `.github/workflows/deploy-proof-compute.yml` is `workflow_dispatch` only |
+| PWC-23 compute | Implemented/Tested: launch `body` fixture publishes validated output after a **clean** test receipt | Engine runs after a clean AV receipt only. No production bypass |
+| PWC-24 dispatch | Implemented/Tested: scanning→processing throws; cron `* * * * *` + `list_active_proof_jobs` | Outbox/cron path coded; Cloudflare Queues product not added (existing Worker cron used) |
+| PWC-25 publication | Implemented/Tested in pipeline: `admitPublication` + HEAD before ready | Blocked until a clean scan exists |
+| PWC-26 deletion | Implemented/Tested: HEAD absence required | Wired to live R2 when the binding exists; not a production retention drill |
+| PWC-27 purge | Algorithm Tested | **Deployed** Worker `agmt-proof-purge` version `e5ded90a-2d09-432c-b98f-bc9d2dd09f1c`, cron `* * * * *`, R2 `agmt-proof-objects`. `GET https://agmt-proof-purge.dexterinlab.workers.dev/` → **200** `agmt-proof-purge` |
 
-Provisioning checklist (no apply): `infra/proof/provisioning.md`.
+Merging `main` **automatically deploys** the web Worker (`.github/workflows/deploy-cloudflare.yml` `on.push.branches: main`). Migrations stay `workflow_dispatch` only. This branch was **not** merged.
 
-### Synthetic Word pairs (human checklist, not a Word receipt)
+### Founder decision request (blocks enabling uploads)
 
-Generated with `npm run proof:word-review` into `docs/proof/word-review/`. Checklist: `docs/proof/word-review/CHECKLIST.md`.
+See `infra/proof/provisioning.md`. Concise request: accept **D-02** (R2-managed encryption, $0), **D-03** (no India-only claim, $0), **D-01** (use included Workers Paid Container allotment for on-demand 4 GiB ClamAV, sleep after 15s, $0 until included allotment exceeded). I will not set `PROOF_UPLOADS_ENABLED` until those are accepted and scanner/purge/validator health are actually fresh.
 
-| Fixture | source SHA-256 | output SHA-256 | corrections | comments |
-|---|---|---|---|---|
-| body | `f082403a59ea9c6cb90811218720b77dd49ac2f6ee93b1260888a738c3ec9335` | `de476a5e4f5398a75ea132ea8c53fd87ef82282550cd0aa1f65ca11c620bb4ed` | 2 | 2 |
-| split_runs | `34db067707fe59c70856dceb59f71a82da1ab85d81bc9a3484da2ebb56b0f4ee` | `10b7446d45108e4953e67cac4f3a1a1ee2c0581e8dabd4531e603995c773247f` | 1 | 3 |
-| table | `71ca7a01a4e8390c887aa28230f211930149f16ae76df23fda065c79def10605` | `a186d79e49ef646f52af668fc5222fe2cbe9258d8b18ea423691cbab8b6fff9a` | 2 | 2 |
-| prior_review | `cc43f8b0c86d234bfa2f02becfd575cd24b6a19dfc7bae6f30c7c7e55840cb04` | `036f0e35a04cd11a1d59b603efb5bdd93d60a1ecd799230b19b29aca21cc325b` | 2 | 2 |
-| party_name | `4ff59a6080ccbe8dd6797d040e4c7c3f3b338a67b4a5bd283df1d81a74fc3a21` | identical to source | 0 | 0 |
+### Synthetic Word pairs — Word desktop verification (this session)
 
-`party_name` is byte-identical (Recieve as a party name is not “corrected”). `split_runs` mixed formatting produced a comment-heavy output; that discrepancy stays labelled. Word validation: **not_run**.
+Generated earlier into `docs/proof/word-review/`. Checklist: `docs/proof/word-review/CHECKLIST.md`.
+
+Command: `powershell -NoProfile -ExecutionPolicy Bypass -File web\scripts\proof-word-verify.ps1`
+
+Word: `C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE` (COM automation, visible=false).
+
+| Fixture | Word revisions | Word comments | Result |
+|---|---|---|---|
+| body | 3 | 2 | PASS (expected ≥2 / ≥2) |
+| table | 3 | 2 | PASS |
+| prior_review | 5 | 3 | PASS |
+| party_name | 0 | 0 | PASS |
+| split_runs | not opened (mixed-format labelled) | | left labelled |
+
+This is Word-opened markup on the synthetic exporter pairs. It is **not** a live upload→download Word receipt from `app.agmt.legal`.
+
+### Commands this session (live wiring)
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-pipeline.test.ts src/lib/server/proof-antivirus.test.ts src/lib/server/proof-health.test.ts src/lib/products/capabilities.test.ts
+npm run typecheck
+node --test scripts/pwc-migration.test.mjs
+npx wrangler deploy --config infra/proof/purge/wrangler.jsonc
+curl.exe https://agmt-proof-purge.dexterinlab.workers.dev/
+```
+
+Actual: pipeline/antivirus/health/capabilities **pass**; typecheck **exit 0**; PGlite 0001–0010 **pass**; `scanning→processing` **false**; purge Worker **200**. `PROOF_UPLOADS_ENABLED` unset.
+
+Untracked preserved: `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs`.
 
 ### Commands this session (UI + local processing)
 

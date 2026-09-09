@@ -96,3 +96,10 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@layer components {
+  .proof-touch {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

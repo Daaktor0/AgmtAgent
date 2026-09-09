@@ -31,5 +31,6 @@ function Home() {
       {paused ? <div className="space-y-1 text-sm text-stone"><p>{paused.heading}</p><p>{paused.detail}</p></div> : null}
     </div>
     <Link to="/matters" className="text-sm text-stone underline underline-offset-4">Existing matters</Link>
+    {import.meta.env.DEV ? <p className="text-sm text-stone"><Link to="/proof/dev" className="underline underline-offset-4">Development Proof fixtures</Link> — not live processing.</p> : null}
   </section></Shell>;
 }

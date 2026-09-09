@@ -175,3 +175,39 @@ test("PWC-20 route handlers isolate two owners in one tenant, another tenant, an
   );
   assert.equal(evilOrigin.status, 403);
 });
+
+test("PWC-33A feedback is metadata-only and rejects extra keys", async () => {
+  const catalog = new MemoryProofRunCatalog();
+  const created = await handleProofRequest(
+    request("POST", "runs", {
+      headers: { "content-type": "application/json", "idempotency-key": "proof-key-fb", origin: ORIGIN },
+      body: JSON.stringify({ sizeBytes: 12, sha256: SHA, profile: "agreement", language: "en-GB" }),
+    }),
+    deps({ catalog }),
+  );
+  const { runId } = await created.json() as { runId: string };
+  const ok = await handleProofRequest(
+    request("POST", `runs/${runId}/feedback`, {
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: JSON.stringify({ ruleId: "language.typo_allowlist", category: "language", verdict: "useful" }),
+    }),
+    deps({ catalog }),
+  );
+  assert.equal(ok.status, 204);
+  const extra = await handleProofRequest(
+    request("POST", `runs/${runId}/feedback`, {
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: JSON.stringify({ ruleId: "language.typo_allowlist", category: "language", verdict: "useful", comment: "teh" }),
+    }),
+    deps({ catalog }),
+  );
+  assert.equal(extra.status, 400);
+  const foreign = await handleProofRequest(
+    request("POST", `runs/${runId}/feedback`, {
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: JSON.stringify({ ruleId: "language.typo_allowlist", category: "language", verdict: "noisy" }),
+    }),
+    deps({ catalog, actor: ownerB }),
+  );
+  assert.equal(foreign.status, 404);
+});

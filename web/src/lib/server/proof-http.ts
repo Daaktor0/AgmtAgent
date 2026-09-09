@@ -42,6 +42,7 @@ import {
 } from "./proof-upload.ts";
 import { ProofAdmissionError, countActiveRuns, reserveProofAdmission } from "./proof-admission.ts";
 import { emitProofEvent, sizeBucketFor } from "./proof-events.ts";
+import { ProofFeedbackError, admitProofFeedback, memoryFeedbackStore } from "./proof-feedback.ts";
 
 const PARSER_VERSION = "proof-docx-v2";
 const EXPORTER_VERSION = "proof-ooxml-v1";
@@ -89,7 +90,10 @@ export type ProofHttpDeps = {
     globalUploadsUtcDay: number;
     globalComputeAttempts: number;
   };
+  feedback?: ReturnType<typeof memoryFeedbackStore>;
 };
+
+const defaultFeedback = memoryFeedbackStore();
 
 function catalogKey(run: Pick<ProductRunRow, "tenantId" | "ownerUserId" | "runId">): string {
   return `${run.tenantId}:${run.ownerUserId}:${run.runId}`;
@@ -451,7 +455,16 @@ export async function handleProofRequest(request: Request, deps: ProofHttpDeps):
     }
 
     if (action === "feedback") {
-      await request.json().catch(() => ({}));
+      if (!stored) return errorBody("not_found", 404, now);
+      const raw = await request.text();
+      admitProofFeedback({
+        store: deps.feedback ?? defaultFeedback,
+        runId: stored.runId,
+        ownerUserId: authorized.actor.userId,
+        runGone: stored.status === "deleted" && stored.deletionVerifiedAt != null && now - stored.deletionVerifiedAt > 24 * 60 * 60 * 1000,
+        nowMs: now,
+        rawBody: raw,
+      });
       return new Response(null, { status: 204, headers: noStore });
     }
 
@@ -473,5 +486,6 @@ export function proofHttpError(error: unknown, now = Date.now()): Response {
     if (error.retryAfter != null) response.headers.set("retry-after", String(error.retryAfter));
     return response;
   }
+  if (error instanceof ProofFeedbackError) return errorBody(error.code, error.status, now, error.status === 429);
   return json({ error: "proof_request_failed" }, 400);
 }

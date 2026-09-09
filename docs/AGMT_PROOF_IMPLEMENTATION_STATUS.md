@@ -891,7 +891,7 @@ Actual: **1/1 admission + 1/1 events pass**. Live cost/health capture: **not run
 #### Remaining blockers and next eligible tasks
 
 - Live PWC-18/19 R2 races remain Blocked (D-02/D-03). Do not mark the upload journey complete.
-- Isolated ClamAV is **not** provisioned: Cloudflare Containers are rejected under the four-month no-overage freeze. Hostinger KVM 2 was inspected read-only and is **not suitable** (shared with public n8n/Hermes/Traefik; weekly full-disk backups in Kuala Lumpur). Documents were not sent there.
+- Isolated ClamAV is **not** provisioned: Cloudflare Containers are rejected under the four-month no-overage freeze. Hostinger KVM 2 is **not suitable**. A synthetic in-browser engine prototype is **feasible** but **not launched** and is **not** a ClamAV substitute. Documents were not sent to Hostinger or to Agmt servers.
 - PWC-13 Microsoft Word. PWC-12 Word fidelity is not claimed from SDK schema results.
 - Staging PWC-20 accounts and live RLS remain Blocked.
 - Migration `0011` is in-repo and **not** applied. `0009`/`0010` remain unapplied.
@@ -1064,6 +1064,82 @@ npm run typecheck
 ```
 
 Actual: **19/19 pass**; typecheck **exit 0**; `scanning→processing` **false**. Uploads remain disabled. Cloudflare Containers **not** provisioned. Hostinger VPS **not** given documents.
+
+### Browser-side processing feasibility (synthetic prototype, this session)
+
+Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.
+
+- **Change commit:** this session.
+- **Files added:** `web/scripts/browser-proof-prototype/**` (shims, entry, runner, `evidence.json`). `web/package.json` script `proof:browser-prototype` only. Production engine, API, Worker, Hostinger denylist and upload switch **unchanged**.
+- **Status:** Prototype Implemented and Tested on synthetic DOCX in Chromium desktop and iPhone-13 viewport emulation. Host-side Open XML SDK and Word COM were run on those outputs (they cannot run *in* the browser). Not Deployed. Not a production path.
+- **Must-not-change held:** zero LLM; `scanning` → `processing` still false; `PROOF_UPLOADS_ENABLED` unset; Hostinger compute false; Containers not provisioned; no document bytes sent to Agmt servers.
+
+#### What ran
+
+Existing deterministic engine (`analyzeProof` / `exportProofDocx` / JS package+reconstruction validators / `scanProofDocx`) bundled with browser shims for `node:crypto`, `node:assert/strict`, `node:zlib` (pako already present via JSZip) and `Buffer`. Production `crypto.ts` envelope encryption was excluded from the bundle.
+
+Synthetic fixtures: `body`, `split_runs`, `table`, `prior_review`, `party_name`, plus 108 KiB and 1.02 MiB repeat documents. No client documents.
+
+| Check | Result |
+|---|---|
+| Parse and map supported synthetics | Pass. Findings match the Node engine, including the four-typo allowlist, duplicate word, missing clause, placeholder, and the party-name trap (zero findings). Mixed-format `split_runs` stays comment-only for the typo. |
+| Genuine `w:ins` / `w:del` / anchored comments | Pass. Desktop and mobile markup flags true. Word COM on the browser output: body/table/prior_review/party_name **PASS**. |
+| Preserve existing Word structures | Pass on `prior_review` (existing comment and prior revisions retained; Agmt IDs do not reuse 0/7/8). Untouched ZIP entries remain byte-identical via the existing JS validator. |
+| Validate output | JS independent validators ran **in the browser**. Open XML SDK 3.5.1 ran **on the host** against those bytes: all five fixtures `ok`, 0 schema errors. SDK **cannot** run in the browser. |
+| Downloadable DOCX | Pass. Object URL in page memory; revoked after copy. ~2 KiB fixtures 15–60 ms; 108 KiB in 195 ms; 1.02 MiB in 1.3 s. |
+| Document bytes on Agmt servers / analytics / logs | None in the prototype. Page `fetch` / XHR / Beacon / WebSocket tripwires recorded 0 attempts. Playwright allowed only the local HTML and JS. |
+| Persistent browser storage | Empty: no localStorage, sessionStorage or IndexedDB keys. Filename/bytes were not stored. |
+| Malware | ClamAV **cannot** run in the browser and was **not** treated as a clean scan. Local gate still refuses EICAR, `vbaProject.bin` and XML DTD/entity. Receipt is `structurally_admitted`, not ClamAV `clean`. |
+
+Resources: prototype bundle 1.26 MiB uncompressed. 1.02 MiB synthetic used ~102 MiB extra JS heap (44 MiB → 146 MiB). **25 MiB was not run.** A linear reading of that heap ratio would be multiple gigabytes at 25 MiB, which is not a reasonable mobile budget. iPhone-13 results are Chromium emulation, not a physical iPhone or Safari.
+
+#### Node-only / native dependencies (not silently dropped)
+
+| Dependency | Required check | In browser |
+|---|---|---|
+| `DocumentFormat.OpenXml` 3.5.1 / `ProofValidator.exe` | PWC-12 schema validation | Cannot run. Host oracle only. |
+| ClamAV | PWC-22 authoritative malware scan | Cannot run. Not called “clean”. |
+| Microsoft Word COM | PWC-13 fidelity | Cannot run. Host check on prototype output only. |
+| `node:zlib` `inflateRawSync` / `crc32` | Bounded ZIP inflation | Shimmed (pako + max output). |
+| `node:crypto` `createHash` | SHA-256 | Shimmed (pure JS; matches Node for `"abc"`). |
+| `node:assert/strict` | JS validators | Shimmed. |
+| Node `Buffer` | Byte handling | Shimmed Uint8Array subclass. |
+| `web/src/lib/agmt/crypto.ts` envelope encryption | Server secret | Excluded from bundle. |
+
+#### Recommendation
+
+**Conditional go for local processing. No-go as a silent substitute for the current uploaded-to-Agmt plan, and not launch-ready.**
+
+This is the only freeze-compatible way to run the existing engine without Hostinger or Cloudflare Containers. It is not the current controlling architecture and must not be shipped until the plan and user-facing promises below are changed on purpose.
+
+Exact controlling-plan changes that would be required (not applied):
+
+- §1 / §17–20: drop isolated Container, ClamAV-in-compute, R2 quarantine of **document bytes**, and queue-to-container processing for Proof content. Keep the web Worker for auth, metadata, help and (if still wanted) run records **without** file bytes.
+- §7 journey and §9 privacy copy: stop saying the file is uploaded and deleted from Agmt storage within two hours. The honest statement is that Agmt never receives the document.
+- Two-hour deletion of Agmt-controlled **content** becomes vacuous for files. It would still apply to any metadata we keep. Device downloads and the user’s own backups are outside Agmt.
+- PWC-22: replace “ClamAV clean receipt before parse” with a disclosed local model (ZIP/XML/active-content/EICAR). Missing ClamAV must not be recorded as clean.
+- PWC-12: per-run SDK cannot be a publication gate in the browser. Keep SDK/Word as corpus and CI oracles, or do not claim that gate.
+- §21 JS budget (≤40 KiB gzip extra) and §23 25 MiB/P95-including-scanner targets: the prototype bundle is 1.26 MiB and 25 MiB in-browser is unproven.
+- Resume-after-refresh of an in-flight **document** cannot work without storing bytes. Closing the tab loses unsaved work.
+
+User-facing promise changes (not applied):
+
+- From “your file is uploaded, then deleted within two hours” to “your file stays on this device; Agmt’s servers do not receive it.”
+- Do not say the file was virus-scanned by Agmt.
+- Do not say an isolated Agmt computer processed it.
+- Keep: free, zero LLM, tracked changes and Word comments, limited-coverage honesty, mixed-format typo labelled not auto-corrected.
+
+Remaining risk if this path were later adopted: malicious OOXML can still attack the in-page parser; there is no ClamAV signature set; per-run SDK is absent; 25 MiB is likely too large; browser extensions can read page memory; real iOS Safari was not measured; a future telemetry mistake could leak bytes (the prototype forbids that; production would need the same tripwires).
+
+#### Commands and results
+
+```
+cd web
+npm run proof:browser-prototype
+node --experimental-strip-types --test src/lib/server/proof-antivirus.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/export/docx.test.ts src/lib/server/proof-budget.test.ts
+```
+
+Actual: prototype recommendation `conditional_go_local_processing`; Chromium desktop+mobile fixtures pass; SDK host `ok` on five outputs; Word COM PASS on four review pairs; production tests **16/16 pass**. Evidence: `web/scripts/browser-proof-prototype/evidence.json`.
 
 ---
 

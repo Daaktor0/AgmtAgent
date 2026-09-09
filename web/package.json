@@ -24,7 +24,8 @@
     "format": "prettier --write .",
     "db:migrate:release": "node scripts/migrate.mjs",
     "proof:demo": "node --experimental-strip-types scripts/proof-demo.ts",
-    "proof:word-review": "node --experimental-strip-types scripts/proof-word-review.ts"
+    "proof:word-review": "node --experimental-strip-types scripts/proof-word-review.ts",
+    "proof:browser-prototype": "node --experimental-strip-types scripts/browser-proof-prototype/run.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

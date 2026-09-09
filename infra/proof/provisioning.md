@@ -95,6 +95,14 @@ Remaining risk if we used it anyway: other apps on the box; public n8n and Herme
 
 Nothing was provisioned. `PROOF_HOSTINGER_COMPUTE_ALLOWED` stays false. Scan URLs on `*.hstgr.cloud` or this VPS address are treated as unprovisioned and never receive document bytes.
 
+## Browser-side processing assessment (synthetic prototype, 2026-09-09)
+
+Not provisioned. Not wired to production `/proof`. Not launch-ready.
+
+The existing deterministic engine parsed synthetic DOCX in Chromium, applied the current rules, wrote real `w:ins` / `w:del` and anchored comments, and produced a downloadable file. Document bytes did not leave the page. ClamAV, the Open XML SDK and Word COM cannot run in the browser; they were not removed. SDK and Word were only run on this machine against the prototype output.
+
+This does **not** replace the controlling plan. It is a freeze-compatible path that would require the promise and plan changes recorded in `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md`. The 25 MiB upload cap is not demonstrated in the browser.
+
 ## Founder decision request still required before uploads are enabled
 
 Existing approved resources: Workers Paid (`agmt`), R2 `agmt-proof-objects`,

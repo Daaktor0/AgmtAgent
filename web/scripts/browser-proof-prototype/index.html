@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Agmt Proof browser prototype — not production</title>
+  <meta name="robots" content="noindex">
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem; max-width: 48rem; }
+    p { color: #222; }
+    .warn { background: #fff3cd; padding: 0.75rem 1rem; border: 1px solid #e6c35c; }
+  </style>
+</head>
+<body>
+  <p class="warn">Technical prototype. Synthetic Word files only. Not the live Proof product. Document bytes stay in this page.</p>
+  <p id="status">Loading engine…</p>
+  <script src="./dist/browser-proof.js"></script>
+  <script>
+    document.getElementById("status").textContent = window.__agmtProofPrototype
+      ? "Prototype engine ready. No upload path is attached."
+      : "Prototype engine failed to load.";
+  </script>
+</body>
+</html>

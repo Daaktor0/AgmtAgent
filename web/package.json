@@ -66,9 +66,9 @@
     "fast-xml-parser": "^5.11.1",
     "jose": "6.2.9",
     "jszip": "^3.10.1",
-    "pako": "^2.1.0",
     "kysely": "^0.28.5",
     "lucide-react": "^0.510.0",
+    "pako": "^2.1.0",
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
@@ -105,5 +105,8 @@
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.2.0"
+  },
+  "optionalDependencies": {
+    "lru-cache": "^11.5.2"
   }
 }

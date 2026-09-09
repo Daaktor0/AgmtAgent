@@ -41,6 +41,7 @@ import {
   PROOF_DOCX_MIME,
 } from "./proof-upload.ts";
 import { ProofAdmissionError, countActiveRuns, reserveProofAdmission } from "./proof-admission.ts";
+import { ProofBudgetError } from "./proof-budget.ts";
 import { emitProofEvent, sizeBucketFor } from "./proof-events.ts";
 import { ProofFeedbackError, admitProofFeedback, memoryFeedbackStore } from "./proof-feedback.ts";
 import { ProofDownloadError, signProofDownloadTicket, ticketExpiry, verifyProofDownloadTicket } from "./proof-download.ts";
@@ -90,8 +91,10 @@ export type ProofHttpDeps = {
   quota?: {
     ownerUploadsUtcDay: number;
     globalUploadsUtcDay: number;
+    globalUploadsUtcMonth: number;
     globalComputeAttempts: number;
   };
+  onRunAdmitted?: () => Promise<void> | void;
   feedback?: ReturnType<typeof memoryFeedbackStore>;
   downloadSecret?: string;
   onSourceAccepted?: (run: ProductRunRow) => void;
@@ -336,23 +339,29 @@ export async function handleProofRequest(request: Request, deps: ProofHttpDeps):
       const body = parseCreateProofRunRequest(await request.json());
       const key = readIdempotencyKey(request);
       const listed = await deps.catalog.list(authorized.actor);
-      reserveProofAdmission({
-        readiness: {
-          productId: "proof",
-          uploadsSwitch: true,
-          purgeReadyAt: now,
-          scannerReadyAt: now,
-          validatorReadyAt: now,
-          now,
-        },
-        quota: {
-          ...countActiveRuns(listed.map((run) => run.status)),
-          ownerUploadsUtcDay: deps.quota?.ownerUploadsUtcDay ?? listed.length,
-          globalUploadsUtcDay: deps.quota?.globalUploadsUtcDay ?? listed.length,
-          globalComputeAttempts: deps.quota?.globalComputeAttempts ?? 0,
-        },
-        nowMs: now,
-      });
+      const replay = listed.find((run) => run.idempotencyKey === key);
+      if (!replay) {
+        reserveProofAdmission({
+          readiness: {
+            productId: "proof",
+            uploadsSwitch: true,
+            purgeReadyAt: now,
+            scannerReadyAt: now,
+            validatorReadyAt: now,
+            budgetReadyAt: now,
+            budgetAllowsAdmission: deps.acceptingUploads,
+            now,
+          },
+          quota: {
+            ...countActiveRuns(listed.map((run) => run.status)),
+            ownerUploadsUtcDay: deps.quota?.ownerUploadsUtcDay ?? listed.length,
+            globalUploadsUtcDay: deps.quota?.globalUploadsUtcDay ?? listed.length,
+            globalUploadsUtcMonth: deps.quota?.globalUploadsUtcMonth ?? listed.length,
+            globalComputeAttempts: deps.quota?.globalComputeAttempts ?? 0,
+          },
+          nowMs: now,
+        });
+      }
       const created = await deps.catalog.create({
         actor: authorized.actor,
         sizeBytes: body.sizeBytes,
@@ -362,6 +371,7 @@ export async function handleProofRequest(request: Request, deps: ProofHttpDeps):
         idempotencyKey: key,
         now,
       });
+      if (created.created) await deps.onRunAdmitted?.();
       emitProofEvent({
         version: "proof-event-v1",
         name: "run_admitted",
@@ -509,7 +519,7 @@ export function proofHttpError(error: unknown, now = Date.now()): Response {
     return json({ error: error.code }, error.status);
   }
   if (error instanceof ProofUploadError) return errorBody(error.code, error.status, now);
-  if (error instanceof ProofAdmissionError) {
+  if (error instanceof ProofAdmissionError || error instanceof ProofBudgetError) {
     const response = errorBody(error.code, error.status, now, error.status === 503);
     if (error.retryAfter != null) response.headers.set("retry-after", String(error.retryAfter));
     return response;

@@ -133,3 +133,24 @@ test("PWC-16 PGlite rehearses owner-bound artifacts, transitions and immutable d
 
   await pg.close();
 });
+
+test("PWC-21 quota snapshot counts metadata only and is granted to worker/app", async () => {
+  const sql = await readFile(new URL("../migrations/0011_pwc_budget_counts.sql", import.meta.url), "utf8");
+  assert.match(sql, /proof_quota_snapshot/);
+  assert.match(sql, /security definer/);
+  assert.doesNotMatch(sql, /filename|display_name|comment_body|canonical_text|bytea/i);
+  const { PGlite } = await import("@electric-sql/pglite");
+  const pg = new PGlite();
+  await applyAll(pg);
+  await seed(pg);
+  await pg.exec("set role agmt_app; select set_config('agmt.user_id','u1',false), set_config('agmt.tenant_id','t1',false);");
+  await pg.query(
+    "insert into product_run (run_id,tenant_id,owner_user_id,product_id,upload_started_at,retention_deadline,access_deadline,processing_deadline,upload_grant_deadline,parser_version,rule_set_version,exporter_version,idempotency_key) values ($1,$2,$3,'proof',$4,$5,$6,$7,$8,'p','r','e','k')",
+    runArgs,
+  );
+  const snap = await pg.query("select * from agmt_private.proof_quota_snapshot('t1','u1','2026-01-01T00:30:00Z')");
+  assert.equal(Number(snap.rows[0].owner_uploads_utc_day), 1);
+  assert.equal(Number(snap.rows[0].global_uploads_utc_day), 1);
+  assert.equal(Number(snap.rows[0].global_uploads_utc_month), 1);
+  await pg.close();
+});

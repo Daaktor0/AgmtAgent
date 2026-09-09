@@ -3,6 +3,8 @@ import { Container, getContainer } from "@cloudflare/containers";
 /**
  * Isolated ClamAV scan Container (PWC-22). One attempt per request name.
  * No database, auth, or model secrets are passed into the image.
+ * Do not deploy while the four-month no-overage freeze is in force:
+ * Cloudflare Containers have no hard included-allotment stop.
  */
 export class ProofScanContainer extends Container {
   defaultPort = 8080;

@@ -1,7 +1,8 @@
 # Proof live-processing provisioning checklist
 
-This is a no-apply, no-spend checklist. It does not authorize Cloudflare
-charges, bucket creation, production bindings, migrations or enabling uploads.
+Spending decision (2026-09-09): no additional charges, upgrades or usage
+overage for the first four months of launch. Existing subscriptions may
+continue. This file now records that freeze and the controls that enforce it.
 
 Uploads remain disabled until the gates below are green **and** a later
 explicit founder action sets `PROOF_UPLOADS_ENABLED=true` on the selected
@@ -35,25 +36,45 @@ One-day R2 lifecycle is an orphan backstop only. It does **not** implement the t
 - Upload switch: unset / not `true`
 - Migration `0009` exists in repo and is **not** applied to production
 
-## Founder decision request (required before uploads are enabled)
+## Spending freeze (D-01 settled)
 
-This supersedes the earlier no-apply checklist. Existing approved resources
-already in the account: Workers Paid (`agmt`), R2 `agmt-proof-objects`,
-Hyperdrive `AGMT_APP_DB` / `AGMT_AUTH_DB`, Resend. Incremental cost of the
-work below is **$0 until included Workers Paid Container allotment is
-exceeded**.
+No Cloudflare Containers, Queues, extra R2 buckets, plan upgrades or
+usage overage. Cloudflare does **not** hard-stop Container billing at the
+included 25 GiB-hour / 375 vCPU-minute allotment. A `standard-1` instance
+that fails to sleep exceeds included memory in about seven hours. Health
+pings can keep it warm. Billing alerts cannot prevent that. The compute
+image and Worker remain in-repo and **must not be deployed**.
+
+Workable $0 alternative (not provisioned): run ClamAV on the existing
+Hostinger KVM 2 only if the founder later accepts documents leaving
+Cloudflare onto a VPS that already runs n8n, Traefik and Hermes. That is
+an isolation/residency choice (D-03), not a spend choice. Until then
+scanner health stays stale and uploads stay paused.
+
+Admission now fail-closes on a persisted budget ledger plus conservative
+caps (3/owner/day, 10 global/day, 80 global/month, 1 concurrent compute).
+Each admit reserves worst-case Worker CPU and R2 class A/B for process,
+download and verified deletion. Cron/purge capacity for the rest of the
+month is held back. Missing or exhausted budget pauses new uploads only.
+
+## Founder decision request still required before uploads are enabled
+
+Existing approved resources: Workers Paid (`agmt`), R2 `agmt-proof-objects`,
+Hyperdrive `AGMT_APP_DB` / `AGMT_AUTH_DB`, Resend, Hostinger KVM 2 (already
+paid through 2027-10-26). Independent purge Worker is already deployed.
 
 | Decision | Recommendation | Consequence if accepted | Incremental cost |
 |---|---|---|---|
 | **D-02** encryption | Accept TLS + Cloudflare-managed R2 encryption for new 2-hour objects. Do not introduce customer-managed keys at launch. Historical envelope keys stay untouched. | New Proof objects are written without `encryptBytes` / `object_manifest`. | $0 |
-| **D-03** residency | Do not claim India-only storage. Launch only for users whose policies permit Cloudflare’s disclosed locations. | Copy and contracts stay honest. | $0 |
-| **D-01** compute | Approve using the **included** Workers Paid Container allotment (25 GiB-hours, 375 vCPU-minutes, 200 GB-hours) for an on-demand `standard-1` (4 GiB) ClamAV scan Container that sleeps after 15s. Hard stop: do not keep a warm instance. | Real antivirus receipts become possible. Uploads stay disabled until that health signal is fresh. Exceeding the included allotment at ~1,000 short jobs/month is still expected to stay well under $5 extra; a 4 GiB instance left idle all month is ~$26 memory after allowance — that idle mode is rejected. | $0 inside included allotment; I will not raise a $50 operating budget |
+| **D-03** residency | Do not claim India-only storage. Launch only for users whose policies permit Cloudflare’s disclosed locations. Hostinger ClamAV is a separate later choice. | Copy and contracts stay honest. | $0 |
 
-I will not set `PROOF_UPLOADS_ENABLED` until D-01/D-02/D-03 are accepted **and** ClamAV health, purge health and validator health are actually fresh on production.
+I will not set `PROOF_UPLOADS_ENABLED` until D-02/D-03 are accepted **and**
+ClamAV health, purge health, validator health and budget health are actually
+fresh on production. D-01 is settled as **no Container overage**.
 
 ## Founder decisions still open
 
-1. **D-01** — approve a staged compute/purge pilot with a $50 / month initial ceiling.
+1. **D-01** — **Settled:** no additional spend / no Cloudflare Container provisioning for four months.
 2. **D-02** — confirm TLS + private R2 managed encryption is acceptable (no customer-managed key for launch).
 3. **D-03** — no India-only residency claim; launch only for users whose policies permit disclosed locations.
 4. **D-04** — name Windows and Mac Word reviewers.

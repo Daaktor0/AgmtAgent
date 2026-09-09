@@ -867,15 +867,16 @@ Actual: authorization/handler/db-guard tests pass; PGlite isolation **1/1 pass**
 ### PWC-21 — Implement quotas and content-free operational events (local)
 
 - **Baseline commit:** `db76e088e22b13d9f5a88473bd712e78ec6e5da2`.
-- **Change commit:** `7822bf13566ba58e3cd8d2a29c54d157d61b892a`.
-- **Files changed:** `web/src/lib/server/proof-admission.ts`, `web/src/lib/server/proof-admission.test.ts`, `web/src/lib/server/proof-events.ts`, `web/src/lib/server/proof-events.test.ts`.
-- **Status:** Implemented; Tested (quota races, stale health, event canaries). Provider monitoring **Blocked**. Browser quota UI later (PWC-32). Not Deployed.
+- **Change commit:** `7822bf13566ba58e3cd8d2a29c54d157d61b892a`; conservative budget follow-up this session.
+- **Files changed:** `web/src/lib/server/proof-admission.ts`, `web/src/lib/server/proof-admission.test.ts`, `web/src/lib/server/proof-events.ts`, `web/src/lib/server/proof-events.test.ts`, `web/src/lib/server/proof-budget.ts`, `web/src/lib/server/proof-budget.test.ts`.
+- **Status:** Implemented; Tested (quota races, stale health, cost threshold, event canaries). Live provider monitoring **Blocked**. Browser quota UI later (PWC-32). Not Deployed.
 - **Must-not-change held:** deletion/download remain ungated by quota; no billing-email control; no content in events.
 
 #### Behaviour
 
-- Caps: 1 active processing run/owner, 3 active runs/owner including ready, 20 uploads/owner/UTC day, 100 global/day, 2 global compute attempts. Daily reset uses UTC midnight Retry-After.
-- Stale purge/scanner/validator health denies admission (503) even if the switch is on.
+- Launch freeze caps: 1 active processing run/owner, 2 active runs/owner including ready, 3 uploads/owner/UTC day, 10 global/day, 80 global/UTC month, 1 global compute attempt. Daily reset uses UTC midnight Retry-After; monthly reset uses next UTC month.
+- Stale purge/scanner/validator/budget health denies admission (503) even if the switch is on. Exhausted included-allotment budget is 429 and does not gate download or deletion.
+- Each admit reserves worst-case Worker CPU and R2 class A/B for scan/process/download/delete plus remaining-month cron/purge. Cloudflare Containers are not authorised (`PROOF_CLOUDFLARE_CONTAINERS_ALLOWED = false`).
 - Events allowlist section 24 names plus size/duration buckets. Filename, body, object key, raw Error and snippets are rejected.
 
 #### Commands and results
@@ -889,13 +890,13 @@ Actual: **1/1 admission + 1/1 events pass**. Live cost/health capture: **not run
 
 #### Remaining blockers and next eligible tasks
 
-- Live PWC-18/19 R2 races, staging buckets and the transfer broker remain Blocked (D-02/D-03). Do not mark the upload journey complete.
+- Live PWC-18/19 R2 races remain Blocked (D-02/D-03). Do not mark the upload journey complete.
+- Isolated ClamAV is **not** provisioned: Cloudflare Containers are rejected under the four-month no-overage freeze. Hostinger KVM 2 was not used (shared with n8n/Hermes; documents would leave Cloudflare).
 - PWC-13 Microsoft Word. PWC-12 Word fidelity is not claimed from SDK schema results.
 - Staging PWC-20 accounts and live RLS remain Blocked.
-- **Next executable (local):** PWC-29 UI contracts where they do not require live upload; source-lane PWC-13 is human-gated.
-- **Critical path:** live 19/22 still blocked on provisioning.
-- Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
-- **PWC-28 is not complete.** Status/list/ticket handlers exist locally, but publication, independent purge (PWC-27) and live download of a published object are missing.
+- Migration `0011` is in-repo and **not** applied. `0009`/`0010` remain unapplied.
+- Do not enable `PROOF_UPLOADS_ENABLED`.
+- **PWC-28 is not complete.** Status/list/ticket handlers exist locally, but live publication still needs a clean scan receipt.
 
 ### Local start (this session)
 
@@ -970,7 +971,7 @@ HMAC tickets, owner status/list and R2 download streaming are wired. **PWC-28 re
 
 | Task | Local | Live |
 |---|---|---|
-| PWC-22 antivirus | Implemented/Tested: EICAR infected; missing ClamAV is `scanner_unavailable`, never clean | Compute Worker/Container prepared (`infra/proof/compute`). **Not deployed** (no local Docker; D-01). Workflow `.github/workflows/deploy-proof-compute.yml` is `workflow_dispatch` only |
+| PWC-22 antivirus | Implemented/Tested: EICAR infected; missing ClamAV is `scanner_unavailable`, never clean | Compute Worker/Container prepared (`infra/proof/compute`). **Not deployed** (four-month no-overage freeze; Cloudflare Containers have no hard stop). Workflow `.github/workflows/deploy-proof-compute.yml` is `workflow_dispatch` and now fail-closed |
 | PWC-23 compute | Implemented/Tested: launch `body` fixture publishes validated output after a **clean** test receipt | Engine runs after a clean AV receipt only. No production bypass |
 | PWC-24 dispatch | Implemented/Tested: scanning→processing throws; cron `* * * * *` + `list_active_proof_jobs` | Outbox/cron path coded; Cloudflare Queues product not added (existing Worker cron used) |
 | PWC-25 publication | Implemented/Tested in pipeline: `admitPublication` + HEAD before ready | Blocked until a clean scan exists |
@@ -979,9 +980,13 @@ HMAC tickets, owner status/list and R2 download streaming are wired. **PWC-28 re
 
 Merging `main` **automatically deploys** the web Worker (`.github/workflows/deploy-cloudflare.yml` `on.push.branches: main`). Migrations stay `workflow_dispatch` only. This branch was **not** merged.
 
-### Founder decision request (blocks enabling uploads)
+### Founder spending decision (D-01 settled this session)
 
-See `infra/proof/provisioning.md`. Concise request: accept **D-02** (R2-managed encryption, $0), **D-03** (no India-only claim, $0), **D-01** (use included Workers Paid Container allotment for on-demand 4 GiB ClamAV, sleep after 15s, $0 until included allotment exceeded). I will not set `PROOF_UPLOADS_ENABLED` until those are accepted and scanner/purge/validator health are actually fresh.
+No additional spend, upgrades or overage for four months. **Cloudflare Containers will not be provisioned:** the product has no hard included-allotment stop. A stuck `standard-1` instance exceeds 25 GiB-hours in about seven hours. Billing alerts are not a cap. `deploy-proof-compute.yml` now refuses unless `PROOF_CONTAINERS_SPEND_APPROVED=true`.
+
+Included usage observed 2026-09-01..09 (GraphQL, not a bill): Worker `agmt` 3,377 requests, CPU p50 2.7 ms; R2 PutObject 61, ListObjects 61, storage peak 69 bytes. Remaining included Workers/R2 capacity is effectively the full monthly allotment. Hostinger KVM 2 is an existing paid VPS (n8n/Traefik/Hermes already on it) and was **not** given Proof documents.
+
+See `infra/proof/provisioning.md`. Remaining before enabling uploads: **D-02** and **D-03**, plus a $0 isolated scanner. Conservative admission is implemented. I will not set `PROOF_UPLOADS_ENABLED`. Phase A is not complete.
 
 ### Synthetic Word pairs — Word desktop verification (this session)
 
@@ -1030,6 +1035,19 @@ node --experimental-strip-types --input-type=module -e "import { canTransitionPr
 ```
 
 Actual: focused suites pass as recorded above; typecheck **exit 0**; `scanning→processing` **false**.
+
+Untracked preserved: `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs`.
+
+### Commands this session (spending freeze / conservative admission)
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-budget.test.ts src/lib/server/proof-admission.test.ts src/lib/products/capabilities.test.ts src/lib/server/proof-http.test.ts src/lib/server/proof-health.test.ts
+node --test scripts/pwc-migration.test.mjs
+npm run typecheck
+```
+
+Actual: budget/admission/capabilities/http/health **15/15 pass**; PGlite 0001–0011 **3/3 pass**; typecheck **exit 0**; `scanning→processing` **false**. `PROOF_UPLOADS_ENABLED` unset. Cloudflare Containers **not** deployed. Migration `0011` **not** applied to production.
 
 Untracked preserved: `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs`.
 

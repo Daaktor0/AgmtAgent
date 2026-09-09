@@ -11,6 +11,7 @@ export const PROOF_SUPPORT_MATRIX_VERSION = "proof-support-matrix-v1";
 export const PROOF_PURGE_FRESHNESS_MS = 90_000;
 export const PROOF_SCANNER_FRESHNESS_MS = 24 * 60 * 60 * 1000;
 export const PROOF_VALIDATOR_FRESHNESS_MS = 90_000;
+export const PROOF_BUDGET_FRESHNESS_MS = 90_000;
 
 export const PROOF_UPLOADS_PAUSED_HEADING = "Proof is temporarily unavailable for new uploads.";
 export const PROOF_UPLOADS_PAUSED_DETAIL = "Existing downloads and deletion remain available.";
@@ -34,6 +35,8 @@ export type ProofReadinessInput = {
   purgeReadyAt: number | null;
   scannerReadyAt: number | null;
   validatorReadyAt: number | null;
+  budgetReadyAt: number | null;
+  budgetAllowsAdmission: boolean;
   now: number;
 };
 
@@ -65,9 +68,11 @@ function isFresh(at: number | null, now: number, maxAgeMs: number): boolean {
 export function proofAcceptingUploads(input: ProofReadinessInput): boolean {
   if (input.productId !== "proof") return false;
   if (input.uploadsSwitch !== true) return false;
+  if (input.budgetAllowsAdmission !== true) return false;
   return isFresh(input.purgeReadyAt, input.now, PROOF_PURGE_FRESHNESS_MS)
     && isFresh(input.scannerReadyAt, input.now, PROOF_SCANNER_FRESHNESS_MS)
-    && isFresh(input.validatorReadyAt, input.now, PROOF_VALIDATOR_FRESHNESS_MS);
+    && isFresh(input.validatorReadyAt, input.now, PROOF_VALIDATOR_FRESHNESS_MS)
+    && isFresh(input.budgetReadyAt, input.now, PROOF_BUDGET_FRESHNESS_MS);
 }
 
 export function proofCapabilitiesFromReadiness(input: ProofReadinessInput): ProofCapabilitiesV2 {
@@ -127,12 +132,16 @@ type ProofReadinessSignals = {
   purgeReadyAt: number | null;
   scannerReadyAt: number | null;
   validatorReadyAt: number | null;
+  budgetReadyAt: number | null;
+  budgetAllowsAdmission: boolean;
 };
 
 const proofReadiness: ProofReadinessSignals = {
   purgeReadyAt: null,
   scannerReadyAt: null,
   validatorReadyAt: null,
+  budgetReadyAt: null,
+  budgetAllowsAdmission: false,
 };
 
 export class ProofUploadsPausedError extends Error {
@@ -152,12 +161,16 @@ export function reportProofReadiness(update: Partial<ProofReadinessSignals>): vo
   if ("purgeReadyAt" in update) proofReadiness.purgeReadyAt = finiteTimestamp(update.purgeReadyAt);
   if ("scannerReadyAt" in update) proofReadiness.scannerReadyAt = finiteTimestamp(update.scannerReadyAt);
   if ("validatorReadyAt" in update) proofReadiness.validatorReadyAt = finiteTimestamp(update.validatorReadyAt);
+  if ("budgetReadyAt" in update) proofReadiness.budgetReadyAt = finiteTimestamp(update.budgetReadyAt);
+  if ("budgetAllowsAdmission" in update) proofReadiness.budgetAllowsAdmission = update.budgetAllowsAdmission === true;
 }
 
 export function resetProofReadinessForTests(): void {
   proofReadiness.purgeReadyAt = null;
   proofReadiness.scannerReadyAt = null;
   proofReadiness.validatorReadyAt = null;
+  proofReadiness.budgetReadyAt = null;
+  proofReadiness.budgetAllowsAdmission = false;
 }
 
 export function proofReadinessSnapshot(): ProofReadinessSignals {
@@ -177,6 +190,8 @@ export function getProofCapabilities(now = Date.now(), uploadsSwitch = liveUploa
     purgeReadyAt: signals.purgeReadyAt,
     scannerReadyAt: signals.scannerReadyAt,
     validatorReadyAt: signals.validatorReadyAt,
+    budgetReadyAt: signals.budgetReadyAt,
+    budgetAllowsAdmission: signals.budgetAllowsAdmission,
     now,
   });
 }

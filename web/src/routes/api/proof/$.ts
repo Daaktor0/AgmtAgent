@@ -10,6 +10,7 @@ import { currentDatabaseContext } from "@/lib/db-context.server";
 import { serverEnv } from "@/lib/runtime-env.server";
 import { liveProofR2Bucket } from "@/lib/server/proof-r2";
 import { readProofHealth } from "@/lib/server/proof-health";
+import { admitProofBudget, proofBudgetIsFresh, readProofBudget } from "@/lib/server/proof-budget";
 import { createLiveProofRuntime, dispatchOwnedProofDeletion, dispatchOwnedProofPipeline } from "@/lib/server/proof-runtime";
 
 function parts(request: Request): string[] {
@@ -38,29 +39,33 @@ function scheduleWork(work: Promise<unknown>): void {
   work.catch(() => undefined);
 }
 
-async function liveAcceptingUploads(now: number): Promise<boolean> {
+async function liveGate(now: number) {
   const uploadsSwitch = parseProofUploadsSwitch(serverEnv("PROOF_UPLOADS_ENABLED"));
   const bucket = liveProofR2Bucket();
   const health = bucket ? await readProofHealth(bucket) : { purgeReadyAt: null, scannerReadyAt: null, validatorReadyAt: null };
-  return proofAcceptingUploads({
+  const budget = bucket ? await readProofBudget(bucket, now) : null;
+  const acceptingUploads = proofAcceptingUploads({
     productId: "proof",
     uploadsSwitch,
     purgeReadyAt: health.purgeReadyAt,
     scannerReadyAt: health.scannerReadyAt,
     validatorReadyAt: health.validatorReadyAt,
+    budgetReadyAt: budget && proofBudgetIsFresh(budget, now) ? budget.readyAt : null,
+    budgetAllowsAdmission: Boolean(budget?.admit),
     now,
   });
+  return { bucket, budget, acceptingUploads };
 }
 
 async function handler(request: Request): Promise<Response> {
   try {
     const path = parts(request);
     const now = Date.now();
+    const gate = await liveGate(now);
     if (proofCapabilitiesPath(path, request.method)) {
-      const acceptingUploads = await liveAcceptingUploads(now);
-      return Response.json({ ...getProofCapabilities(now), acceptingUploads }, { headers: noStore });
+      return Response.json({ ...getProofCapabilities(now), acceptingUploads: gate.acceptingUploads }, { headers: noStore });
     }
-    const acceptingUploads = await liveAcceptingUploads(now);
+    const acceptingUploads = gate.acceptingUploads;
     const userId = await requireUserId();
     return withAuthenticatedDatabaseContext(userId, async ({ tenantId }) => {
       const account = await ensureAccount(userId);
@@ -74,6 +79,34 @@ async function handler(request: Request): Promise<Response> {
       };
       const catalog = createSqlProofRunCatalog(sql);
       const runtime = createLiveProofRuntime(sql);
+      let quota = {
+        ownerUploadsUtcDay: gate.budget?.jobsAdmitted ?? 0,
+        globalUploadsUtcDay: gate.budget?.jobsAdmitted ?? 0,
+        globalUploadsUtcMonth: gate.budget?.jobsAdmitted ?? 0,
+        globalComputeAttempts: gate.budget?.jobsInFlight ?? 0,
+      };
+      try {
+        const rows = await sql.query<{
+          owner_uploads_utc_day: number;
+          global_uploads_utc_day: number;
+          global_uploads_utc_month: number;
+          global_compute_attempts: number;
+        }>(
+          "select owner_uploads_utc_day, global_uploads_utc_day, global_uploads_utc_month, global_compute_attempts from agmt_private.proof_quota_snapshot($1, $2, to_timestamp($3::double precision / 1000.0))",
+          [actor.tenantId, actor.userId, now],
+        );
+        const row = rows[0];
+        if (row) {
+          quota = {
+            ownerUploadsUtcDay: Number(row.owner_uploads_utc_day) || 0,
+            globalUploadsUtcDay: Number(row.global_uploads_utc_day) || 0,
+            globalUploadsUtcMonth: Number(row.global_uploads_utc_month) || 0,
+            globalComputeAttempts: Number(row.global_compute_attempts) || 0,
+          };
+        }
+      } catch {
+        /* 0011 is not applied yet; R2 budget counts remain the cap. */
+      }
       return handleProofRequest(request, {
         now: Date.now,
         actor,
@@ -112,6 +145,11 @@ async function handler(request: Request): Promise<Response> {
           },
         },
         transfer: runtime?.sourceTransfer ?? null,
+        quota,
+        async onRunAdmitted() {
+          if (!gate.bucket) return;
+          await admitProofBudget(gate.bucket, Date.now());
+        },
       });
     });
   } catch (error) {

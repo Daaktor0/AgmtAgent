@@ -6,12 +6,13 @@
  */
 import { proofAcceptingUploads, type ProofReadinessInput } from "../products/capabilities.ts";
 
-export const PROOF_ADMISSION_VERSION = "proof-admission-v1";
+export const PROOF_ADMISSION_VERSION = "proof-admission-v2";
 export const PROOF_MAX_ACTIVE_PROCESSING_PER_OWNER = 1;
-export const PROOF_MAX_ACTIVE_RUNS_PER_OWNER = 3;
-export const PROOF_MAX_UPLOADS_PER_OWNER_UTC_DAY = 20;
-export const PROOF_MAX_UPLOADS_GLOBAL_UTC_DAY = 100;
-export const PROOF_MAX_GLOBAL_COMPUTE_ATTEMPTS = 2;
+export const PROOF_MAX_ACTIVE_RUNS_PER_OWNER = 2;
+export const PROOF_MAX_UPLOADS_PER_OWNER_UTC_DAY = 3;
+export const PROOF_MAX_UPLOADS_GLOBAL_UTC_DAY = 10;
+export const PROOF_MAX_UPLOADS_GLOBAL_UTC_MONTH = 80;
+export const PROOF_MAX_GLOBAL_COMPUTE_ATTEMPTS = 1;
 
 const ACTIVE_STATUSES = new Set(["uploading", "scanning", "queued", "processing", "exporting", "ready"]);
 const PROCESSING_STATUSES = new Set(["processing", "exporting"]);
@@ -21,6 +22,7 @@ export type ProofQuotaSnapshot = {
   ownerActiveRuns: number;
   ownerUploadsUtcDay: number;
   globalUploadsUtcDay: number;
+  globalUploadsUtcMonth: number;
   globalComputeAttempts: number;
 };
 
@@ -72,6 +74,16 @@ export function reserveProofAdmission(input: {
       429,
       "You’ve reached today’s free limit.",
       nextUtcDayRetryAfter(input.nowMs),
+    );
+  }
+  if (input.quota.globalUploadsUtcMonth >= PROOF_MAX_UPLOADS_GLOBAL_UTC_MONTH) {
+    const now = new Date(input.nowMs);
+    const retryAfter = Math.max(1, Math.ceil((Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) - input.nowMs) / 1000));
+    throw new ProofAdmissionError(
+      "quota_exceeded",
+      429,
+      "You’ve reached this month’s free limit.",
+      retryAfter,
     );
   }
   if (input.quota.globalComputeAttempts >= PROOF_MAX_GLOBAL_COMPUTE_ATTEMPTS) {

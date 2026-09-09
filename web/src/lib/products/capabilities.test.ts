@@ -17,6 +17,7 @@ import {
   PROOF_UPLOADS_PAUSED_DETAIL,
   PROOF_UPLOADS_PAUSED_HEADING,
   PROOF_VALIDATOR_FRESHNESS_MS,
+  PROOF_BUDGET_FRESHNESS_MS,
   assertProofUploadsAccepted,
   getProofCapabilities,
   parseProofCapabilities,
@@ -42,6 +43,8 @@ function ready(overrides: Partial<ProofReadinessInput> = {}): ProofReadinessInpu
     purgeReadyAt: NOW,
     scannerReadyAt: NOW,
     validatorReadyAt: NOW,
+    budgetReadyAt: NOW,
+    budgetAllowsAdmission: true,
     now: NOW,
     ...overrides,
   };
@@ -59,6 +62,8 @@ test("PWC-01 missing, false and unknown readiness deny uploads", () => {
   assert.equal(proofAcceptingUploads(ready({ purgeReadyAt: null })), false);
   assert.equal(proofAcceptingUploads(ready({ scannerReadyAt: null })), false);
   assert.equal(proofAcceptingUploads(ready({ validatorReadyAt: null })), false);
+  assert.equal(proofAcceptingUploads(ready({ budgetReadyAt: null })), false);
+  assert.equal(proofAcceptingUploads(ready({ budgetAllowsAdmission: false })), false);
   assert.equal(proofAcceptingUploads(ready({ productId: "review" })), false);
   assert.equal(proofAcceptingUploads(ready({ productId: "other" })), false);
   assert.equal(proofAcceptingUploads(ready({ productId: null })), false);
@@ -70,6 +75,7 @@ test("PWC-01 stale and future readiness timestamps deny; inclusive expiry bounda
   assert.equal(proofAcceptingUploads(ready({ scannerReadyAt: NOW - PROOF_SCANNER_FRESHNESS_MS })), true);
   assert.equal(proofAcceptingUploads(ready({ scannerReadyAt: NOW - PROOF_SCANNER_FRESHNESS_MS - 1 })), false);
   assert.equal(proofAcceptingUploads(ready({ validatorReadyAt: NOW - PROOF_VALIDATOR_FRESHNESS_MS - 1 })), false);
+  assert.equal(proofAcceptingUploads(ready({ budgetReadyAt: NOW - PROOF_BUDGET_FRESHNESS_MS - 1 })), false);
   assert.equal(proofAcceptingUploads(ready({ purgeReadyAt: NOW + 1 })), false);
   assert.equal(proofAcceptingUploads(ready({ scannerReadyAt: Number.NaN })), false);
   assert.equal(proofAcceptingUploads(ready()), true);
@@ -149,7 +155,13 @@ test("PWC-01 all signals required; download and delete stay ungated; scanningâ†’
   process.env.PROOF_UPLOADS_ENABLED = "true";
   try {
     assert.equal(getProofCapabilities(NOW).acceptingUploads, false);
-    reportProofReadiness({ purgeReadyAt: NOW, scannerReadyAt: NOW, validatorReadyAt: NOW });
+    reportProofReadiness({
+      purgeReadyAt: NOW,
+      scannerReadyAt: NOW,
+      validatorReadyAt: NOW,
+      budgetReadyAt: NOW,
+      budgetAllowsAdmission: true,
+    });
     assert.equal(getProofCapabilities(NOW).acceptingUploads, true);
     reportProofReadiness({ purgeReadyAt: NOW - PROOF_PURGE_FRESHNESS_MS - 1 });
     assert.equal(getProofCapabilities(NOW).acceptingUploads, false);
@@ -174,8 +186,9 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   const proof = readFileSync(join(here, "../../routes/proof.tsx"), "utf8");
   const uploadFn = service.slice(service.indexOf("export async function uploadAndProcessProof"));
   assert.match(uploadFn.slice(0, 280), /assertProofUploadsAccepted\(\)/);
-  assert.match(api, /liveAcceptingUploads/);
+  assert.match(api, /liveGate/);
   assert.match(api, /proofAcceptingUploads/);
+  assert.match(api, /admitProofBudget/);
   assert.match(http, /proofRouteRequiresUploadAdmission/);
   assert.ok(http.indexOf("proofRouteRequiresUploadAdmission") < http.indexOf("request.json()"));
   assert.doesNotMatch(api, /request\.arrayBuffer\(\)/);

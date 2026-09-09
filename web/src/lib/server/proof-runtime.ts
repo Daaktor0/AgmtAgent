@@ -20,6 +20,7 @@ import { executeProofDeletion, executeProofPipeline, PROOF_PIPELINE_VERSION } fr
 import type { ProofSourceTransfer } from "./proof-http.ts";
 import type { ProofObjectStore } from "./proof-objects.ts";
 import { writeProofHealth } from "./proof-health.ts";
+import { refreshProofBudget } from "./proof-budget.ts";
 
 export type LiveProofRuntime = {
   objects: ProofObjectStore;
@@ -157,4 +158,5 @@ export async function refreshLocalOperatorHealth(now = Date.now()): Promise<void
     await writeProofHealth(bucket, "scanner", now, "proof-scan-receipt-v1");
   }
   await writeProofHealth(bucket, "purge", now, "proof-purge-v1");
+  await refreshProofBudget(bucket, now);
 }

@@ -1014,6 +1014,8 @@ curl.exe https://agmt-proof-purge.dexterinlab.workers.dev/
 
 Actual: pipeline/antivirus/health/capabilities **pass**; typecheck **exit 0**; PGlite 0001–0010 **pass**; `scanning→processing` **false**; purge Worker **200**. `PROOF_UPLOADS_ENABLED` unset.
 
+Change commit: `916cd5a1` (feat live transfer/pipeline/purge).
+
 Untracked preserved: `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs`.
 
 ### Commands this session (UI + local processing)

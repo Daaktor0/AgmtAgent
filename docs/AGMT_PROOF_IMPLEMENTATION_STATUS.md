@@ -1065,7 +1065,41 @@ npm run typecheck
 
 Actual: **19/19 pass**; typecheck **exit 0**; `scanning→processing` **false**. Uploads remain disabled. Cloudflare Containers **not** provisioned. Hostinger VPS **not** given documents.
 
-### Browser-side processing feasibility (synthetic prototype, this session)
+### Browser-only launch architecture (founder-approved)
+
+Founder approved browser-only Proof as the launch architecture on 2026-09-09. The controlling plan section 0 supersedes server-upload, R2 document storage, Cloudflare Containers, Hostinger scanning and two-hour Agmt content deletion for this release. Hostinger remains excluded. Containers remain unprovisioned. Spending freeze unchanged. Existing engine, ZIP safety, mapping, tracked-change export, JS validators and tests are retained.
+
+- **Status:** Implemented and Tested locally. Chromium Verified for `/`, `/proof`, `/proof/help` copy, file selection and no document POST. Open XML SDK and Word COM Tested on browser-generated outputs (regression oracles). Live `https://app.agmt.legal/proof` Verified only after this commit is deployed. Not a silent substitute for ClamAV.
+- **Must-not-change held:** zero LLM; `scanning` → `processing` still false; `PROOF_UPLOADS_ENABLED` unset; Hostinger compute false; Containers not provisioned; no document bytes sent to Agmt servers.
+
+User-facing promises now in force:
+
+- Documents are processed on the user’s device and are not sent to Agmt.
+- No Agmt virus-scan claim. Local model is ZIP/XML/active-content/EICAR; ClamAV cannot run in the browser and is not recorded as clean.
+- Independent JavaScript output validation runs on every document.
+- Open XML SDK and Word remain release/regression tests, not per-document production checks.
+- Refreshing or closing the page loses the current run.
+- No promise of secure erasure from browser memory or deletion of downloaded copies.
+- Measured cap: **1 MiB** source / 16 MiB expanded / 30 s. 25 MiB is not claimed.
+
+Production path: `web/src/lib/proof-local/*` worker + `processProofLocal` (admit → analyze/export → JS `validateProofExport`). Node shims live in `web/src/lib/platform/*` and are applied only to the client/worker graph. Envelope `crypto.ts` is redirected to hashing-only `envelope-forbidden.ts`. Cloudflare build emits `.output/public/assets/proof.worker-*.js` (391 kB). Bundle inspection: no `createCipheriv`, `ClamAV`, `hstgr.cloud` or `runtime-env.server`.
+
+Checks that cannot run in the browser (not removed): Open XML SDK, Microsoft Word COM, ClamAV. Local admission is never a clean antivirus receipt.
+
+Browsers: Chromium Tested/Verified. Firefox executable not installed this session. Safari and physical iOS not run — labelled untested.
+
+```
+cd web
+node --experimental-strip-types --test src/lib/platform/platform.test.ts src/lib/proof-local/admit.test.ts src/lib/proof-local/pipeline.test.ts
+npm run typecheck
+npm run proof:local-release
+npm run build:cloudflare
+node --test scripts/proof-local-build.test.mjs
+```
+
+Actual: platform/admit/pipeline pass; typecheck exit 0; Chromium desktop+mobile harness pass; SDK ok on five browser outputs; Word COM PASS on body/table/prior_review/party_name; worker present in client build. Evidence: `web/src/lib/proof-local/evidence.json`.
+
+### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.
 

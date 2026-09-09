@@ -125,6 +125,7 @@ export function selectedFileError(file: { name: string; size: number }): string 
 export function interpretFileSelection(
   incoming: readonly { name: string; size: number }[],
   current: { name: string; size: number } | null,
+  maxBytes: number = PROOF_MAX_SOURCE_BYTES,
 ): { file: { name: string; size: number } | null; error: ProofSelectionError | null; currentUnchanged: boolean } {
   if (incoming.length > 1) {
     return { file: current, error: "multiple_files", currentUnchanged: true };
@@ -134,7 +135,7 @@ export function interpretFileSelection(
   if (!/\.docx$/i.test(next.name) || next.size <= 0) {
     return { file: null, error: "wrong_extension", currentUnchanged: false };
   }
-  if (next.size > PROOF_MAX_SOURCE_BYTES) {
+  if (next.size > maxBytes) {
     return { file: null, error: "too_large", currentUnchanged: false };
   }
   return { file: next, error: null, currentUnchanged: false };

@@ -183,7 +183,7 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   const http = readFileSync(join(here, "../server/proof-http.ts"), "utf8");
   const runs = readFileSync(join(here, "../server/product-runs.ts"), "utf8");
   const home = readFileSync(join(here, "../../routes/index.tsx"), "utf8");
-  const proof = readFileSync(join(here, "../../routes/proof.tsx"), "utf8");
+  const proof = readFileSync(join(here, "../../routes/proof.index.tsx"), "utf8");
   const uploadFn = service.slice(service.indexOf("export async function uploadAndProcessProof"));
   assert.match(uploadFn.slice(0, 280), /assertProofUploadsAccepted\(\)/);
   assert.match(api, /liveGate/);
@@ -193,10 +193,11 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   assert.ok(http.indexOf("proofRouteRequiresUploadAdmission") < http.indexOf("request.json()"));
   assert.doesNotMatch(api, /request\.arrayBuffer\(\)/);
   assert.doesNotMatch(http, /request\.arrayBuffer\(\)/);
-  assert.match(home, /proofAvailabilityCopy/);
-  assert.match(proof, /proofAvailabilityCopy/);
-  assert.match(home, /PROOF_CAPABILITIES_FALLBACK/);
-  assert.match(proof, /capabilities\.acceptingUploads/);
+  assert.match(home, /PROOF_LOCAL_DEVICE/);
+  assert.match(home, /do not receive the file/);
+  assert.match(proof, /ProofLocalExperience/);
+  assert.doesNotMatch(home, /proofAvailabilityCopy/);
+  assert.doesNotMatch(proof, /proofAvailabilityCopy/);
   assert.match(runs, /scanning: \["queued", "rejected", "failed", "deleting"\]/);
   assert.doesNotMatch(runs, /scanning: \[[^\]]*processing/);
 });

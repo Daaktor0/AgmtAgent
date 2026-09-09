@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Shell } from "@/components/agmt/shell";
 import { ProofRunView } from "@/components/agmt/proof-run";
 import { PROOF_UI_FIXTURES } from "@/lib/products/api-contracts";
 import type { ProofLocalContext } from "@/lib/products/proof-state";
@@ -35,16 +34,13 @@ function localFor(state: string): ProofLocalContext {
 function ProofDevFixtures() {
   if (!import.meta.env.DEV) {
     return (
-      <Shell>
         <section className="mx-auto max-w-[720px] space-y-4">
           <h1 className="font-display text-3xl">This page is only available in local development.</h1>
           <p className="text-sm"><Link to="/proof" className="underline underline-offset-4">Back to Proof</Link></p>
         </section>
-      </Shell>
     );
   }
   return (
-    <Shell>
       <div className="mx-auto max-w-[960px] space-y-10">
         <header className="space-y-3 border-b border-rule pb-6">
           <p className="text-sm text-stone">Development only</p>
@@ -66,6 +62,5 @@ function ProofDevFixtures() {
           </section>
         ))}
       </div>
-    </Shell>
   );
 }

@@ -1,5 +1,7 @@
 import { useId, useRef } from "react";
 import { interpretFileSelection } from "@/lib/products/proof-state";
+import { PROOF_LOCAL_MAX_SOURCE_BYTES, PROOF_LOCAL_SIZE_LABEL } from "@/lib/proof-local/limits";
+import { PROOF_LOCAL_CHOOSE, PROOF_LOCAL_DEVICE, PROOF_LOCAL_TOO_LARGE } from "@/lib/proof-local/copy";
 
 export function ProofFilePicker({
   selected,
@@ -7,19 +9,21 @@ export function ProofFilePicker({
   disabled,
   onSelect,
   onError,
+  maxBytes = PROOF_LOCAL_MAX_SOURCE_BYTES,
 }: {
   selected: { name: string; size: number } | null;
   error: string | null;
   disabled?: boolean;
   onSelect: (file: File | null) => void;
   onError: (message: string | null) => void;
+  maxBytes?: number;
 }) {
   const inputId = useId();
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function apply(list: File[]) {
-    const interpreted = interpretFileSelection(list, selected);
+    const interpreted = interpretFileSelection(list, selected, maxBytes);
     if (interpreted.error === "multiple_files") {
       onError("Choose one document at a time.");
       return;
@@ -31,7 +35,7 @@ export function ProofFilePicker({
       return;
     }
     if (interpreted.error === "too_large") {
-      onError("This file exceeds the 25 MiB limit.");
+      onError(PROOF_LOCAL_TOO_LARGE);
       onSelect(null);
       if (inputRef.current) inputRef.current.value = "";
       return;
@@ -42,7 +46,7 @@ export function ProofFilePicker({
 
   return (
     <div className="space-y-3">
-      <label htmlFor={inputId} className="block text-sm font-medium">Choose Word document</label>
+      <label htmlFor={inputId} className="block text-sm font-medium">{PROOF_LOCAL_CHOOSE}</label>
       <input
         ref={inputRef}
         id={inputId}
@@ -72,7 +76,7 @@ export function ProofFilePicker({
       >
         Drop one Word document here, or use the file control above. The native picker remains the keyboard path.
       </div>
-      <p className="text-sm text-stone">One native, unencrypted English .docx, up to 25 MiB.</p>
+      <p className="text-sm text-stone">One native, unencrypted English .docx, up to {PROOF_LOCAL_SIZE_LABEL}. {PROOF_LOCAL_DEVICE}</p>
       {selected ? <p className="break-words text-sm" aria-live="polite">{selected.name} · {(selected.size / 1024).toFixed(1)} KiB selected on your device</p> : null}
       {error ? <p id={errorId} role="alert" className="text-sm text-oxblood">{error}</p> : null}
     </div>

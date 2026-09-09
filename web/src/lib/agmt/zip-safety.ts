@@ -16,6 +16,8 @@ export const ZIP_LIMITS = {
   MAX_ENTRY_COMMENT_BYTES: 1024,
 } as const;
 
+export type ZipLimitSet = { [K in keyof typeof ZIP_LIMITS]: number };
+
 const END_OF_CENTRAL_DIRECTORY = 0x06054b50;
 const CENTRAL_DIRECTORY_ENTRY = 0x02014b50;
 const LOCAL_FILE_HEADER = 0x04034b50;
@@ -75,10 +77,10 @@ function decodeName(raw: Uint8Array, flags: number): string {
   }
 }
 
-function validateName(name: string): void {
+function validateName(name: string, limits: ZipLimitSet): void {
   if (
     name.length === 0 ||
-    name.length > ZIP_LIMITS.MAX_ENTRY_NAME_BYTES ||
+    name.length > limits.MAX_ENTRY_NAME_BYTES ||
     /[\u0000-\u001f\u007f]/.test(name) ||
     name.includes("\\") ||
     name.startsWith("/") ||
@@ -181,7 +183,7 @@ export type ZipCentralDirectory = {
   centralDirectorySize: number;
 };
 
-export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirectory {
+export function inspectZipCentralDirectory(bytes: Uint8Array, limits: ZipLimitSet = ZIP_LIMITS): ZipCentralDirectory {
   if (bytes.byteLength < 22) {
     reject("zip_central_directory_invalid", "ZIP archive is too small");
   }
@@ -205,10 +207,10 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
   ) {
     reject("zip64_unsupported", "ZIP64 archives are not supported by the bounded parser");
   }
-  if (entryCount > ZIP_LIMITS.MAX_ENTRIES) {
+  if (entryCount > limits.MAX_ENTRIES) {
     reject("package_too_complex", "ZIP entry count exceeds the bounded parser limit");
   }
-  if (centralDirectorySize > ZIP_LIMITS.MAX_CENTRAL_DIRECTORY_BYTES) {
+  if (centralDirectorySize > limits.MAX_CENTRAL_DIRECTORY_BYTES) {
     reject("package_too_complex", "ZIP central directory exceeds the bounded parser limit");
   }
   if (
@@ -255,8 +257,8 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
     }
     if (
       nameLength === 0 ||
-      nameLength > ZIP_LIMITS.MAX_ENTRY_NAME_BYTES ||
-      commentLength > ZIP_LIMITS.MAX_ENTRY_COMMENT_BYTES ||
+      nameLength > limits.MAX_ENTRY_NAME_BYTES ||
+      commentLength > limits.MAX_ENTRY_COMMENT_BYTES ||
       recordEnd > endOfCentralDirectoryOffset
     ) {
       reject("zip_central_directory_invalid", "ZIP entry metadata exceeds the bounded parser limit");
@@ -273,9 +275,9 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
 
     const rawName = bytes.subarray(cursor + 46, cursor + 46 + nameLength);
     const name = decodeName(rawName, flags);
-    validateName(name);
+    validateName(name, limits);
     const depth = name.split("/").filter((segment) => segment.length > 0).length;
-    if (depth > ZIP_LIMITS.MAX_PATH_DEPTH) {
+    if (depth > limits.MAX_PATH_DEPTH) {
       reject("package_too_complex", "ZIP entry path exceeds the bounded depth limit");
     }
     if (seenNames.has(name)) {
@@ -293,13 +295,13 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
       reject("unsupported_package_link", "ZIP symbolic links are not supported");
     }
 
-    if (uncompressedSize > ZIP_LIMITS.MAX_ENTRY_BYTES) {
+    if (uncompressedSize > limits.MAX_ENTRY_BYTES) {
       reject("package_entry_too_large", "ZIP entry exceeds the bounded extraction limit");
     }
     expandedBytes += uncompressedSize;
     compressedBytes += compressedSize;
     if (
-      expandedBytes > ZIP_LIMITS.MAX_EXPANDED_BYTES ||
+      expandedBytes > limits.MAX_EXPANDED_BYTES ||
       compressedBytes > bytes.byteLength ||
       !Number.isSafeInteger(expandedBytes) ||
       !Number.isSafeInteger(compressedBytes)
@@ -311,7 +313,7 @@ export function inspectZipCentralDirectory(bytes: Uint8Array): ZipCentralDirecto
     }
     if (
       compressedSize > 0 &&
-      uncompressedSize / compressedSize > ZIP_LIMITS.MAX_COMPRESSION_RATIO
+      uncompressedSize / compressedSize > limits.MAX_COMPRESSION_RATIO
     ) {
       reject("suspicious_compression_ratio", "ZIP entry compression ratio is too high");
     }
@@ -371,6 +373,7 @@ export function verifyZipInflation(
   bytes: Uint8Array,
   directory: ZipCentralDirectory,
   onEntry?: (name: string, inflated: Uint8Array) => void,
+  limits: ZipLimitSet = ZIP_LIMITS,
 ): { actualExpandedBytes: number } {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let actualExpandedBytes = 0;
@@ -398,7 +401,7 @@ export function verifyZipInflation(
       inflated = compressed;
     } else {
       try {
-        inflated = inflateRawSync(Buffer.from(compressed), { maxOutputLength: ZIP_LIMITS.MAX_ENTRY_BYTES });
+        inflated = inflateRawSync(Buffer.from(compressed), { maxOutputLength: limits.MAX_ENTRY_BYTES });
       } catch {
         reject("zip_inflate_failed", "ZIP entry could not be inflated within the bounded limit");
       }
@@ -412,7 +415,7 @@ export function verifyZipInflation(
     }
 
     actualExpandedBytes += inflated.byteLength;
-    if (actualExpandedBytes > ZIP_LIMITS.MAX_EXPANDED_BYTES) {
+    if (actualExpandedBytes > limits.MAX_EXPANDED_BYTES) {
       reject("package_expanded_too_large", "ZIP package exceeds the bounded expansion limit");
     }
     onEntry?.(entry.name, inflated);

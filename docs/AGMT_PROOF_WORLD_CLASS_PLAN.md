@@ -1,22 +1,38 @@
 # Agmt Proof: world-class product and implementation plan
 
-**Status: Proposed — controlling plan for the Proof World Class initiative.**
+**Status: Controlling plan.** Browser-only processing supersedes the server-upload architecture for this release (founder approval 2026-09-09).
 **Audit date:** 6 September 2026 (UTC); final review 7 September 2026 (UTC). **Remote baseline:** `15ad1e8c04533d5152107d614999d9fdc2dd5889`; tree `532d8d7da8b31cbb32b73f3ccc405d1934a9dcb4`.
-**Planning branch:** `proof-world-class-plan`. No production implementation, migration, deployment, account creation or document upload was performed for this plan.
+**Planning branch:** `proof-world-class-plan`. Implementation proceeds on `proof-world-class-implementation`.
 
-This document controls sequencing, architecture, acceptance and release for this initiative. The founder's ten fixed requirements remain binding. Where this plan expressly supersedes an older implementation choice, follow this plan; preserve unrelated security requirements and historical evidence. Proposed work is not a claim about today's product. Start implementation at PWC-00 and maintain `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md` under a new PWC ledger heading. Do not restart old T00–T16 or historical hardening sequences blindly.
+This document controls sequencing, architecture, acceptance and release for this initiative. The founder's ten fixed requirements remain binding except where this release supersession expressly replaces a storage/processing promise. Where this plan expressly supersedes an older implementation choice, follow this plan; preserve unrelated security requirements and historical evidence. Start implementation at PWC-00 and maintain `docs/AGMT_PROOF_IMPLEMENTATION_STATUS.md` under a new PWC ledger heading. Do not restart old T00–T16 or historical hardening sequences blindly.
 
 Evidence vocabulary: **Existing** = found in source; **Implemented** = executable code exists; **Tested** = named test actually ran; **Verified** = stated behaviour directly observed in the named environment; **Deployed** = supported by deployment or live-surface evidence; **Proposed** = this plan; **Blocked** = a specified unmet prerequisite prevents completion; **Superseded** = expressly replaced for new temporary Proof runs. These labels are independent: an implemented function can still be blocked from release.
+
+## 0. Release architecture supersession (browser-only Proof)
+
+Founder approval 2026-09-09: this release processes documents **on the user’s device**. The server-upload, R2 quarantine, Cloudflare Queue, isolated Container, ClamAV-in-compute and two-hour Agmt-content-deletion architecture in sections 7, 17–20 and 23 is **Superseded** for launch. Existing engine, mapping, export, ZIP-safety, independent JS validation and test work is retained. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. The spending freeze is unchanged. Server upload stays fail-closed (`PROOF_UPLOADS_ENABLED` unset).
+
+Normative promises for this release:
+
+1. Documents are processed on the user’s device and are not sent to Agmt.
+2. Agmt does not claim a virus scan. Local admission is ZIP/XML/active-content/EICAR only and is never recorded as ClamAV clean.
+3. Independent JavaScript package and reconstruction validation runs on every document before download.
+4. Open XML SDK and actual Word checks remain release/regression tests, not claimed per-document production checks.
+5. Refreshing or closing the page loses the current run; the user must choose the file again.
+6. Do not promise secure erasure from browser memory or deletion of users’ downloaded copies.
+7. Published file cap is the measured browser limit (1 MiB source, 16 MiB expanded). Do not claim 25 MiB.
+
+PWC-12 remains a CI/lab oracle. PWC-22/23 compute and ClamAV are not launch gates for this architecture. PWC-26/27/36 two-hour Agmt content deletion is vacuous while Agmt never stores document bytes. Verified-account access to `/proof` remains. Zero LLM, owner isolation of accounts, and original-artefact preservation remain binding.
 
 ## 1. Executive conclusion
 
 Build Proof as a conservative document-integrity product that returns the lawyer's own Word document with trustworthy markup. Its advantage should be that a lawyer can understand every finding, reject every correction, retain the negotiated document's structure and finish the last pass with less effort. Do not compete on a headline count of checks or pretend deterministic rules understand commercial intent.
 
-Retain React/TanStack Start, Tailwind/Radix, Better Auth, Supabase metadata/RLS, the exact-source-map approach and the surgical OOXML exporter. Replace the synchronous upload orchestration, the structural-scan-as-gate shortcut, the incomplete temporary-object lifecycle and the disconnected run UI. Keep `app.agmt.legal` on Cloudflare Workers; use private R2, Cloudflare Queues and an isolated Cloudflare Container for the resource-intensive scanner/Node engine/.NET validator. Do not move the public website or rewrite the web framework. Choose a bounded Cloudflare architecture, not the historical Vercel/S3/Lambda plan.
+Retain React/TanStack Start, Tailwind/Radix, Better Auth, Supabase metadata/RLS, the exact-source-map approach and the surgical OOXML exporter. Keep `app.agmt.legal` on Cloudflare Workers for the application shell, authentication and help. **This release runs the deterministic engine in the browser**; it does not upload document bytes to Agmt, R2, Queues or a Container. Do not move the public website or rewrite the web framework. Do not provision Cloudflare Containers or send documents to Hostinger.
 
 The first release is a rigorously gated, narrow free beta. A broader professional release adds reliable definitions, numbering, references, dictionary spelling and safely scoped consistency checks. It is not reasonable to call the present four-typo/six-rule implementation the best proofreader. Zero LLM is compatible with excellent mechanical and structural checking; it is incompatible with reliable general semantic proofreading, open-ended missing-word recovery, legal interpretation and subtle meaning contradictions. Those remain explicitly outside current coverage. An optional future language-model product would require separate consent and a new privacy/accuracy contract; it is not part of these implementation tasks.
 
-Three priorities precede more rules: (1) a valid upload-to-download lifecycle, (2) independently validated Word preservation and (3) deletion that survives failed writes, cancellation and database outage. The two-hour requirement remains a hard release criterion. An absolute physical-erasure guarantee through every provider outage is impossible; section 19 defines the precise conflict and operational response without adding an undisclosed grace period.
+Three priorities precede more rules for this release: (1) a valid on-device choose-to-download lifecycle, (2) independently validated Word preservation in the JavaScript validator on every run, and (3) honest privacy copy — Agmt never receives the file, so two-hour Agmt content deletion is not a user-facing promise. SDK and Word remain laboratory oracles.
 
 ## 2. Definition of a world-class Proof product
 
@@ -136,15 +152,17 @@ Non-goals: legal advice, enforceability review, risk scoring, legal citation val
 
 ## 7. Complete user journey
 
-1. Visitor reaches `/proof`; sees the outcome, free-launch status, supported file summary and sample synthetic original/marked files. No upload on selection.
-2. Sign in or create/verify account through current auth. Preserve a validated relative return path. Before sign-in, a file may be selected locally; after a full redirect request reselection, never store it in IndexedDB or localStorage.
-3. Select one DOCX, see local filename/size, choose **Agreement** or **General document**, and **English (UK)** / **English (US)**. Default Agreement + UK for initial audience; no jurisdiction inference. The profile only enables rules whose capabilities actually pass.
-4. On **Proofread document**, validate again, create idempotent run with DB time and original deadline, then stream bytes to its private upload endpoint. Browser byte progress is permitted if measured. Closing the tab during transfer can interrupt upload; explain that only queued work continues.
-5. Server confirms completed object/hash and dispatches scan. Show actual states: checking file, queued, proofreading, preparing Word document, validating document. No invented percentage or completion time.
-6. Success exposes one prominent download, correction/comment counts, checked/skipped categories, expiry time and delete. Zero findings means only “No issues found by the completed checks.” Limited coverage is prominent even with zero findings.
-7. Lawyer downloads, opens Word, uses All Markup and accepts/rejects Agmt changes. Existing comments/revisions remain. The web interface is not a second editor.
-8. Manual deletion immediately fences future processing/downloads; show pending until absence checks pass. Automatic expiry does the same at access cutoff. Returning after refresh loads run status by opaque ID, without storing content in the browser.
-9. Optional metadata-only feedback does not affect the download or retention clock. To check another file, explicitly select it and start a new run; retrying the same run never extends its deadline.
+**This release (browser-only):**
+
+1. Visitor reaches `/proof`; sees the outcome, free-launch status, that processing happens on this device, and the supported-file summary. Choosing a file does not send it anywhere.
+2. Sign in or create/verify account through current auth. Preserve a validated relative return path. A file may be selected before sign-in; after a redirect the user reselects it. Never store the document in IndexedDB, localStorage or sessionStorage.
+3. Select one DOCX with **Choose a Word document**, see local filename/size, choose **Agreement** or **General document**, and **English (UK)** / **English (US)**. Default Agreement + UK. The profile only enables rules whose capabilities actually pass.
+4. On **Proofread document**, process on this device off the UI thread. Show actual stages: checking the file, checking the document, preparing the Word document, checking the finished document. Provide cancel. No upload, server queue or virus-scan copy.
+5. Independent JavaScript validation runs before the download is offered. Success exposes one prominent download, correction/comment counts and checked/skipped categories. Zero findings means only “No issues found by the completed checks.” Limited coverage is prominent even with zero findings.
+6. Lawyer downloads, opens Word, uses All Markup and accepts/rejects Agmt changes. Existing comments/revisions remain. The web interface is not a second editor.
+7. Refreshing or closing the page loses the current run. The user must choose the file again. Proof does not resume from Agmt. Do not promise secure erasure of browser memory or deletion of downloaded copies.
+
+The historical upload-to-R2-to-Container journey in the remainder of this document is retained as evidence of the superseded design. Do not implement it for this release.
 
 ## 8. Information architecture and screen specifications
 
@@ -168,20 +186,19 @@ These are normative copy strings, with pluralisation and localised timestamps. `
 
 | State | Heading / main text | Action and recovery |
 |---|---|---|
-| First visit | “Proofread your Word document.” / “Get safe corrections as tracked changes and points to check as Word comments.” | “Choose Word document”; “Free at launch” |
-| Privacy before upload | “Your file is uploaded only when you start Proof. Files and extracted content are deleted from Agmt-controlled content storage within two hours of upload. You can delete them earlier.” | Details: “Downloads close five minutes before deletion is due. We retain limited account and operational records, not document content.” Use only after release gates |
+| First visit | “Proofread your Word document.” / “Get safe corrections as tracked changes and points to check as Word comments.” | “Choose a Word document”; “Free at launch” |
+| Privacy | “Your document is processed on this device. Agmt’s servers do not receive the file. Agmt does not virus-scan the file. Refreshing or closing this page loses the current run; choose the file again to restart. Proof does not promise secure erasure from browser memory, and a copy you download stays on your device.” | “Processing happens on this device.” |
 | Auth loading | “Checking your sign-in…” | No flicker to anonymous; after 15 s show bounded retry |
-| Signed out | “Sign in to upload your document.” | “Sign in”; file stays local |
+| Signed out | “Sign in to use Proof.” | “Sign in”; file stays local |
 | Unverified | “Verify your email to use Proof.” | “Resend verification email”; server rate limit; “I’ve verified my email” refreshes session |
 | Verification sent | “Check your inbox for Agmt’s verification email.” | “You may need to select your file again when you return.” |
 | Auth unavailable | “We couldn’t complete sign-in. Please try again shortly.” | “Try again”; no infinite disabled button |
-| Selected | “Ready to upload” / local filename and size | “Proofread document”; “Choose a different file” |
+| Selected | “Ready to proofread” / local filename and size | “Proofread document”; “Choose a different file” |
 | Wrong extension/empty | “Choose a Word (.docx) file containing document text.” | “Choose another file” |
-| Too large | “This file exceeds the 25 MiB limit.” | “Choose a smaller Word document”; no promise that splitting preserves reference scope |
+| Too large | “This file exceeds the 1 MiB limit.” | “Choose a smaller Word document”; no promise that splitting preserves reference scope |
 | Multiple files | “Choose one document at a time.” | Keep none from multi-drop; existing selection unaffected |
-| Uploading | “Uploading your document…” / measured `{sent} of {total}` | “Cancel upload”; “Keep this page open until upload finishes.” |
-| Scanning | “Checking the file before proofreading…” | “Delete files”; never “virus-free” |
-| Queued | “Your document is waiting to be checked.” | “You can leave this page and return before {time}.” |
+| Uploading / queued | Not used in this release | Browser-only processing has no upload or server queue |
+| Checking file | “Checking the file…” | “Cancel”; never “virus-free” |
 | Processing | “Checking your document…” | Show stage label only; not a list of technical jobs |
 | Exporting | “Preparing your Word document…” | No download yet |
 | Validating | “Checking the finished document…” | Substage of exporting; output remains unpublished |
@@ -340,8 +357,8 @@ Every output passes these gates before publication, including zero-finding outpu
 1. **Package:** bounded re-open and actual inflation counts; CRC, content types, relationship targets, namespace profile and all original entry presence. No unplanned external relationship, part or active content.
 2. **Markup:** independently enumerate added revision/comment IDs, authors, ranges/references and planned changes. Require exact count/record/range agreement. Validate pre-existing IDs and comments, including unknown metadata part hashes. Guard both unplanned additions and missing records.
 3. **Reconstruction:** remove only newly added comments and reject only newly added revisions; compare original structural semantics including rPr/pPr/sectPr/numbering/fields/bookmarks. Accept only new revisions and compare with an independent application of the edit plan. For an input already containing Agmt edits, preserve those IDs exactly. No text-only acceptance.
-4. **OOXML SDK:** run pinned Microsoft Open XML SDK in the isolated .NET process on source and output, target declared Office version. Phase A requires zero supported-schema validation errors in both; unsupported-extension cases stay refused until explicit compatibility fixtures establish a narrow allowlist. Never suppress all validator errors. SDK validation is schema evidence, not Word rendering evidence.
-5. **Word release validation:** actual Word opening, All Markup, accept/reject/save/reopen and layout comparison in section 22. Run for every supported capability and every exporter/parser change. SDK success cannot replace this gate.
+4. **OOXML SDK (release/regression only):** run pinned Microsoft Open XML SDK in CI or on a lab host against browser-generated outputs. It cannot run in the browser and is **not** a per-document production check in this release. Never suppress all validator errors. SDK validation is schema evidence, not Word rendering evidence.
+5. **Word release validation (release/regression only):** actual Word opening, All Markup, accept/reject/save/reopen on browser-generated outputs. Not a claimed per-document production check. SDK success cannot replace this gate.
 
 Separate `validation/` from exporter helpers. The independent checker must not call `rewriteParagraph` or trust `receipt.modifiedParts` as permission to change anything: derive allowed parts from source capability + planned operations. Mutate output fixtures to prove the validator catches shifted anchors, changed old comments, added relationships, formatting drift and changed unrelated parts. Fuzz source and output parsers under bounded runtime. Validation diagnostics are content-bearing by default; map them to closed codes in production, and keep detailed synthetic-only reports in CI.
 
@@ -394,7 +411,9 @@ Compatibility: old `/api/proof/upload` must be disabled after new UI rollout and
 
 ## 19. Storage, processing and deletion architecture
 
-### Chosen topology and responsibility
+**Superseded for this release.** Documents are not stored or processed on Agmt infrastructure. The topology below is the historical server-upload design. Do not provision it. Hostinger remains excluded. Cloudflare Containers remain unprovisioned.
+
+### Chosen topology and responsibility (historical; not this release)
 
 ```mermaid
 flowchart TD
@@ -504,9 +523,8 @@ Measure upload, queue wait, scanner cold start/load, scan, parse/index, rules, e
 
 | Tier | Target after completed upload | Resource ceiling / failure |
 |---|---|---|
-| Small ≤1 MiB/10k words | Beta P95 60 s; professional P95 30 s | Max 300 s attempt; explicit timeout |
-| Typical ≤5 MiB/50k words | Beta P95 120 s; professional P95 90 s | Include cold starts, scanner and validator |
-| Large ≤25 MiB/1m code points | P95 240 s, P99 300 s in staging | No claim that size alone predicts complexity; refuse expanded/depth/rule limits explicitly |
+| On-device ≤1 MiB (this release) | Chromium measurement: ~1.3 s / ~102 MiB extra heap at 1.02 MiB | 30 s timeout; 16 MiB expanded ZIP; refuse above measured cap |
+| Typical ≤5 MiB / large ≤25 MiB | **Not claimed** for this release | Unproven in-browser; do not advertise |
 | Status poll | P95 ≤500 ms excluding offline browser | 2 s visible polling, backoff to 10 s, paused when hidden; one refetch on focus |
 | Metadata create/delete admission | P95 ≤1 s in healthy staging | No object operation inside long DB transaction |
 | Manual delete | Access closure ≤2 s, absence verified P95 ≤30 s/P99 ≤60 s | Delayed deletion is explicit and alarmed |
@@ -1468,10 +1486,9 @@ Every box needs a linked PWC ledger receipt at the release SHA. An unchecked man
 - [ ] PWC-00/01: baseline reconciled, old synchronous upload closed, home/Proof capability truth aligned.
 - [ ] PWC-02/16/20: strict DTOs, DB-generated original clock, verified-account/owner/RLS boundaries and no client-controlled tenancy.
 - [ ] PWC-03–15: frozen independent corpus, per-rule metrics, exact evidence, overlap/cap control, genuine revisions/comments, independent validation and actual Word receipts.
-- [ ] PWC-17–19: private buckets, discoverable expiry prefixes, bounded uploads, reserved immutable writes, checksum binding and cancellation fencing.
-- [ ] PWC-22–25: current complete AV scan, isolated resource-bounded compute, SDK gate, exclusive leases, idempotent queue and atomic ready publication.
-- [ ] PWC-26/27/36: manual deletion, independent purge, all multipart/orphan/process classes, DB/app outage and three real two-hour drills pass.
-- [ ] PWC-28–33: sign-in/verification, mobile/keyboard/screen reader, upload progress, all result states, retry, refresh, download and honest deletion UX verified.
+- [ ] PWC-17–19 / 22–27: **Superseded for this release** — no document bytes on Agmt, no Container, no ClamAV claim, no two-hour Agmt content deletion promise.
+- [ ] Browser-only gates: off-thread processing, cancellation, measured 1 MiB cap, JS validation on every document, network/storage isolation in the processing worker, SDK/Word as regression oracles on browser-generated outputs.
+- [ ] PWC-28–33 as applied to local processing: sign-in/verification, choose-file, stages, results, cancel, download, honest “refresh loses the run” UX. No upload progress or Agmt deletion UX.
 - [ ] PWC-21/34: no content in logs/DB/queue/caches/feedback, rate/cost limits, health alarms, kill switch, exact-build deployment and rollback exercised.
 - [ ] Section 23: actual cold/warm capacity and operating cost within approved budget; purge retains sufficient headroom at 2× peak.
 - [ ] Dependency BOM: exact versions, licences/notices, advisory review and image/signature freshness evidence recorded; no unapproved Evaluate dependency enabled.
@@ -1487,7 +1504,7 @@ These are bounded decisions, not competing architectures. Continue independent i
 
 | Rank / ID | Recommendation | Evidence/input needed | Blocks |
 |---|---|---|---|
-| 1 / D-01 | Approve a staged Cloudflare compute/purge pilot with $50/month initial operating ceiling; no spending in this task | Founder budget approval after PWC-17/22 concrete configs, instance/RSS/cold-start estimate; verify actual service availability/account quotas | Provisioning and live validation, not local engine/UI work |
+| 1 / D-01 | **Settled:** no additional spending for the first four months; no Containers; no Hostinger documents; browser-only processing is the launch architecture | Founder freeze 2026-09-09 plus browser-only approval | Do not provision overage-capable compute |
 | 2 / D-02 | Use TLS + private R2 managed encryption for new temporary runs; preserve historical envelope keys | Founder confirms no launch customer requires app-managed/customer-managed key separation. If needed, pause affected launch and specify dedicated encryption without legacy fallbacks | Confidential beta customer eligibility; current source already has envelope encryption, so change is explicit |
 | 3 / D-03 | Do not claim India-only residency. Launch only for users whose document-use policies permit the chosen disclosed processing/storage locations | Founder defines residency/procurement commitments; collect provider configuration/contract evidence. Mumbai database alone is insufficient | Users requiring strict India-only processing; no assumed legal compliance conclusion |
 | 4 / D-04 | Name a Microsoft Word Windows reviewer and Mac reviewer; use synthetic cases and exact receipt protocol | Actual access to Word builds and reviewer availability | Word fidelity verification and capability release |

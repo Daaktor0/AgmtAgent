@@ -10,7 +10,7 @@ Evidence vocabulary follows the plan: **Existing**, **Implemented**, **Tested**,
 
 | Item | Value |
 |---|---|
-| Date (UTC) | 2026-09-08 |
+| Date (UTC) | 2026-09-09 |
 | Environment | Windows PowerShell; Node v24.11.1; npm 11.7.0 |
 | Workspace | `D:\AI Agent\agreement-agent` (normal checkout, not a linked worktree) |
 | Implementation branch | `proof-world-class-implementation` |
@@ -749,8 +749,8 @@ Actual: **12/12 pass**. Live R2 put/cancel/orphan drill: **not run**.
 ### PWC-15 — Review and tighten six beta rules
 
 - **Baseline commit:** `db53203ae063005417d19615223a9199a7b35b8c`.
-- **Change commit:** `85c88ba90ac510f56b80969aa3d99a59fa63d6bc`.
-- **Files changed:** `web/src/lib/agmt/proof/launch-checks.ts`, `web/src/lib/agmt/proof/launch.ts`, `web/src/lib/agmt/proof/launch.test.ts`, `web/src/lib/agmt/proof/rule-runtime.ts`, `web/src/lib/agmt/corpus/pwc/beta-rule-cases.ts`, `web/src/lib/agmt/corpus/pwc/beta-rule-cases.test.ts`.
+- **Change commit:** `b54fefbb81da225e09f0392c6a306763c0eef5eb` (rules `85c88ba`; denominators this session).
+- **Files changed:** `web/src/lib/agmt/proof/launch-checks.ts`, `web/src/lib/agmt/proof/launch.ts`, `web/src/lib/agmt/proof/launch.test.ts`, `web/src/lib/agmt/proof/rule-runtime.ts`, `web/src/lib/agmt/corpus/pwc/beta-rule-cases.ts`, `web/src/lib/agmt/corpus/pwc/beta-rule-cases.test.ts`, `web/src/lib/agmt/corpus/pwc/beta-rule-denominators.ts`, `web/src/lib/agmt/corpus/pwc/beta-rule-denominators.test.ts`.
 - **Status:** Implemented; Tested (4/4 beta-rule-cases + 5/5 launch + 4/4 rule-runtime + corpus including employment_typo_split). Word review of action/anchor categories remains PWC-35. Not Deployed.
 - **Must-not-change held:** four-typo allowlist unchanged; mixed-format `employment_typo_split` stays labelled `track_replace` expected / comment output-action; uploads remain disabled.
 
@@ -759,48 +759,58 @@ Actual: **12/12 pass**. Live R2 put/cancel/orphan drill: **not run**.
 - Duplicate-word deletion uses ordinary ASCII spaces only; tabs/alignment are skipped.
 - Explicit inherited `w:lang` that is not `en` / `en-*` skips language rules. Unspecified language still uses the Latin-prose heuristic (not treated as English by itself).
 - `analyzeProof` runs `executeLaunchRules` against the versioned registry. Incomplete scope is suppressed, not a clean zero.
-- Independently labelled cases: 1,000 stratified typo corrections, duplicate-word positives, 100/100 per comment rule, plus Recieve / that-that / tab traps.
+- Independently labelled cases: 1,000 generated typo IDs, duplicate-word positives, 100/100 generated IDs per comment rule, plus Recieve / that-that / tab traps.
 - Detection, anchoring and permitted output-action are asserted separately. Representative positives export.
+- Denominators (not independent evidence): 1,000 typo IDs collapse to **80 unique sentences**; duplicate-word **10/10**; comment positives **400 IDs / 9 families**; comment negatives **400 IDs / 7 families**. Packed groups are one execution, not N documents. Held-out labels exist (109 unique families → 64/22/23) but were **not evaluated independently**; engine tests still run every generated ID.
+- Mixed-format `employment_typo_split` stays labelled; not rewritten to pass.
+
+#### Failed run and later passing rerun
+
+| Run | Commit / scope | Result |
+|---|---|---|
+| Failed packed-case execution (~3373 s) | Pre-commit during PWC-15, before `85c88ba`. Packing `references.duplicate_number` and `definitions.duplicate` negatives into one document created false duplicates. | Fail |
+| Passing rerun | `85c88ba90ac510f56b80969aa3d99a59fa63d6bc`; negatives for those two rules packed at size 1; 4/4 beta-rule-cases + 5/5 launch + 8/8 corpus | Pass |
 
 #### Commands and results
 
 ```
 cd web
-node --experimental-strip-types --test src/lib/agmt/corpus/pwc/beta-rule-cases.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/corpus/pwc/corpus.test.ts
+node --experimental-strip-types --test src/lib/agmt/corpus/pwc/beta-rule-cases.test.ts src/lib/agmt/proof/launch.test.ts src/lib/agmt/corpus/pwc/corpus.test.ts src/lib/agmt/corpus/pwc/beta-rule-denominators.test.ts
 ```
 
-Actual: **4/4 beta-rule-cases + 5/5 launch + 8/8 corpus pass**. `ENGINE_BASELINE_MISSES` still contains `employment_typo_split::language.typo_allowlist::recieve`. Authored action remains `track_replace`; engine output-action remains comment because mixed rPr is not a safe tracked change.
+Actual: **4/4 beta-rule-cases + 5/5 launch + 8/8 corpus + 1/1 denominators pass**. `ENGINE_BASELINE_MISSES` still contains `employment_typo_split::language.typo_allowlist::recieve`. Authored action remains `track_replace`; engine output-action remains comment because mixed rPr is not a safe tracked change.
 
 ### PWC-12 — Add Open XML SDK validator harness
 
 - **Baseline commit:** `85c88ba90ac510f56b80969aa3d99a59fa63d6bc`.
-- **Change commit:** `7f0ce0ac002c5aeaec216834b3ed337219a7e330`.
+- **Change commit:** `49166523ce5056327fa50a06dff37b3d37cf72e4` (harness `7f0ce0a`; local execution this session).
 - **Files changed:** `infra/proof/validator/ProofValidator.csproj`, `infra/proof/validator/Program.cs`, `infra/proof/validator/validator.test.mjs`, `web/src/lib/agmt/validation/sdk-contract.ts`, `web/src/lib/agmt/validation/sdk-contract.test.ts`.
-- **Status:** Implemented; Tested (1/1 contract + 1/1 pin; live `dotnet run` **skipped** — `dotnet` is not on PATH). Schema validation is not Word fidelity. Not Deployed. Production Container remains outstanding (PWC-23).
+- **Status:** Implemented; Tested (1/1 contract + 2/2 harness executed on user-local .NET 8.0.425). Schema validation is not Word fidelity. Word **Blocked** (PWC-13). Not Deployed. Production Container remains outstanding (PWC-23).
 - **Must-not-change held:** exporter stays JavaScript; user revisions are not accepted; no bypass environment flag.
 
 #### Behaviour / licence
 
 - Pin **DocumentFormat.OpenXml 3.5.1**, MIT, target `Office2016`. Advisory review date 2026-09-08; no known exploitable critical/high at pin time.
-- CLI reads source/output bytes into memory, compares declared SHA-256, emits only `valid` / `code` / `errorCount` / hashes. Unsupported extensions (`doc`/`docm`/`dotx`/`pdf`) refuse. No text diagnostics.
-- Environment limitation: this Windows host has no `dotnet` executable. The harness is independently runnable when the SDK is present. That is not a production-infrastructure or Word blocker.
+- CLI reads source/output bytes into memory, compares declared SHA-256, emits only `valid` / `code` / `errorCount` / hashes. Unsupported extensions (`doc`/`docm`/`dotx`/`pdf`) refuse. Invalid external `javascript:`/`file:` relationships and `application/javascript` content types return `invalid_package`. No text diagnostics.
+- Environment: `dotnet` was not on PATH and not in Program Files. Official user-local SDK installed with `dotnet-install.ps1 -Channel 8.0 -InstallDir %USERPROFILE%\.dotnet -NoPath` → **8.0.425**. Docker was not available. No machine-wide or paid provisioning. Word remains a separate human gate.
 
 #### Commands and results
 
 ```
 cd web
 node --experimental-strip-types --test src/lib/agmt/validation/sdk-contract.test.ts
+$env:DOTNET_ROOT="$env:USERPROFILE\.dotnet"
 node --test ../infra/proof/validator/validator.test.mjs
 ```
 
-Actual: **1/1 contract pass**. Harness: **1 pass, 1 skipped** (`dotnet --version` not found). Word: **not run**.
+Actual: **1/1 contract pass**. Harness: **2/2 pass** (valid synthetic package, non-package, `.docm`, forbidden relationship, forbidden content type). Word: **not run**.
 
 ### PWC-19 — Replace whole-buffer upload with bounded stream API (local)
 
 - **Baseline commit:** `7f0ce0ac002c5aeaec216834b3ed337219a7e330`.
-- **Change commit:** `e5cd9d059719d32d1b787bdfc74204c1740a4bd1`.
-- **Files changed:** `web/src/lib/server/proof-upload.ts`, `web/src/lib/server/proof-upload.test.ts`, `web/src/lib/products/capabilities.ts`, `web/src/lib/products/capabilities.test.ts`, `web/src/routes/api/proof/$.ts`, `web/package.json`, `web/scripts/with-app-env.mjs`, `web/scripts/with-app-env.test.mjs`.
-- **Status:** Implemented (local contracts + route gating); Tested (4/4 upload + 7/7 capabilities). Live R2/stream staging **Blocked**. Browser measured upload later (PWC-31). Not Deployed.
+- **Change commit:** `7822bf13566ba58e3cd8d2a29c54d157d61b892a` (contracts `e5cd9d0`; handler wiring this session).
+- **Files changed:** `web/src/lib/server/proof-upload.ts`, `web/src/lib/server/proof-upload.test.ts`, `web/src/lib/server/proof-http.ts`, `web/src/lib/server/proof-http.test.ts`, `web/src/lib/products/capabilities.ts`, `web/src/lib/products/capabilities.test.ts`, `web/src/routes/api/proof/$.ts`, `web/package.json`, `web/scripts/with-app-env.mjs`, `web/scripts/with-app-env.test.mjs`.
+- **Status:** Implemented (local contracts + handler/catalog wiring); Tested (4/4 upload + handler create/source tests). Live R2/stream staging **Blocked**. Upload journey is **not complete**: the live route’s transfer broker is `null`, so source PUT returns `processing_unavailable` even if admission passed. Browser measured upload later (PWC-31). Not Deployed.
 - **Must-not-change held:** uploads remain disabled; legacy POST does not process; no second unfenced path; `scanning` → `processing` still false; deploy architecture unchanged.
 
 #### Behaviour
@@ -809,25 +819,81 @@ Actual: **1/1 contract pass**. Harness: **1 pass, 1 skipped** (`dotnet --version
 - Source PUT requires DOCX MIME and Content-Length; 8 MiB sequential parts, max four, 25 MiB cap, 120 s transfer / 20 s idle; hash mismatch is 409; overflow 413.
 - Success shape is 202 with a non-ready summary (no processing inside upload).
 - Admission covers `POST /runs` and `PUT /runs/:id/source` as well as legacy `POST /upload`. While paused those return 503 before the body. If the switch were on, legacy POST returns 410 `upgrade_needed` instead of processing.
+- `handleProofRequest` now creates a catalog run and, when a transfer broker is injected, streams source bytes then transitions to `scanning` without processing. Live Worker wiring keeps `transfer: null` until R2 is provisioned.
 - Windows wrapper follow-up: `spawn("vite")` is resolved to `node node_modules/vite/bin/vite.js` without `shell: true`. Wrangler/Nitro deploy commands are unchanged.
 
 #### Commands and results
 
 ```
 cd web
-node --experimental-strip-types --test src/lib/server/proof-upload.test.ts src/lib/products/capabilities.test.ts
-node --test scripts/with-app-env.test.mjs
-npx tsc --noEmit
+node --experimental-strip-types --test src/lib/server/proof-upload.test.ts src/lib/server/proof-http.test.ts src/lib/products/capabilities.test.ts
 ```
 
-Actual: **4/4 upload + 7/7 capabilities + 13/13 with-app-env pass**. `tsc` **exit 0**. `canTransitionProductRun("scanning","processing")` **false**. `PROOF_UPLOADS_ENABLED` unset. Live provider: **not run**.
+Actual: **4/4 upload + handler create/source/isolation tests pass + 7/7 capabilities**. `canTransitionProductRun("scanning","processing")` **false**. `PROOF_UPLOADS_ENABLED` unset. Live provider: **not run**.
+
+### Wrapper `npm run build` after the vite resolution (recorded on `db76e08`)
+
+- **Commit:** `db76e088e22b13d9f5a88473bd712e78ec6e5da2` (includes wrapper fix from `e5cd9d0`).
+- Command: root `npm run build` → `npm --prefix web ci --ignore-scripts --no-audit --no-fund && npm --prefix web run build:cloudflare`.
+- Result: **exit 0**. Wrapper spawned Vite through `node ./node_modules/vite/bin/vite.js` (no `spawn vite ENOENT`). Nitro preset `cloudflare-module`. Client 5.62 s, SSR 990 ms, Nitro 2.74 s.
+- Follow-up: `npm --prefix web run typecheck` → `tsc --noEmit` **exit 0**. Root `npx tsc --noEmit` only typechecks the Worker `src/` tsconfig and is not the web gate.
+
+### PWC-20 — Verify account, tenant and endpoint isolation (local)
+
+- **Baseline commit:** `db76e088e22b13d9f5a88473bd712e78ec6e5da2`.
+- **Change commit:** `7822bf13566ba58e3cd8d2a29c54d157d61b892a`.
+- **Files changed:** `web/src/lib/server/proof-authorization.ts`, `web/src/lib/server/proof-authorization.test.ts`, `web/src/lib/server/proof-http.ts`, `web/src/lib/server/proof-http.test.ts`, `web/src/routes/api/proof/$.ts`, `web/src/lib/auth/db-guard.server.ts`, `web/src/lib/auth/db-guard.test.ts`, `web/scripts/proof-isolation.test.mjs`, `web/src/lib/server/product-runs.ts`.
+- **Status:** Implemented; Tested (authorization + route-handler + PGlite RLS). Live staging accounts/RLS **Blocked** (no synthetic staging credentials). Browser sign-in later (PWC-32). Not Deployed.
+- **Must-not-change held:** no anonymous/test-workspace bypass; verified boundary preserved for create/source/retry/ticket/download; DELETE remains available to an authenticated unverified owner; uploads remain disabled.
+
+#### Behaviour
+
+- Owner and tenant are taken from the server session context. Foreign owner (same tenant), other tenant, missing run and guessed IDs all return **404**, not an existence leak.
+- Unverified sessions: download 403 `unverified_email`; delete 202.
+- Revoked/expired/missing sessions: 401. Malformed run IDs: 400. Cookie mutations require a trusted Origin.
+- Auth DB guard logs only stage, error name and driver code — no raw message, SQL or connection string. Query-timeout clients are released.
+- PGlite applies 0001–0009: two owners in `t1` and a second tenant cannot SELECT/UPDATE each other’s `product_run` rows.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-authorization.test.ts src/lib/server/proof-http.test.ts src/lib/auth/db-guard.test.ts
+node --test scripts/proof-isolation.test.mjs
+```
+
+Actual: authorization/handler/db-guard tests pass; PGlite isolation **1/1 pass**. Staging authenticated probes: **not run**.
+
+### PWC-21 — Implement quotas and content-free operational events (local)
+
+- **Baseline commit:** `db76e088e22b13d9f5a88473bd712e78ec6e5da2`.
+- **Change commit:** `7822bf13566ba58e3cd8d2a29c54d157d61b892a`.
+- **Files changed:** `web/src/lib/server/proof-admission.ts`, `web/src/lib/server/proof-admission.test.ts`, `web/src/lib/server/proof-events.ts`, `web/src/lib/server/proof-events.test.ts`.
+- **Status:** Implemented; Tested (quota races, stale health, event canaries). Provider monitoring **Blocked**. Browser quota UI later (PWC-32). Not Deployed.
+- **Must-not-change held:** deletion/download remain ungated by quota; no billing-email control; no content in events.
+
+#### Behaviour
+
+- Caps: 1 active processing run/owner, 3 active runs/owner including ready, 20 uploads/owner/UTC day, 100 global/day, 2 global compute attempts. Daily reset uses UTC midnight Retry-After.
+- Stale purge/scanner/validator health denies admission (503) even if the switch is on.
+- Events allowlist section 24 names plus size/duration buckets. Filename, body, object key, raw Error and snippets are rejected.
+
+#### Commands and results
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-admission.test.ts src/lib/server/proof-events.test.ts
+```
+
+Actual: **1/1 admission + 1/1 events pass**. Live cost/health capture: **not run**.
 
 #### Remaining blockers and next eligible tasks
 
-- Live PWC-18/19 R2 races and staging buckets remain Blocked (D-02/D-03).
-- PWC-13 Microsoft Word; PWC-12 live `dotnet` OpenXmlValidator when the SDK is installed.
-- **Next executable (source lane):** remaining labelled corpus / PWC-20 isolation code (depends on PWC-02/16; staging accounts later).
-- **Critical path:** PWC-20 local authorization; PWC-21 quotas; live 19/22 still blocked.
+- Live PWC-18/19 R2 races, staging buckets and the transfer broker remain Blocked (D-02/D-03). Do not mark the upload journey complete.
+- PWC-13 Microsoft Word. PWC-12 Word fidelity is not claimed from SDK schema results.
+- Staging PWC-20 accounts and live RLS remain Blocked.
+- **Next executable (local):** PWC-28 remaining API surface / PWC-29 UI contracts where they do not require live upload; source-lane PWC-13 is human-gated.
+- **Critical path:** live 19/22 still blocked on provisioning.
 - Do not enable `PROOF_UPLOADS_ENABLED`. Do not apply 0009 to production.
 
 ---

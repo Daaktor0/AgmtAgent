@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MemoryProofR2Bucket } from "./proof-objects.ts";
 import {
+  PROOF_BUDGET_IS_PROVIDER_HARD_CAP,
   PROOF_CLOUDFLARE_CONTAINERS_ALLOWED,
   PROOF_INCLUDED_MONTHLY,
   PROOF_JOB_COST,
@@ -21,6 +22,7 @@ const now = Date.parse("2026-09-09T12:00:00Z");
 
 test("PWC-21 cost threshold reserves finish and delete capacity and fail-closes", async () => {
   assert.equal(PROOF_CLOUDFLARE_CONTAINERS_ALLOWED, false);
+  assert.equal(PROOF_BUDGET_IS_PROVIDER_HARD_CAP, false);
   const fresh = emptyProofBudget(now);
   assert.equal(fresh.utcMonth, "2026-09");
   assert.equal(proofBudgetAllowsAdmission(fresh, now), true);

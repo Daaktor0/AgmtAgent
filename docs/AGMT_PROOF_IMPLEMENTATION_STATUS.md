@@ -876,7 +876,7 @@ Actual: authorization/handler/db-guard tests pass; PGlite isolation **1/1 pass**
 
 - Launch freeze caps: 1 active processing run/owner, 2 active runs/owner including ready, 3 uploads/owner/UTC day, 10 global/day, 80 global/UTC month, 1 global compute attempt. Daily reset uses UTC midnight Retry-After; monthly reset uses next UTC month.
 - Stale purge/scanner/validator/budget health denies admission (503) even if the switch is on. Exhausted included-allotment budget is 429 and does not gate download or deletion.
-- Each admit reserves worst-case Worker CPU and R2 class A/B for scan/process/download/delete plus remaining-month cron/purge. Cloudflare Containers are not authorised (`PROOF_CLOUDFLARE_CONTAINERS_ALLOWED = false`).
+- Each admit reserves estimated Worker CPU and R2 class A/B for scan/process/download/delete plus remaining-month cron/purge. These are measured controls over ordinary Proof jobs, **not** a Cloudflare billing hard stop (`PROOF_BUDGET_IS_PROVIDER_HARD_CAP = false`). Cloudflare Containers are not authorised. Hostinger scan URLs are refused.
 - Events allowlist section 24 names plus size/duration buckets. Filename, body, object key, raw Error and snippets are rejected.
 
 #### Commands and results
@@ -891,7 +891,7 @@ Actual: **1/1 admission + 1/1 events pass**. Live cost/health capture: **not run
 #### Remaining blockers and next eligible tasks
 
 - Live PWC-18/19 R2 races remain Blocked (D-02/D-03). Do not mark the upload journey complete.
-- Isolated ClamAV is **not** provisioned: Cloudflare Containers are rejected under the four-month no-overage freeze. Hostinger KVM 2 was not used (shared with n8n/Hermes; documents would leave Cloudflare).
+- Isolated ClamAV is **not** provisioned: Cloudflare Containers are rejected under the four-month no-overage freeze. Hostinger KVM 2 was inspected read-only and is **not suitable** (shared with public n8n/Hermes/Traefik; weekly full-disk backups in Kuala Lumpur). Documents were not sent there.
 - PWC-13 Microsoft Word. PWC-12 Word fidelity is not claimed from SDK schema results.
 - Staging PWC-20 accounts and live RLS remain Blocked.
 - Migration `0011` is in-repo and **not** applied. `0009`/`0010` remain unapplied.
@@ -984,9 +984,11 @@ Merging `main` **automatically deploys** the web Worker (`.github/workflows/depl
 
 No additional spend, upgrades or overage for four months. **Cloudflare Containers will not be provisioned:** the product has no hard included-allotment stop. A stuck `standard-1` instance exceeds 25 GiB-hours in about seven hours. Billing alerts are not a cap. `deploy-proof-compute.yml` now refuses unless `PROOF_CONTAINERS_SPEND_APPROVED=true`.
 
-Included usage observed 2026-09-01..09 (GraphQL, not a bill): Worker `agmt` 3,377 requests, CPU p50 2.7 ms; R2 PutObject 61, ListObjects 61, storage peak 69 bytes. Remaining included Workers/R2 capacity is effectively the full monthly allotment. Hostinger KVM 2 is an existing paid VPS (n8n/Traefik/Hermes already on it) and was **not** given Proof documents.
+Included usage observed 2026-09-01..09 (GraphQL, not a bill): Worker `agmt` 3,377 requests, CPU p50 2.7 ms; R2 PutObject 61, ListObjects 61, storage peak 69 bytes. Remaining included Workers/R2 capacity is effectively the full monthly allotment.
 
-See `infra/proof/provisioning.md`. Remaining before enabling uploads: **D-02** and **D-03**, plus a $0 isolated scanner. Conservative admission is implemented. I will not set `PROOF_UPLOADS_ENABLED`. Phase A is not complete.
+Hostinger KVM 2 (`srv1086106.hstgr.cloud`, Mumbai, paid through 2027-10-26) was inspected read-only. It has spare CPU and disk but is **not suitable** for Proof files: public n8n and Hermes, Traefik with the Docker socket, no firewall, weekly full-disk backups in Kuala Lumpur. A Docker container on that host would not isolate documents or meet two-hour deletion. Documents were not sent. `PROOF_HOSTINGER_COMPUTE_ALLOWED` is false.
+
+See `infra/proof/provisioning.md`. Remaining before enabling uploads: **D-02** and **D-03**, plus an isolated scanner that is neither Cloudflare Containers nor this VPS. Conservative admission is implemented and is not described as an overage guarantee. I will not set `PROOF_UPLOADS_ENABLED`. Phase A is not complete.
 
 ### Synthetic Word pairs — Word desktop verification (this session)
 
@@ -1050,6 +1052,18 @@ npm run typecheck
 Actual: budget/admission/capabilities/http/health **15/15 pass**; PGlite 0001–0011 **3/3 pass**; typecheck **exit 0**; `scanning→processing` **false**. `PROOF_UPLOADS_ENABLED` unset. Cloudflare Containers **not** deployed. Migration `0011` **not** applied to production.
 
 Untracked preserved: `.env.txt`; `For developer, with love.txt`; `web/scripts/production-hardening.test.mjs`.
+
+### Hostinger VPS assessment (read-only, this session)
+
+Inspected VM 1086106 without installing software or sending documents. Recommendation recorded in `infra/proof/provisioning.md`: **not suitable**. Scan URLs on that host now resolve to unprovisioned antivirus. Budget module states `PROOF_BUDGET_IS_PROVIDER_HARD_CAP = false`.
+
+```
+cd web
+node --experimental-strip-types --test src/lib/server/proof-antivirus.test.ts src/lib/server/proof-budget.test.ts src/lib/server/proof-admission.test.ts src/lib/products/capabilities.test.ts src/lib/server/proof-health.test.ts src/lib/server/proof-http.test.ts src/lib/server/proof-pipeline.test.ts
+npm run typecheck
+```
+
+Actual: **19/19 pass**; typecheck **exit 0**; `scanning→processing` **false**. Uploads remain disabled. Cloudflare Containers **not** provisioned. Hostinger VPS **not** given documents.
 
 ---
 

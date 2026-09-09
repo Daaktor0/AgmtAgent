@@ -45,17 +45,55 @@ that fails to sleep exceeds included memory in about seven hours. Health
 pings can keep it warm. Billing alerts cannot prevent that. The compute
 image and Worker remain in-repo and **must not be deployed**.
 
-Workable $0 alternative (not provisioned): run ClamAV on the existing
-Hostinger KVM 2 only if the founder later accepts documents leaving
-Cloudflare onto a VPS that already runs n8n, Traefik and Hermes. That is
-an isolation/residency choice (D-03), not a spend choice. Until then
-scanner health stays stale and uploads stay paused.
+Hostinger KVM 2 was inspected read-only on 2026-09-09 and **must not**
+receive Proof documents. A separate Docker container on that machine would
+not isolate them. See the assessment below.
 
-Admission now fail-closes on a persisted budget ledger plus conservative
-caps (3/owner/day, 10 global/day, 80 global/month, 1 concurrent compute).
-Each admit reserves worst-case Worker CPU and R2 class A/B for process,
-download and verified deletion. Cron/purge capacity for the rest of the
-month is held back. Missing or exhausted budget pauses new uploads only.
+Admission fail-closes on a persisted budget ledger plus conservative caps
+(3/owner/day, 10 global/day, 80 global/month, 1 concurrent compute). Each
+admit reserves estimated Worker CPU and R2 class A/B for process, download
+and verified deletion, and holds remaining-month cron/purge. Those are
+**measured controls over ordinary Proof jobs**, not a Cloudflare billing
+hard stop. Uncounted account traffic, low estimates, retries, logs, other
+Workers or a bug can still be billed. Missing or exhausted budget pauses
+new uploads only. Billing alerts are not a cap.
+
+## Hostinger KVM 2 assessment (read-only, 2026-09-09)
+
+Inspected via Hostinger API and anonymous HTTP probes. Nothing was
+installed. No documents were sent.
+
+| Fact | Observed |
+|---|---|
+| Server | id 1086106, `srv1086106.hstgr.cloud`, `31.97.230.149`, Ubuntu 24.04 with Docker and Traefik |
+| Plan | KVM 2: 2 CPU / 8 GiB RAM / 100 GiB disk, paid through 2027-10-26, auto-renew off |
+| Location | VM geolocates to Mumbai. Weekly disk backups are stored at `node149-my-kul-1-pbs` (Kuala Lumpur) |
+| Load (7 days) | CPU avg 1.9% (max 5.6%). RAM ~2.2 of 8 GiB. Disk ~16 of 100 GiB |
+| Workloads | n8n (public, 2 months up, ~0.7 GiB), Hermes agent (public, 2 weeks up, ~1.9 GiB), Traefik (host network + Docker socket), `agmtagent` stopped |
+| Network | **No Hostinger firewall.** n8n answers on `https://n8n-3ygp.srv1086106.hstgr.cloud` and `http://31.97.230.149:32768`. Hermes answers on its Traefik host and `http://31.97.230.149:32781` |
+| Access | Traefik mounts `/var/run/docker.sock`. Compose environment holds plaintext app credentials. Hostinger API can read compose files. Monarx host scanner is present |
+| Backups | Weekly full-disk backups (2026-09-01 and 2026-09-08). Snapshot slot empty. Backup copies the whole disk, not a Proof-only volume |
+| Temp files | Not inspected inside the guest. Hostinger backups, swap, Docker logs, overlay and Monarx would see any file that lands on disk |
+
+**Recommendation: this server is not suitable for Proof scanning or document processing.** Spare CPU and disk do not make it a safe place for client files.
+
+What would have to change, and still would not meet the two-hour deletion contract:
+
+- Move n8n, Hermes and Traefik off the machine, or accept that they share the kernel, the Docker engine and the disk with Proof.
+- Remove Traefik’s Docker socket and stop publishing high ports on `0.0.0.0`.
+- Attach a firewall that allows only the Proof control path.
+- Disable swap, crash dumps and host malware scanning of Proof paths.
+- Stop Hostinger weekly backups while any document can exist — which also removes disaster recovery for n8n.
+
+Even then, documents would leave Cloudflare, sit in Mumbai, and be copied to Malaysia whenever a backup ran. Hostinger staff and the backup store would retain whatever was on disk. A Docker container does not prevent that.
+
+Where documents would be processed if this server were used: on the same Ubuntu guest as n8n, Hermes and Traefik, in Mumbai, with Hostinger taking weekly disk images in Kuala Lumpur.
+
+How other applications and backups would be prevented from accessing or retaining them: **they would not be.** Docker namespaces do not hide files from the host, from Traefik’s Docker socket, from Hostinger backups, from swap, or from Monarx.
+
+Remaining risk if we used it anyway: other apps on the box; public n8n and Hermes; Hostinger and its Malaysian backup copies keeping files after Proof “deleted” them; no India-only or Cloudflare-only claim; two-hour deletion broken.
+
+Nothing was provisioned. `PROOF_HOSTINGER_COMPUTE_ALLOWED` stays false. Scan URLs on `*.hstgr.cloud` or this VPS address are treated as unprovisioned and never receive document bytes.
 
 ## Founder decision request still required before uploads are enabled
 
@@ -66,11 +104,12 @@ paid through 2027-10-26). Independent purge Worker is already deployed.
 | Decision | Recommendation | Consequence if accepted | Incremental cost |
 |---|---|---|---|
 | **D-02** encryption | Accept TLS + Cloudflare-managed R2 encryption for new 2-hour objects. Do not introduce customer-managed keys at launch. Historical envelope keys stay untouched. | New Proof objects are written without `encryptBytes` / `object_manifest`. | $0 |
-| **D-03** residency | Do not claim India-only storage. Launch only for users whose policies permit Cloudflare’s disclosed locations. Hostinger ClamAV is a separate later choice. | Copy and contracts stay honest. | $0 |
+| **D-03** residency | Do not claim India-only storage. Launch only for users whose policies permit Cloudflare’s disclosed locations. Do not send documents to the existing Hostinger VPS. | Copy and contracts stay honest. | $0 |
 
 I will not set `PROOF_UPLOADS_ENABLED` until D-02/D-03 are accepted **and**
 ClamAV health, purge health, validator health and budget health are actually
-fresh on production. D-01 is settled as **no Container overage**.
+fresh on production. D-01 is settled as **no Container overage**. The
+existing Hostinger VPS is **not** the scanner.
 
 ## Founder decisions still open
 

@@ -5,6 +5,7 @@ import { Container, getContainer } from "@cloudflare/containers";
  * No database, auth, or model secrets are passed into the image.
  * Do not deploy while the four-month no-overage freeze is in force:
  * Cloudflare Containers have no hard included-allotment stop.
+ * Do not point this worker at the shared Hostinger VPS.
  */
 export class ProofScanContainer extends Container {
   defaultPort = 8080;

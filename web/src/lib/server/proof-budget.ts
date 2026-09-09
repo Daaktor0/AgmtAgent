@@ -1,11 +1,16 @@
 /**
  * Fail-closed Proof spend control (PWC-21). Billing alerts are not a cap.
  *
- * Cloudflare does not hard-stop Workers/R2/Container usage at the included
- * allotment. Admission therefore refuses new uploads before estimated usage
- * plus reserved finish/delete/purge capacity would exceed included limits.
+ * Upload caps and this ledger are measured controls over ordinary Proof
+ * admissions we can count: accepted jobs, estimated Worker CPU, R2 class A/B,
+ * and remaining-month cron/purge. They are not a Cloudflare hard cap and do
+ * not guarantee that every possible overage is prevented. Uncounted account
+ * traffic, estimates that are too low, retries, logs, other Workers, or a bug
+ * can still be billed. Missing or exhausted budget pauses new uploads only.
+ *
  * Cloudflare Containers are not authorised: a stuck instance cannot be
- * prevented from billing overage.
+ * prevented from billing overage. Hostinger shared VPS compute is not an
+ * authorised document path.
  */
 import type { ProofR2Bucket } from "./proof-objects.ts";
 
@@ -26,6 +31,8 @@ export const PROOF_BUDGET_VERSION = "proof-budget-v1";
 export const PROOF_BUDGET_KEY = "proof/health/budget.json";
 export const PROOF_BUDGET_FRESHNESS_MS = 90_000;
 export const PROOF_CLOUDFLARE_CONTAINERS_ALLOWED = false;
+/** Admission estimates are not a provider billing hard stop. */
+export const PROOF_BUDGET_IS_PROVIDER_HARD_CAP = false;
 
 /** Workers Paid included monthly allotments used by Proof. */
 export const PROOF_INCLUDED_MONTHLY = Object.freeze({

@@ -2,7 +2,8 @@
  * Live Proof runtime wiring (PWC-19/22–28).
  *
  * Transfer uses the existing AGMT_OBJECTS bucket. Antivirus is ClamAV HTTP
- * when PROOF_SCAN_URL is set, otherwise unprovisioned (never clean).
+ * when PROOF_SCAN_URL is an allowed endpoint. Missing, invalid, or Hostinger
+ * VPS URLs stay unprovisioned (never clean). Documents are not sent there.
  */
 import { withDatabaseContext } from "../db-context.server.ts";
 import { serverEnv } from "../runtime-env.server.ts";
@@ -15,7 +16,7 @@ import {
 import { liveProofObjectStore, liveProofR2Bucket } from "./proof-r2.ts";
 import { createSqlTransferLedger } from "./proof-ledger.ts";
 import { createProofTransfer, ProofTransferError, type ProofTransfer } from "./proof-transfer.ts";
-import { clamavHttpAntivirus, unprovisionedAntivirus, type ProofAntivirus } from "./proof-antivirus.ts";
+import { resolveProofAntivirus, type ProofAntivirus } from "./proof-antivirus.ts";
 import { executeProofDeletion, executeProofPipeline, PROOF_PIPELINE_VERSION } from "./proof-pipeline.ts";
 import type { ProofSourceTransfer } from "./proof-http.ts";
 import type { ProofObjectStore } from "./proof-objects.ts";
@@ -30,8 +31,7 @@ export type LiveProofRuntime = {
 };
 
 export function liveProofAntivirus(): ProofAntivirus {
-  const endpoint = serverEnv("PROOF_SCAN_URL");
-  return endpoint ? clamavHttpAntivirus(endpoint) : unprovisionedAntivirus();
+  return resolveProofAntivirus(serverEnv("PROOF_SCAN_URL"));
 }
 
 export function createLiveProofRuntime(sql: Sql): LiveProofRuntime | null {

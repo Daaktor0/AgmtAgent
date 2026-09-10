@@ -1289,7 +1289,7 @@ Maps to PWC-39 wholesale plus RE-5 party / RE-6 figures. **Does not enable new p
 
 **Word COM:** launch-demo body/table/prior_review/party_name **PASS**. Additional capacity Word (alerts suppressed): 300-page-target labelled output **584 pages, 1497 revisions, 4 comments, 1 table, 1 inline shape**; table-heavy 24 KiB family opened (`tables=1`). Repair prompt not observed (`DisplayAlerts=0`). 100 MiB image-heavy remains the advertised-capacity Word receipt from v3.
 
-**Status:** Implemented; Tested; Word preservation Verified on launch pairs. Firefox/Safari/physical iOS **untested**. Live signed-in Proofread → download **Blocked** (`sign_in_rejected`). Not Deployed until merge to main.
+**Status:** Implemented; Tested; Word preservation Verified on launch pairs. Firefox/Safari/physical iOS **untested**. **Deployed** to `main` `6964535` (fast-forward). GitHub Actions Deploy Cloudflare run 45 (`34476536440`): build, wrangler **success**. Custom-domain smoke from GitHub IPs failed (WAF 403, same as prior). Web Proof corpus run 423 **success**. Eval checks run 579 **success**. Local `https://app.agmt.legal/proof` **200** with 100 MiB size-limit copy. Signed-in Proofread → download **Blocked** (`sign_in_rejected`).
 
 **Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; no new published findings. `scanning→processing` not touched.
 

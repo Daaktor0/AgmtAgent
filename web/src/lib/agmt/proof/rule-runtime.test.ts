@@ -8,7 +8,7 @@ import { analyzeProof } from "./launch.ts";
 import { launchFixture } from "../corpus/launch-fixtures.ts";
 import { CHECKS, LAUNCH_RULE_SPECS, LAUNCH_RULE_BY_ID } from "./registry.ts";
 import { executeLaunchRules } from "./rule-runtime.ts";
-import { canPromote, ruleMetric } from "../corpus/pwc/metrics.ts";
+import { canPromote, ruleMetric, wilsonInterval } from "../corpus/pwc/metrics.ts";
 
 test("PWC-14 launch rules have evaluation receipts; experimental CHECKS stay off", () => {
   const enabled = LAUNCH_RULE_SPECS.filter((spec) => spec.defaultEnabled);
@@ -83,4 +83,8 @@ test("PWC-14 zero denominators are not evaluated and cannot promote", () => {
   const measured = ruleMetric({ ruleId: "language.typo_allowlist", truePositive: 10, falsePositive: 0, falseNegative: 1 });
   assert.equal(measured.status, "evaluated");
   assert.equal(canPromote(measured, { precision: 0.98, recall: 0.9, minSamples: 100 }), false);
+  const observedHundred = ruleMetric({ ruleId: "definitions.case_variant", truePositive: 125, falsePositive: 0, falseNegative: 0 });
+  assert.equal(canPromote(observedHundred, { precision: 0.98, recall: 0.9, minSamples: 100 }), true);
+  const wilson = wilsonInterval(125, 125);
+  assert.ok(wilson && wilson.lower < 0.98, "n=125 with 0 FP does not give 95% confidence that precision exceeds 98%");
 });

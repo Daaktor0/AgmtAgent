@@ -1343,6 +1343,18 @@ Detection, exact anchoring and comment action were scored separately. Capacity-c
 
 **Next concrete task:** PEE-12 party consistency and PEE-13 dates/amounts; production signed-in journey when a verified test account exists in the Auth database.
 
+### Access diagnosis, definition precision, PEE-12/13 (2026-09-10)
+
+**Access defect (not “wrong password”):** signup and sign-in POST on `https://app.agmt.legal` reach the same Worker and `AGMT_AUTH_DB` (Hyperdrive caching disabled). Worker logs show `POST /api/auth/sign-up/email` plus Resend **403 then 422** (`[auth.email] provider rejected`) and Better Auth `Failed to run background task: We could not send the verification email.` Accounts can be written while verification mail never arrives. `AGMT_PUBLIC_URL` on the Worker was still `https://agmt.dexterinlab.workers.dev` (`--keep-vars` preserved the T07 value), so verification links and `__Host-` cookies targeted workers.dev, not `app.agmt.legal`. Signed-out `GET /api/auth/get-session` sometimes hung to the 15 s handler timeout (custom-domain smoke failure). `User not found` / `INVALID_EMAIL_OR_PASSWORD` on the journey script is that lookup against this database; it does not prove signup works.
+
+**Anonymous journey:** launch commit `8d10a13` already required `auth === "verified"` for Proofread. `web/AGENTS.md` forbids anonymous deployed paths. No access-policy change.
+
+**Fixes in this increment:** pin `AGMT_PUBLIC_URL=https://app.agmt.legal` in `web/wrangler.jsonc` and deploy `--var`; cookieless `get-session` returns `null` without AUTH_DB; production mail refuses the Resend test sender; `AUTH_EMAIL_FROM` rotated to the verified `mail.agmt.legal` sender (secret put, value not recorded). Definition rules revised: schedule “for the purposes of this Schedule” / express overrides silent; ordinary lowercase of common collocations silent; title-case phrases need a determiner and are not org/geo/court names. PEE-12 `parties.consistency` and PEE-13 `figures.date_invalid` / `figures.words_figures_mismatch` enabled after held-out point-estimate gates. Wilson 95% lower bound on cloned templates remains below 98% — observed 100% is not 95% confidence that real-world precision exceeds 98%. `definitions.unused` stays off.
+
+**Tests:** `test:proof` 173/173; `tsc --noEmit` 0. Party-name fixture still 0 findings.
+
+**Production download/Word:** still requires a verification-email click on a real inbox after this deploy. 100 MiB Word remains Blocked separately.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

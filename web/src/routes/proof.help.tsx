@@ -19,6 +19,8 @@ function ProofHelp() {
           <li>Duplicate definitions in an unambiguous scope, schedule re-definitions that change the meaning, and defined terms used with the wrong capitalisation</li>
           <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete</li>
           <li>Title-case phrases that look like defined terms but have no matching definition</li>
+          <li>A party role used with a different legal name from the one declared for that role, when the names are not merely Ltd/Limited or a different group company</li>
+          <li>Calendar-invalid dates such as 31 April, and bound words-and-figures pairs that do not match, such as USD 10,000 (fifteen thousand)</li>
         </ul>
         <p>Proof is not a comprehensive legal review, grammar checker or drafting assistant. It does not use a language model.</p>
         <h2 className="font-display text-2xl">Review in Word</h2>

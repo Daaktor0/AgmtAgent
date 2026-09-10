@@ -19,6 +19,12 @@ function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
 
+function calendarValid(yr: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(Date.UTC(yr, month - 1, day));
+  return date.getUTCFullYear() === yr && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
 function year(raw: string): string {
   if (raw.length === 4) return raw;
   const n = Number(raw);
@@ -74,19 +80,22 @@ export function buildFiguresIndex(source: ProofSource): FiguresIndex {
     for (const match of paragraph.text.matchAll(new RegExp(ISO_DATE.source, "g"))) {
       const month = Number(match[2]);
       const day = Number(match[3]);
-      const parse = month >= 1 && month <= 12 && day >= 1 && day <= 31 ? "parsed" as const : "invalid" as const;
+      const yr = Number(match[1]);
+      const parse = calendarValid(yr, month, day) ? "parsed" as const : "invalid" as const;
       push(entries, ranges, paragraph, match.index, match.index + match[0].length, "date", parse, parse === "parsed" ? `${match[1]}-${match[2]}-${match[3]}` : null);
     }
     for (const match of paragraph.text.matchAll(new RegExp(MONTH_DATE.source, "gi"))) {
       const month = MONTHS[match[2]!.toLowerCase()];
       const day = Number(match[1]);
-      const parse = month && day >= 1 && day <= 31 ? "parsed" as const : "invalid" as const;
+      const yr = Number(match[3]);
+      const parse = month && calendarValid(yr, Number(month), day) ? "parsed" as const : "invalid" as const;
       push(entries, ranges, paragraph, match.index, match.index + match[0].length, "date", parse, parse === "parsed" ? `${match[3]}-${month}-${pad(day)}` : null);
     }
     for (const match of paragraph.text.matchAll(new RegExp(MONTH_FIRST.source, "gi"))) {
       const month = MONTHS[match[1]!.toLowerCase()];
       const day = Number(match[2]);
-      const parse = month && day >= 1 && day <= 31 ? "parsed" as const : "invalid" as const;
+      const yr = Number(match[3]);
+      const parse = month && calendarValid(yr, Number(month), day) ? "parsed" as const : "invalid" as const;
       push(entries, ranges, paragraph, match.index, match.index + match[0].length, "date", parse, parse === "parsed" ? `${match[3]}-${month}-${pad(day)}` : null);
     }
     for (const match of paragraph.text.matchAll(new RegExp(NUMERIC_DATE.source, "g"))) {

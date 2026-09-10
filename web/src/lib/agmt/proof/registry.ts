@@ -67,6 +67,9 @@ export const LAUNCH_RULE_SPECS: readonly LaunchRuleSpec[] = Object.freeze([
   launchSpec({ id: "definitions.case_variant", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "exact-structural" }),
   launchSpec({ id: "definitions.unused", version: 1, profile: "agreement", phase: "B", defaultEnabled: false, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "declaration_inventory", evidenceTier: "exact-structural" }),
   launchSpec({ id: "definitions.undefined_use", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "bounded-heuristic" }),
+  launchSpec({ id: "parties.consistency", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "party_inventory", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "figures.date_invalid", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "exact-mechanical" }),
+  launchSpec({ id: "figures.words_figures_mismatch", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "exact-mechanical" }),
 ]);
 
 export const LAUNCH_CHECKS: readonly Readonly<{ checkId: LaunchRuleId; version: 1 }>[] = Object.freeze(

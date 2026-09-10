@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "@/lib/auth/server";
+import { auth, SESSION_TOKEN_COOKIE } from "@/lib/auth/server";
 import { AUTH_ERROR_CODES } from "@/lib/auth/error-codes";
 
 /**
@@ -46,7 +46,25 @@ async function withStableErrorBody(response: Response): Promise<Response> {
   );
 }
 
+function hasSessionCredential(request: Request): boolean {
+  const cookie = request.headers.get("cookie") ?? "";
+  if (cookie.includes(SESSION_TOKEN_COOKIE)) return true;
+  const authorization = request.headers.get("authorization") ?? "";
+  return /^Bearer\s+\S+/i.test(authorization);
+}
+
+function cookielessSessionResponse(): Response {
+  return new Response("null", {
+    status: 200,
+    headers: { "content-type": "application/json", "cache-control": "private, no-store" },
+  });
+}
+
 async function handle(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  if (request.method === "GET" && url.pathname.endsWith("/get-session") && !hasSessionCredential(request)) {
+    return cookielessSessionResponse();
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<Response>((resolve) => {
     timer = setTimeout(() => resolve(timeoutResponse()), AUTH_HANDLER_TIMEOUT_MS);

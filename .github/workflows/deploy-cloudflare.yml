@@ -55,7 +55,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config web/.output/server/wrangler.json --keep-vars
+          command: deploy --config web/.output/server/wrangler.json --keep-vars --var AGMT_PUBLIC_URL:https://app.agmt.legal
       - name: Verify production document route
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

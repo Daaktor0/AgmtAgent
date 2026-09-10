@@ -4,6 +4,9 @@
   "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "vars": {
+    "AGMT_PUBLIC_URL": "https://app.agmt.legal"
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

@@ -5,7 +5,7 @@
 		"dev": "wrangler dev",
 		"build": "npm run build:web",
 		"build:web": "npm --prefix web ci --ignore-scripts --no-audit --no-fund && npm --prefix web run build:cloudflare",
-		"deploy": "npm run build:web && wrangler deploy --config web/.output/server/wrangler.json --keep-vars",
+		"deploy": "npm run build:web && wrangler deploy --config web/.output/server/wrangler.json --keep-vars --var AGMT_PUBLIC_URL:https://app.agmt.legal",
 		"types": "wrangler types"
 	},
 	"devDependencies": {

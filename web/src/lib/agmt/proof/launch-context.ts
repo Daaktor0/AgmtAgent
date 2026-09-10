@@ -12,7 +12,12 @@ export function candidateFinding(rule: LaunchRuleId, c: Candidate): ProofFinding
   return ProofFindingSchema.parse({
     id: createHash("sha256").update(JSON.stringify([rule, c.p.partUri, c.p.storyId, c.p.paragraphPath, c.start, c.end, quote])).digest("hex"),
     ruleId: rule, ruleVersion: 1, kind: c.replacement === undefined ? "comment" : "correction",
-    category: rule.startsWith("language.") ? "language" : rule.startsWith("definitions.") ? "definitions" : rule.startsWith("references.") ? "references" : "completion",
+    category: rule.startsWith("language.") ? "language"
+      : rule.startsWith("definitions.") ? "definitions"
+        : rule.startsWith("references.") ? "references"
+          : rule.startsWith("parties.") ? "parties"
+            : rule.startsWith("figures.") ? "figures"
+              : "completion",
     severity: c.replacement === undefined ? "attention" : "suggestion", primarySpan: sourceSpan(c.p, c.start, c.end), relatedSpans: c.related ?? [], exactQuote: quote,
     replacement: c.replacement ?? null, comment: c.comment, scopeEvidence: c.scopeEvidence ?? null,
   });

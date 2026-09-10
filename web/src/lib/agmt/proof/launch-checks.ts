@@ -4,6 +4,8 @@ import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS, DUPLICATE_WORD_SEPARATOR } fr
 import { candidateFinding, quoted, explicitEnglish, type LaunchContext } from "./launch-context.ts";
 import { referenceRuleFindings } from "./rules/references.ts";
 import { definitionRuleFindings } from "./rules/definitions.ts";
+import { partyRuleFindings } from "./rules/parties.ts";
+import { figureRuleFindings } from "./rules/figures.ts";
 
 export { candidateFinding, type LaunchContext } from "./launch-context.ts";
 
@@ -121,5 +123,7 @@ export function launchRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): Proo
   }
   if (rule.startsWith("references.")) return referenceRuleFindings(ctx, rule);
   if (rule.startsWith("definitions.")) return definitionRuleFindings(ctx, rule);
+  if (rule.startsWith("parties.")) return partyRuleFindings(ctx, rule);
+  if (rule.startsWith("figures.")) return figureRuleFindings(ctx, rule);
   return out;
 }

@@ -59,6 +59,16 @@ function verificationEmail(url: string, name: string | null | undefined): { html
   };
 }
 
+function fromHost(from: string): string {
+  const match = from.match(/@([^>\s]+)/);
+  return match?.[1]?.toLowerCase() ?? "unknown";
+}
+
+function productionMailRequired(): boolean {
+  const publicUrl = serverEnv("AGMT_PUBLIC_URL") ?? serverEnv("BETTER_AUTH_URL") ?? "";
+  return /agmt\.legal|workers\.dev/i.test(publicUrl);
+}
+
 export async function sendResendVerificationEmail(data: {
   user: VerificationUser;
   url: string;
@@ -73,8 +83,15 @@ export async function sendResendVerificationEmail(data: {
   }
 
   const from = serverEnv("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
-  if (!serverEnv("AUTH_EMAIL_FROM") || /onboarding@resend\.dev/i.test(from)) {
+  const testSender = !serverEnv("AUTH_EMAIL_FROM") || /onboarding@resend\.dev/i.test(from);
+  if (testSender) {
     console.error("[auth.email] AUTH_EMAIL_FROM is unset or still the Resend test sender; only the Resend account owner can receive mail");
+    if (productionMailRequired()) {
+      throw new APIError("BAD_GATEWAY", {
+        code: AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED,
+        message: "We could not send the verification email.",
+      });
+    }
   }
   const email = verificationEmail(data.url, data.user.name);
   let response: Response;
@@ -107,7 +124,7 @@ export async function sendResendVerificationEmail(data: {
   if (!response.ok) {
     // Log only the provider's status — never the response body, which can
     // echo back the request (recipient address, subject).
-    console.error(`[auth.email] provider rejected request status=${response.status}`);
+    console.error(`[auth.email] provider rejected request status=${response.status} fromHost=${fromHost(from)}`);
     throw new APIError("BAD_GATEWAY", {
       code: AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED,
       message: "We could not send the verification email.",

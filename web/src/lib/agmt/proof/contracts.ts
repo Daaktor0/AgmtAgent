@@ -18,6 +18,7 @@ export const LaunchRuleIdSchema = z.enum([
   "language.typo_allowlist", "language.duplicate_word", "completion.placeholder",
   "references.missing_target", "references.duplicate_number", "references.scope_confusion", "references.ambiguous_target",
   "definitions.duplicate", "definitions.scope_redefinition", "definitions.case_variant", "definitions.unused", "definitions.undefined_use",
+  "parties.consistency", "figures.date_invalid", "figures.words_figures_mismatch",
 ]);
 export type LaunchRuleId = z.infer<typeof LaunchRuleIdSchema>;
 export const ProofFindingSchema = z.strictObject({
@@ -25,7 +26,7 @@ export const ProofFindingSchema = z.strictObject({
   ruleId: LaunchRuleIdSchema,
   ruleVersion: z.literal(1),
   kind: z.enum(["correction", "comment"]),
-  category: z.enum(["language", "definitions", "references", "completion"]),
+  category: z.enum(["language", "definitions", "references", "completion", "parties", "figures"]),
   severity: z.enum(["attention", "suggestion"]),
   primarySpan: SourceSpanSchema,
   relatedSpans: z.array(SourceSpanSchema),

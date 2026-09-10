@@ -5,7 +5,7 @@ import { AUTH_ERROR_CODES } from "./error-codes.ts";
 import { sendResendVerificationEmail } from "./resend.server.ts";
 
 const ORIGINAL_FETCH = globalThis.fetch;
-const ENV_KEYS = ["RESEND_API_KEY", "AUTH_EMAIL_FROM"] as const;
+const ENV_KEYS = ["RESEND_API_KEY", "AUTH_EMAIL_FROM", "AGMT_PUBLIC_URL", "BETTER_AUTH_URL"] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -69,6 +69,22 @@ describe("sendResendVerificationEmail", () => {
     await expectEmailDeliveryFailed(
       sendResendVerificationEmail({ user: { email: "user@example.com" }, url: "https://app.agmt.legal/verify" }),
     );
+  });
+
+  it("throws EMAIL_DELIVERY_FAILED on the production app host when AUTH_EMAIL_FROM is still the Resend test sender", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.AGMT_PUBLIC_URL = "https://app.agmt.legal";
+    delete process.env.AUTH_EMAIL_FROM;
+    let sent = false;
+    globalThis.fetch = (async () => {
+      sent = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    await expectEmailDeliveryFailed(
+      sendResendVerificationEmail({ user: { email: "user@example.com" }, url: "https://app.agmt.legal/api/auth/verify-email?token=abc" }),
+    );
+    assert.equal(sent, false);
   });
 
   it("throws EMAIL_DELIVERY_FAILED, without leaking the response body, when the provider rejects the request", async () => {

@@ -7,7 +7,7 @@ import type { LaunchRuleId } from "../../proof/contracts.ts";
 import type { BetaRuleCase } from "./beta-rule-cases.ts";
 import type { SplitBucket } from "./beta-rule-denominators.ts";
 
-export const PEE11_CASES_VERSION = "proof-pee11-cases-v1";
+export const PEE11_CASES_VERSION = "proof-pee11-cases-v2";
 export const PEE11_SUPPORTED_RECALL = 0.9;
 export const PEE11_COMMENT_PRECISION = 0.98;
 export const PEE11_MIN_SAMPLES = 100;
@@ -121,6 +121,34 @@ export function pee11RedefinitionTraps(): BetaRuleCase[] {
       action: "none" as const,
       rationale: "Imported excerpt is not a local parent definition.",
     })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_redef_purposes_${family.id}_${i}`,
+      ruleId: "definitions.scope_redefinition" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        `1. "${termName(family.id, 200 + i)}" means a written notice under this Agreement.`,
+        "SCHEDULE 1",
+        `1. For the purposes of this Schedule, "${termName(family.id, 200 + i)}" means a local list for ${family.id} ${i}.`,
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "For-the-purposes-of-this-Schedule definition is an intended local override.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_redef_override_${family.id}_${i}`,
+      ruleId: "definitions.scope_redefinition" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        `1. "${termName(family.id, 220 + i)}" means a day other than Saturday or Sunday.`,
+        "SCHEDULE 1",
+        `1. Notwithstanding clause 1, "${termName(family.id, 220 + i)}" means a day on which banks are open for ${family.id} ${i}.`,
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Express notwithstanding override is intended local drafting, not an error.",
+    })),
   ]);
 }
 
@@ -196,6 +224,32 @@ export function pee11CaseTraps(): BetaRuleCase[] {
       replacement: null,
       action: "none" as const,
       rationale: "Plural uses are excluded.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_case_ordinary_ci_${family.id}_${i}`,
+      ruleId: "definitions.case_variant" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        '1. "Confidential Information" means secret information.',
+        family.frame(`not disclose confidential information of third parties (${i})`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Ordinary lowercase of a common legal collocation is not a case-variant error.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_case_ordinary_services_${family.id}_${i}`,
+      ruleId: "definitions.case_variant" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        '1. "Services" means the services in Schedule 1.',
+        family.frame(`provide services to customers in the ordinary course (${i})`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Ordinary lowercase of a common noun that is also defined is not an error.",
     })),
   ]);
 }
@@ -285,10 +339,75 @@ export function pee11UndefinedTraps(): BetaRuleCase[] {
       action: "none" as const,
       rationale: "First-word-of-sentence capitalisation is excluded.",
     })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_undef_geo_${family.id}_${i}`,
+      ruleId: "definitions.undefined_use" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        '1. "Notice" means a written notice.',
+        family.frame(`deliver the notice in New York (${i})`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Place names are not undefined defined terms.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_undef_court_${family.id}_${i}`,
+      ruleId: "definitions.undefined_use" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        '1. "Notice" means a written notice.',
+        family.frame(`refer the dispute to the High Court (${i})`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Court and institution names are proper nouns, not undefined terms.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_undef_org_${family.id}_${i}`,
+      ruleId: "definitions.undefined_use" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        '1. "Notice" means a written notice.',
+        family.frame(`file the notice with the Reserve Bank (${i})`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Organisation names are proper nouns, not undefined terms.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_undef_includes_${family.id}_${i}`,
+      ruleId: "definitions.undefined_use" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        `1. "Included ${termName(family.id, 300 + i)}" includes software and related documentation.`,
+        family.frame(`protect the Included ${termName(family.id, 300 + i)} as required`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Supported includes-syntax is a definition, not an undefined use.",
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `pee11_undef_colon_${family.id}_${i}`,
+      ruleId: "definitions.undefined_use" as const,
+      kind: "negative" as const,
+      paragraphs: [
+        `1. "Colon ${termName(family.id, 320 + i)}": the meaning set out below.`,
+        family.frame(`protect the Colon ${termName(family.id, 320 + i)} as required`),
+      ],
+      quote: null,
+      replacement: null,
+      action: "none" as const,
+      rationale: "Supported colon definition syntax is a definition, not an undefined use.",
+    })),
   ]);
 }
 
-export function pee11Adversarial(): { id: string; ruleId: LaunchRuleId; paragraphs: string[]; tableRows?: string[][]; expectSilent: boolean; note: string }[] {
+export function pee11Adversarial(): { id: string; ruleId: LaunchRuleId; paragraphs: string[]; tableRows?: string[][]; header?: string; expectSilent: boolean; note: string }[] {
   return [
     {
       id: "pee11_adv_quoted",
@@ -318,6 +437,86 @@ export function pee11Adversarial(): { id: string; ruleId: LaunchRuleId; paragrap
       expectSilent: true,
       note: "imported parent is not a local redefinition",
     },
+    {
+      id: "pee11_adv_identical_schedule",
+      ruleId: "definitions.scope_redefinition",
+      paragraphs: ['1. "Confidential Information" means secret information of the Company.', "SCHEDULE 1", '1. "Confidential Information" means secret information of the Company.'],
+      expectSilent: true,
+      note: "identical scoped re-definition is legitimate drafting",
+    },
+    {
+      id: "pee11_adv_schedule_purposes",
+      ruleId: "definitions.scope_redefinition",
+      paragraphs: ['1. "Confidential Information" means secret information of the Company.', "SCHEDULE 1", '1. For the purposes of this Schedule, "Confidential Information" means the information listed in this Schedule.'],
+      expectSilent: true,
+      note: "for-the-purposes schedule definition is an intended override",
+    },
+    {
+      id: "pee11_adv_express_override",
+      ruleId: "definitions.scope_redefinition",
+      paragraphs: ['1. "Business Day" means a day other than Saturday or Sunday.', "SCHEDULE 1", '1. Notwithstanding clause 1, "Business Day" means a day on which banks in Mumbai are open.'],
+      expectSilent: true,
+      note: "express notwithstanding override",
+    },
+    {
+      id: "pee11_adv_ordinary_lowercase",
+      ruleId: "definitions.case_variant",
+      paragraphs: ['1. "Confidential Information" means secret information.', "The Recipient shall not disclose confidential information of third parties."],
+      expectSilent: true,
+      note: "ordinary lowercase of a common collocation",
+    },
+    {
+      id: "pee11_adv_geo",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ['1. "Notice" means a written notice.', "The Company shall deliver the notice in New York."],
+      expectSilent: true,
+      note: "place name is not an undefined term",
+    },
+    {
+      id: "pee11_adv_court",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ['1. "Notice" means a written notice.', "The dispute shall be referred to the High Court."],
+      expectSilent: true,
+      note: "institution name is not an undefined term",
+    },
+    {
+      id: "pee11_adv_table_quoted_means",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ["The Company shall protect the Table Term as required."],
+      tableRows: [['1. "Table Term" means a defined concept.']],
+      expectSilent: true,
+      note: "quoted means-definition inside a table is indexed",
+    },
+    {
+      id: "pee11_adv_table_two_column",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ["The Company shall protect the Column Term as required."],
+      tableRows: [['"Column Term"', "a defined concept in this table"]],
+      expectSilent: true,
+      note: "two-column table definition is supported syntax",
+    },
+    {
+      id: "pee11_adv_includes",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ['1. "Included Term" includes software and related documentation.', "The Company shall protect the Included Term as required."],
+      expectSilent: true,
+      note: "includes-syntax is a supported definition",
+    },
+    {
+      id: "pee11_adv_colon",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ['1. "Colon Term": the meaning set out below.', "The Company shall protect the Colon Term as required."],
+      expectSilent: true,
+      note: "colon syntax is a supported definition",
+    },
+    {
+      id: "pee11_adv_header_definition",
+      ruleId: "definitions.undefined_use",
+      paragraphs: ["The Company shall protect the Header Term as required."],
+      header: '1. "Header Term" means a defined concept.',
+      expectSilent: true,
+      note: "definition only in a header makes the inventory incomplete for absence claims",
+    },
   ];
 }
 
@@ -337,7 +536,7 @@ export function pee11Denominators() {
       uniqueNegativeFamilies: rule.negatives.length,
       heldOutPositive: rule.positives.filter((item) => splitBucket(item.id) === "held_out").length,
       heldOutNegative: rule.negatives.filter((item) => splitBucket(item.id) === "held_out").length,
-      independence: "Each ID is one (family, term) pair. Packed documents are execution only.",
+      independence: "Each ID is one (family, term) pair on a shared sentence template. Packed documents are execution only. sha/ssa/nda/employment/letter are the independent agreement families; term-index clones are not independent documents.",
     }])),
   };
 }

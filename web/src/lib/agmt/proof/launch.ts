@@ -11,6 +11,7 @@ import { EvidenceError, toFindingV2, validateFindingV2, type EvidenceContext } f
 import { admitFinding } from "../export/edit-capabilities.ts";
 import { resolveProofFindings } from "./resolve-findings.ts";
 import { executeLaunchRules } from "./rule-runtime.ts";
+import { buildProofIndexes } from "./indexes/build.ts";
 
 export function evidenceContext(ctx: LaunchContext): EvidenceContext {
   const receipt = ctx.extracted.packageCapabilityReceipt;
@@ -65,7 +66,8 @@ export async function analyzeProof(bytes: Buffer, options: {
   if (source.gaps.includes("complex_revision")) throw new Error("unsupported_complex_revision");
   const extracted = await resolveExtractedNumbering(bytes, raw, pkg);
   const sourceSha256 = createHash("sha256").update(bytes).digest("hex");
-  const ctx = { source, extracted, sourceSha256 };
+  const indexes = buildProofIndexes(source, extracted);
+  const ctx = { source, extracted, sourceSha256, indexes };
   const runtime = executeLaunchRules(ctx, {
     profile: options.profile ?? "agreement",
     language: options.language ?? "en-GB",
@@ -123,6 +125,7 @@ export async function analyzeProof(bytes: Buffer, options: {
     coverage,
     gaps,
     sourceSha256,
+    indexes,
     llmCalls: 0 as const,
   };
 }

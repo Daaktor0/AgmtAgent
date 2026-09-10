@@ -4,8 +4,9 @@ import { sourceSpan, evaluatedScope, type ProofSource, type SourceParagraph } fr
 import { ProofFindingSchema, type ProofFinding, type LaunchRuleId } from "./contracts.ts";
 import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS, DUPLICATE_WORD_SEPARATOR } from "./typo-allowlist.ts";
 import { absenceBlockingReasons } from "./evidence.ts";
+import type { ProofIndexSet } from "./indexes/types.ts";
 
-export type LaunchContext = { source: ProofSource; extracted: ExtractedDocument; sourceSha256: string };
+export type LaunchContext = { source: ProofSource; extracted: ExtractedDocument; sourceSha256: string; indexes?: ProofIndexSet };
 type Candidate = { p: SourceParagraph; start: number; end: number; replacement?: string; comment: string; related?: ProofFinding["relatedSpans"]; scopeEvidence?: ProofFinding["scopeEvidence"] };
 export function candidateFinding(rule: LaunchRuleId, c: Candidate): ProofFinding {
   const quote = c.p.text.slice(c.start, c.end);

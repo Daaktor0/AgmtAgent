@@ -1271,6 +1271,30 @@ Coverage is **limited** because the fixtures contain existing tracked changes (h
 
 Evidence: `web/src/lib/proof-local/capacity-evidence-agreements.json`, `capacity-evidence-chromium-agreements.json`, plus v2 image-heavy files.
 
+### PEE-02 — Scoped numbering, definition, reference, party and figure indexes (2026-09-10)
+
+Maps to PWC-39 wholesale plus RE-5 party / RE-6 figures. **Does not enable new proofreading checks.** Existing six launch rules still use `launch-checks.ts` `labels()` / declaration scans. Indexes are built once per `analyzeProof` run, versioned `proof-index-v1`, and are a pure function of `(source, extracted)`.
+
+**Index surfaces:**
+
+| Index | Distinguishes | Notes |
+|---|---|---|
+| scopes | `resolved` / `missing` / `ambiguous` | Schedule restart, reserved numbers, native numbering labels, never a boolean guess. Cross-scope same numbers stay missing locally and record `otherScopeHits`. |
+| definitions | local vs imported declarations | `"X" means` / `shall mean` / `has the meaning given in`; parent link when a schedule re-declares a main-body term. |
+| references | single / range / coordinated / relative / external | Range stores both endpoints; statutes and other instruments are `external`. |
+| parties | declared short name + legal name | Keyed on quoted/defined labels, not string similarity. |
+| figures | date / amount / percentage | `03/04/2026` is `ambiguous`; `23 April 2026` parses; no global dd/mm vs mm/dd guess. |
+
+**Tests:** 5/5 `indexes.test.ts` (in-process + cross-process digest identity; labelled cases; ambiguous duplicates; native numbering; launch findings unchanged). `test:proof` **161/161**. `npx tsc --noEmit` exit 0.
+
+**Word COM:** launch-demo body/table/prior_review/party_name **PASS**. Additional capacity Word (alerts suppressed): 300-page-target labelled output **584 pages, 1497 revisions, 4 comments, 1 table, 1 inline shape**; table-heavy 24 KiB family opened (`tables=1`). Repair prompt not observed (`DisplayAlerts=0`). 100 MiB image-heavy remains the advertised-capacity Word receipt from v3.
+
+**Status:** Implemented; Tested; Word preservation Verified on launch pairs. Firefox/Safari/physical iOS **untested**. Live signed-in Proofread → download **Blocked** (`sign_in_rejected`). Not Deployed until merge to main.
+
+**Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; no new published findings. `scanning→processing` not touched.
+
+**Next concrete task:** PEE-10 reference rules v2 (PWC-41 references half), then PEE-11 definitions v2. Do not promote index-backed rules on this increment.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

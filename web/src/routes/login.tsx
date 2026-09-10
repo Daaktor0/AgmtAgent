@@ -50,6 +50,7 @@ function Login() {
   const { user, isPending } = useCurrentUserState();
   const returnTo = safeProofReturn(Route.useSearch().returnTo);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -65,13 +66,19 @@ function Login() {
   async function submitEmail(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
       const result = creating
         ? await withAuthClientTimeout(authClient.signUp.email({ email, password, name: name || email }))
         : await withAuthClientTimeout(authClient.signIn.email({ email, password, callbackURL: returnTo }));
       if (result.error) throw new Error(describeAuthError(result.error));
-      if (creating && typeof window !== "undefined") window.location.assign(returnTo);
+      if (creating) {
+        setCreating(false);
+        setPassword("");
+        setNotice("Check your email for a verification link from Agmt, including spam. After you verify, sign in here. Proof will not open until that is done.");
+        return;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed.");
     } finally {
@@ -90,7 +97,7 @@ function Login() {
           <div>
             <h1 className="font-display text-xl font-medium">Sign in to Agmt</h1>
             <p className="mt-2 text-sm leading-6 text-ink-muted">
-              A verified account is required to upload and access documents.
+              Create an account, verify the email Agmt sends, then sign in. Proof stays closed until that verification is complete.
             </p>
           </div>
           {!authEnabled ? (
@@ -106,12 +113,13 @@ function Login() {
                 <button type="submit" disabled={busy} className="w-full rounded-md bg-ink px-4 py-2 text-sm text-paper disabled:opacity-50">
                   {busy ? "Working…" : creating ? "Create account" : "Sign in with email"}
                 </button>
-                <button type="button" className="text-sm underline underline-offset-4" onClick={() => { setCreating((value) => !value); setError(null); }}>
+                <button type="button" className="text-sm underline underline-offset-4" onClick={() => { setCreating((value) => !value); setError(null); setNotice(null); }}>
                   {creating ? "Already have an account? Sign in" : "Need an account? Create one"}
                 </button>
               </form>
             </div>
           )}
+          {notice ? <p className="text-sm leading-6 text-ink">{notice}</p> : null}
           {error ? <p className="text-sm text-danger">{error}</p> : null}
         </Card>
       </div>

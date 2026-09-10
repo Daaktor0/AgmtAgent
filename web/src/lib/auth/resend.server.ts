@@ -73,6 +73,9 @@ export async function sendResendVerificationEmail(data: {
   }
 
   const from = serverEnv("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
+  if (!serverEnv("AUTH_EMAIL_FROM") || /onboarding@resend\.dev/i.test(from)) {
+    console.error("[auth.email] AUTH_EMAIL_FROM is unset or still the Resend test sender; only the Resend account owner can receive mail");
+  }
   const email = verificationEmail(data.url, data.user.name);
   let response: Response;
   try {

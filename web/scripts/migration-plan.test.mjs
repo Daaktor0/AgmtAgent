@@ -70,6 +70,9 @@ test("the migration runner consumes only the top-level ordered set", () => {
     { name: "0006_product_runs.sql", path: "0006_product_runs.sql" },
     { name: "0007_r2_object_provider.sql", path: "0007_r2_object_provider.sql" },
     { name: "0008_proof_purge_function.sql", path: "0008_proof_purge_function.sql" },
+    { name: "0009_pwc_run_lifecycle.sql", path: "0009_pwc_run_lifecycle.sql" },
+    { name: "0010_pwc_live_dispatch.sql", path: "0010_pwc_live_dispatch.sql" },
+    { name: "0011_pwc_budget_counts.sql", path: "0011_pwc_budget_counts.sql" },
   ]);
   assert.ok(entries.includes("auth"));
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes(AUTH_MIGRATION));

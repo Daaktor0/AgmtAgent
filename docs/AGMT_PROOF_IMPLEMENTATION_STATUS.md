@@ -1192,6 +1192,20 @@ Live serving (unchanged until merge): `origin/main` `ca5e934`; Worker `agmt` 100
 
 **Next concrete task:** PEE-02 indexes (PWC-39 plus RE-5 party / RE-6 figures) in parallel with PEE-30 measurement when needed; then PEE-10/11/12/13. Production signed-in journey when a verified test account is available.
 
+### Deploy receipt — PEE-01 on main (2026-09-10)
+
+| Item | Value |
+|---|---|
+| Source commit serving | `2a3100cdad32bb661b7cd3a5a5fc8000d4a904c1` (fast-forward `ca5e934` → `2a3100c` on `main`) |
+| Worker `agmt` 100% version | `7065bd66-1e82-42d9-8d70-b374e2ccb659` (GitHub Actions wrangler-action 2026-09-10T09:09:16Z). Previous 100% `bf26652f` superseded. |
+| Deploy workflow | run 41 `34458994903`: build, `npm ci`, wrangler **success**. Custom-domain HTTP from GitHub IPs failed (same WAF 403 as before). Local `https://app.agmt.legal/proof` **200**. |
+| Web Proof corpus | run 416: typecheck/build/golden corpus **success**; full `npm test` **239/242** — 2 failures are frozen migration-list snapshots vs unapplied 0009–0011 files, not engine/export. Fix follows. |
+| Eval checks | run 570 **success** |
+| Live signed-in Proofread → download | **Blocked** (no verified test session) |
+| Rollback | previous Worker `bf26652f-b240-4c2b-b96d-bdfd3df89d91` remains listed |
+
+User-facing copy on live `/proof` still states on-device processing, 1 MiB, no Agmt virus-scan. Worker script is lazy-loaded until Proofread.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

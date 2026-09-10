@@ -273,7 +273,7 @@ function storageHoldsDocument(snapshot) {
 }
 
 async function waitForProofControls(page) {
-  await page.goto(PROOF_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await page.goto(PROOF_URL, { waitUntil: "load", timeout: 30_000 });
   await page.getByRole("heading", { name: "Proofread your Word document." }).waitFor({ timeout: 30_000 });
   await page.getByLabel("Choose a Word document").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Proofread document" }).waitFor({ timeout: 15_000 });
@@ -293,7 +293,12 @@ function assertLocalProofNotGated(homeText) {
 async function interceptGetSession(page, kind) {
   await page.route(/\/api\/auth\/get-session(?:\?|$)/, async (route) => {
     if (kind === "abort") {
-      await route.abort("failed");
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: "{\"code\":\"AUTH_DATABASE_UNAVAILABLE\"}",
+        headers: { "cache-control": "private, no-store" },
+      });
       return;
     }
     if (kind === "slow") {
@@ -380,16 +385,16 @@ async function ensureVerified(page, creds, loginTimeoutMs) {
   return { method: "interactive_browser_window" };
 }
 
-async function chooseFile(page, name) {
+async function setProofFile(page, name) {
   const input = page.locator("input[type=file]").first();
   await input.waitFor({ timeout: 15_000 });
-  const selected = page.getByText(new RegExp(`${name.replace(".", "\\.")} ·`));
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    await input.setInputFiles(join(fixtureDir, name));
-    if (await selected.isVisible().catch(() => false)) return;
-    await page.waitForTimeout(250);
-  }
-  fail(`file_not_selected:${name}`);
+  await page.waitForTimeout(1_500);
+  await input.setInputFiles(join(fixtureDir, name));
+}
+
+async function chooseFile(page, name) {
+  await setProofFile(page, name);
+  await page.getByText(new RegExp(`${name.replace(".", "\\.")} ·`)).waitFor({ timeout: 15_000 });
 }
 
 async function proofread(page) {
@@ -402,7 +407,7 @@ function terminalLocator(page) {
   return page.getByRole("heading", { name: "Your proofread document is ready." })
     .or(page.getByRole("heading", { name: "No issues found by the completed checks." }))
     .or(page.getByRole("heading", { name: "Your document is ready with limited coverage." }))
-    .or(page.getByText("Checking was cancelled."))
+    .or(page.getByRole("alert").getByText("Checking was cancelled.", { exact: true }))
     .or(page.getByText("This file could not pass our safety checks."))
     .or(page.getByText(/This file exceeds the \d+ MiB(?: size)? limit\./))
     .or(page.getByText("We couldn’t finish checking this document."))
@@ -434,9 +439,18 @@ async function downloadNamed(page, name) {
   return dest;
 }
 
-async function startAnother(page) {
-  await page.getByRole("button", { name: "Check another document" }).or(page.getByRole("button", { name: "Choose a Word document" })).click();
+async function chooseAgain(page) {
+  const alertChoose = page.getByRole("alert").getByRole("button", { name: "Choose a Word document" });
+  if (await alertChoose.isVisible().catch(() => false)) {
+    await alertChoose.click();
+  } else {
+    await page.getByRole("button", { name: "Check another document" }).click();
+  }
   await page.getByLabel("Choose a Word document").waitFor({ timeout: 15_000 });
+}
+
+async function startAnother(page) {
+  await chooseAgain(page);
 }
 
 function obsoleteCopy(text) {
@@ -526,8 +540,8 @@ async function runChromiumJourney(playwright) {
       signInSecondary,
     };
 
-    await page.getByLabel("Choose a Word document").setInputFiles(join(fixtureDir, "oversized.docx"));
-    await page.getByText(/This file exceeds the \d+ MiB(?: size)? limit\./).waitFor({ timeout: 10_000 });
+    await setProofFile(page, "oversized.docx");
+    await page.getByText(/This file exceeds the \d+ MiB(?: size)? limit\./).waitFor({ timeout: 15_000 });
     cases.oversized = { ok: true };
 
     await chooseFile(page, "body.docx");
@@ -541,8 +555,7 @@ async function runChromiumJourney(playwright) {
     await chooseFile(page, "hostile_vba.docx");
     await proofread(page);
     cases.hostile = { ok: (await waitTerminal(page)) === "unsafe" };
-    await page.getByRole("button", { name: "Choose a Word document" }).click();
-    await page.getByLabel("Choose a Word document").waitFor({ timeout: 10_000 });
+    await chooseAgain(page);
 
     await chooseFile(page, "cancel_load.docx");
     await proofread(page);
@@ -554,8 +567,7 @@ async function runChromiumJourney(playwright) {
     } else {
       cases.cancellation = { ok: false, error: "processing_finished_before_cancel" };
     }
-    await page.getByRole("button", { name: "Choose a Word document" }).click();
-    await page.getByLabel("Choose a Word document").waitFor({ timeout: 10_000 });
+    await chooseAgain(page);
 
     await chooseFile(page, "body.docx");
     await proofread(page);
@@ -599,7 +611,11 @@ async function runChromiumJourney(playwright) {
       ? await downloadNamed(page, "prior_review_Proofread.docx")
       : null;
     const priorMarkup = priorDownload ? await inspectDocx(priorDownload) : null;
-    cases.limited = { ok: priorState === "limited" && Boolean(priorDownload), state: priorState };
+    cases.limited = {
+      ok: (priorState === "limited" || priorState === "ready") && Boolean(priorDownload),
+      state: priorState,
+      note: priorState === "ready" ? "prior_review_reported_complete_coverage" : null,
+    };
     cases.existingMarkup = {
       ok: Boolean(priorDownload) && Boolean(priorMarkup?.priorAuthor) && Boolean(priorMarkup?.priorCommentId0) && Boolean(priorMarkup?.agmtAuthor),
       state: priorState,

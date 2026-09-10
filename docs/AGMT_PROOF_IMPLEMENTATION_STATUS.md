@@ -1370,6 +1370,24 @@ Detection, exact anchoring and comment action were scored separately. Capacity-c
 
 **100 MiB Word:** still separately labelled Blocked.
 
+### Deploy receipt — signed-out local Proof (2026-09-10)
+
+| Item | Value |
+|---|---|
+| Source commit serving | `16c3ae1ce45843e15ff8a0d3313574a2f82cbd4a` |
+| Worker `agmt` scriptVersion | `c9abb093-5d54-4e57-9f39-cb7772dbeaef` (100% traffic) |
+| Deploy workflow | run 51 `34516341499` **success**, including custom-domain smoke |
+| Live `/proof` | Signed-out choose → process → download works. Copy present. Sign-in is a header secondary action. |
+| Session faults | get-session 503 / null / delayed 20s: Proof controls in <2s; processing started without waiting |
+| Protected routes | `GET /api/proof/runs` 401; `POST /api/proof/upload` 401; `/matters` redirects to login |
+| Word | Production downloads opened with alerts on: body 3 revisions / 2 comments; table 3/2; prior_review 5/3 (existing markup kept); party_name 0/0. No hung repair dialog. |
+| 100 MiB Word | Still **Blocked** (no browser-generated 100 MiB file) |
+| Network/storage | No document leaks; empty localStorage/sessionStorage/indexedDB/cookies during signed-out processing |
+
+**Auth remaining (not fixed):** Resend still returns 422 for verification mail (`fromHost=mail.agmt.legal`). Signup HTTP 200 is not delivery. Custom-domain first-request sign-in has previously hit the 15s handler timeout; this deploy’s smoke was a warm 529ms `INVALID_EMAIL_OR_PASSWORD`. No connect/query elapsed traces, so this is not labelled a Hyperdrive cold start.
+
+**Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; no fake sessions.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

@@ -208,7 +208,7 @@ export const PROOF_UI_COPY: Readonly<Record<ProofUiStateId, { heading: string; m
   auth_unavailable: { heading: "We couldn’t complete sign-in. Please try again shortly.", main: "" },
   selected: { heading: "Ready to proofread", main: "" },
   wrong_extension: { heading: "Choose a Word (.docx) file containing document text.", main: "" },
-  too_large: { heading: "This file exceeds the 1 MiB limit.", main: "" },
+  too_large: { heading: "This file exceeds the 100 MiB size limit.", main: "" },
   multiple_files: { heading: "Choose one document at a time.", main: "" },
   uploading: { heading: "Uploading your document…", main: "" },
   scanning: { heading: "Checking the file before proofreading…", main: "" },

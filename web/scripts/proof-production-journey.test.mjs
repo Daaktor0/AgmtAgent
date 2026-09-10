@@ -15,7 +15,7 @@ test("production journey waits for Proof controls and states, not networkidle", 
   assert.match(source, /Processing happens on this device/);
   assert.match(source, /Your proofread document is ready/);
   assert.match(source, /Checking was cancelled/);
-  assert.match(source, /This file exceeds the 1 MiB limit/);
+  assert.match(source, /This file exceeds the \\d\+ MiB\(\?: size\)\? limit/);
   assert.match(source, /domcontentloaded/);
   assert.match(source, /AGMT_PROOF_INTERACTIVE === "1"/);
   assert.doesNotMatch(source, /interactive: process.env.AGMT_PROOF_INTERACTIVE === "1" \|\|/);

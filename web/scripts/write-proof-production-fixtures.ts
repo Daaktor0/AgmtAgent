@@ -32,7 +32,7 @@ cancelZip.file(
 );
 const cancelBytes = await cancelZip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 if (cancelBytes.byteLength > PROOF_LOCAL_MAX_SOURCE_BYTES) {
-  throw new Error("cancel fixture exceeded the 1 MiB source cap");
+  throw new Error("cancel fixture exceeded the published source cap");
 }
 if (cancelBytes.byteLength < 80_000) {
   throw new Error("cancel fixture compressed too far to leave a cancel window");

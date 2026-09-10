@@ -1,6 +1,6 @@
 import type { ProofLanguage, ProofProfile } from "../products/capabilities.ts";
 import { installDocumentExfiltrationGuard } from "./isolation.ts";
-import { PROOF_LOCAL_MAX_PROCESSING_MS } from "./limits.ts";
+import { publishedProofCapacityPolicy } from "./policy.ts";
 import type { LocalProofResult, LocalProofStage } from "./pipeline.ts";
 import type { ProofWorkerRequest, ProofWorkerResponse } from "./protocol.ts";
 
@@ -82,7 +82,7 @@ export function runProofWorkerJob(worker: ProofWorkerLike, input: {
     };
     timer = globalThis.setTimeout(() => {
       fail(new Error("proof_timeout"));
-    }, PROOF_LOCAL_MAX_PROCESSING_MS);
+    }, publishedProofCapacityPolicy().maxProcessingMs);
     const buffer = copy.buffer.slice(copy.byteOffset, copy.byteOffset + copy.byteLength);
     const request: ProofWorkerRequest = {
       type: "process",

@@ -1,8 +1,10 @@
+import { DocxPackage } from "../agmt/docx-package.ts";
 import { exportProofDocx } from "../agmt/export/docx.ts";
 import { analyzeProof } from "../agmt/proof/launch.ts";
 import type { ProofLanguage, ProofProfile } from "../products/capabilities.ts";
-import { admitLocalDocument, type LocalAdmitReceipt } from "./admit.ts";
-import { PROOF_LOCAL_MAX_OUTPUT_BYTES, PROOF_LOCAL_MAX_SOURCE_BYTES } from "./limits.ts";
+import { zipBytesView, ZipSafetyError } from "../agmt/zip-safety.ts";
+import { admitLocalDocument, scanAdmittedPart, type LocalAdmitReceipt } from "./admit.ts";
+import { publishedProofCapacityPolicy, type ProofCapacityPolicy } from "./policy.ts";
 
 export type LocalProofStage = "admitting" | "analyzing" | "exporting" | "validating";
 
@@ -40,6 +42,7 @@ export type LocalProofOptions = {
   now?: Date;
   signal?: AbortSignal;
   onStage?: (stage: LocalProofStage) => void;
+  policy?: ProofCapacityPolicy;
 };
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -74,19 +77,43 @@ function coverageLines(analysis: Awaited<ReturnType<typeof exportProofDocx>>["an
  */
 export async function processProofLocal(bytes: Uint8Array, options: LocalProofOptions = {}): Promise<LocalProofResult> {
   throwIfAborted(options.signal);
-  if (bytes.byteLength < 1 || bytes.byteLength > PROOF_LOCAL_MAX_SOURCE_BYTES) {
+  const policy = options.policy ?? publishedProofCapacityPolicy();
+  if (bytes.byteLength < 1 || bytes.byteLength > policy.maxSourceBytes) {
     throw new Error("source_too_large");
   }
   options.onStage?.("admitting");
-  const admit = admitLocalDocument(bytes);
+  let pkg: DocxPackage;
+  try {
+    pkg = DocxPackage.open(bytes, {
+      limits: policy.zip,
+      verify: true,
+      signal: options.signal,
+      onInflated: scanAdmittedPart,
+    });
+  } catch (error) {
+    if (error instanceof ZipSafetyError) {
+      if (
+        error.code.startsWith("package_")
+        || error.code === "suspicious_compression_ratio"
+        || error.code === "zip64_unsupported"
+      ) {
+        throw new Error(error.code);
+      }
+      throw new Error("invalid_docx_zip");
+    }
+    throw error;
+  }
+  const admit = admitLocalDocument(bytes, { policy, pkg, signal: options.signal });
   throwIfAborted(options.signal);
 
-  const buffer = Buffer.from(bytes) as Buffer;
+  const buffer = zipBytesView(bytes);
   options.onStage?.("analyzing");
   throwIfAborted(options.signal);
   const analysis = await analyzeProof(buffer, {
     profile: options.profile,
     language: options.language,
+    pkg,
+    maxSourceBytes: policy.maxSourceBytes,
   });
   throwIfAborted(options.signal);
 
@@ -96,9 +123,13 @@ export async function processProofLocal(bytes: Uint8Array, options: LocalProofOp
     profile: options.profile,
     language: options.language,
     analysis,
+    pkg,
+    maxSourceBytes: policy.maxSourceBytes,
+    maxOutputBytes: policy.maxOutputBytes,
+    signal: options.signal,
   });
   throwIfAborted(options.signal);
-  if (exported.bytes.byteLength > PROOF_LOCAL_MAX_OUTPUT_BYTES) {
+  if (exported.bytes.byteLength > policy.maxOutputBytes) {
     throw new Error("output_too_large");
   }
 
@@ -106,9 +137,7 @@ export async function processProofLocal(bytes: Uint8Array, options: LocalProofOp
   // Independent JS package + reconstruction validation already ran inside exportProofDocx.
   throwIfAborted(options.signal);
 
-  const output = exported.bytes instanceof Uint8Array
-    ? new Uint8Array(exported.bytes)
-    : new Uint8Array(exported.bytes);
+  const output = new Uint8Array(exported.bytes.buffer, exported.bytes.byteOffset, exported.bytes.byteLength);
   const corrections = exported.receipt.plan.findings.filter((finding) => finding.kind === "correction").length;
   const comments = exported.receipt.commentIds.length;
   return {

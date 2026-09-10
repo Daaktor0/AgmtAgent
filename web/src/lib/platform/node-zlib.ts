@@ -35,4 +35,18 @@ export function inflateRawSync(data: Uint8Array, options: { maxOutputLength?: nu
   return Buffer.concat(chunks);
 }
 
-export default { crc32, inflateRawSync };
+export function deflateRawSync(data: Uint8Array, options: { maxInputLength?: number } = {}): Buffer {
+  const maxInputLength = options.maxInputLength ?? 32 * 1024 * 1024;
+  if (data.byteLength > maxInputLength) throw new Error("zip_deflate_failed");
+  const deflate = new (pako as unknown as { Deflate: typeof pako.Inflate }).Deflate({ raw: true, chunkSize: 16_384 });
+  const chunks: Uint8Array[] = [];
+  deflate.onData = (chunk: Uint8Array) => {
+    chunks.push(chunk);
+  };
+  deflate.push(data instanceof Uint8Array ? data : new Uint8Array(data), true);
+  if (deflate.err) throw new Error("zip_deflate_failed");
+  if (chunks.length === 1) return Buffer.from(chunks[0]!);
+  return Buffer.concat(chunks);
+}
+
+export default { crc32, inflateRawSync, deflateRawSync };

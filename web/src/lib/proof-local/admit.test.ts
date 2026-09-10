@@ -3,7 +3,7 @@ import { test } from "node:test";
 import JSZip from "jszip";
 import { launchFixture } from "../agmt/corpus/launch-fixtures.ts";
 import { admitLocalDocument, EICAR_SIGNATURE } from "./admit.ts";
-import { PROOF_LOCAL_MAX_SOURCE_BYTES } from "./limits.ts";
+import { PROOF_LOCAL_POLICY_DESKTOP } from "./policy.ts";
 
 async function mutate(edit: (zip: JSZip) => Promise<void> | void): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(await launchFixture("body"));
@@ -30,8 +30,9 @@ test("local admit refuses EICAR, macros, XML entities, and oversized sources", a
       const xml = await zip.file("word/document.xml")!.async("string");
       zip.file("word/document.xml", xml.replace("<?xml version=\"1.0\"", "<!DOCTYPE w:document [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><?xml version=\"1.0\""));
     })), /external_content_not_supported|invalid_docx_zip/);
-    const huge = new Uint8Array(PROOF_LOCAL_MAX_SOURCE_BYTES + 1);
-    huge[0] = 0x50;
-    huge[1] = 0x4b;
-    assert.throws(() => admitLocalDocument(huge), /source_too_large/);
+    const huge = new Uint8Array([0x50, 0x4b, 0, 0]);
+    assert.throws(
+      () => admitLocalDocument(huge, { policy: { ...PROOF_LOCAL_POLICY_DESKTOP, maxSourceBytes: 3 } }),
+      /source_too_large/,
+    );
 });

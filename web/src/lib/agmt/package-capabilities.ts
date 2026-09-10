@@ -6,9 +6,9 @@
  * Original part bytes are hashed and never rewritten.
  */
 import { createHash } from "node:crypto";
-import JSZip from "jszip";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
-import { inspectZipCentralDirectory, ZIP_LIMITS } from "./zip-safety.ts";
+import { DocxPackage, isXmlPackagePart } from "./docx-package.ts";
+import { inspectZipCentralDirectory, ZIP_LIMITS, type ZipLimitSet } from "./zip-safety.ts";
 
 export const PACKAGE_CAPABILITY_INVENTORY_VERSION = "proof-package-capabilities-v1";
 export const SUPPORTED_PROFILE_ID = "proof-docx-phase-a-v1";
@@ -124,8 +124,8 @@ function packageText(value: unknown, field: string, maximumLength = 512): string
   return value.trim();
 }
 
-function decodeXml(data: Uint8Array, expectedBytes: number): string {
-  if (data.byteLength !== expectedBytes || data.byteLength > ZIP_LIMITS.MAX_ENTRY_BYTES) {
+function decodeXml(data: Uint8Array, expectedBytes: number, maxEntryBytes: number): string {
+  if (data.byteLength !== expectedBytes || data.byteLength > maxEntryBytes) {
     reject("package_entry_size_mismatch", "ZIP entry size differs from its central-directory declaration");
   }
   let xml: string;
@@ -736,36 +736,32 @@ function rollupDisposition(
  * Inventory every package part and relationship. Does not fetch external
  * targets, does not strip unknown/active parts, and does not mutate `bytes`.
  */
-export async function inventoryPackageCapabilities(bytes: Uint8Array): Promise<PackageCapabilityReceipt> {
-  const frozen = Buffer.from(bytes);
-  const packageSha256 = sha256Hex(frozen);
-  const manifest = inspectZipCentralDirectory(frozen);
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(frozen, { checkCRC32: true, createFolders: false });
-  } catch {
-    reject("corrupt", "ZIP archive could not be loaded");
-  }
+export async function inventoryPackageCapabilities(
+  bytes: Uint8Array,
+  options: { pkg?: DocxPackage; limits?: ZipLimitSet } = {},
+): Promise<PackageCapabilityReceipt> {
+  const limits = options.limits ?? options.pkg?.limits ?? ZIP_LIMITS;
+  const packageSha256 = sha256Hex(bytes);
+  const pkg = options.pkg ?? DocxPackage.open(bytes, { limits, verify: true });
+  const manifest = pkg.directory;
 
   const names = manifest.entries.filter((entry) => !entry.isDirectory).map((entry) => entry.name);
   const nameSet = new Set(names);
-  const partBytes = new Map<string, Buffer>();
+  const partHashes = new Map<string, { sha256: string; byteSize: number }>();
   const xmlByName = new Map<string, string>();
 
   for (const entry of manifest.entries) {
     if (entry.isDirectory) continue;
-    const file = zip.file(entry.name);
-    if (!file) reject("corrupt", "ZIP entry could not be loaded by the package reader");
+    if (!pkg.has(entry.name)) reject("corrupt", "ZIP entry could not be loaded by the package reader");
     let data: Uint8Array;
     try {
-      data = await file.async("uint8array");
+      data = pkg.inflated(entry.name);
     } catch {
       reject("corrupt", "ZIP entry could not be decompressed or failed its CRC");
     }
-    const copy = Buffer.from(data);
-    partBytes.set(entry.name, copy);
-    if (/\.xml$|\.rels$/i.test(entry.name) || entry.name === "[Content_Types].xml") {
-      xmlByName.set(entry.name, decodeXml(copy, entry.uncompressedSize));
+    partHashes.set(entry.name, { sha256: sha256Hex(data), byteSize: data.byteLength });
+    if (isXmlPackagePart(entry.name)) {
+      xmlByName.set(entry.name, decodeXml(data, entry.uncompressedSize, limits.MAX_ENTRY_BYTES));
     }
   }
 
@@ -810,14 +806,14 @@ export async function inventoryPackageCapabilities(bytes: Uint8Array): Promise<P
     .slice()
     .sort((left, right) => left.localeCompare(right))
     .map((name) => {
-      const raw = partBytes.get(name);
-      if (!raw) reject("corrupt", "Package part bytes are missing");
+      const hashed = partHashes.get(name);
+      if (!hashed) reject("corrupt", "Package part bytes are missing");
       return classifyPart({
         name,
         contentType: contentTypes.get(name) ?? "",
         relationshipTypes: relsByPart.get(name) ?? [],
-        sha256: sha256Hex(raw),
-        byteSize: raw.byteLength,
+        sha256: hashed.sha256,
+        byteSize: hashed.byteSize,
         scan: scans.get(name) ?? null,
       });
     });

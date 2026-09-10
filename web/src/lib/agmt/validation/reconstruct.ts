@@ -5,7 +5,7 @@
  * Accept/reject expectations are derived from the original source and the plan.
  */
 import assert from "node:assert/strict";
-import JSZip from "jszip";
+import { DocxPackage } from "../docx-package.ts";
 import { nodeAt, xmlAttrs, xmlChildren, xmlTag, type XmlNode } from "../source-map.ts";
 import { parser, walk, ids } from "../export/ooxml.ts";
 import type { ExportReceipt } from "../export/receipt.ts";
@@ -158,12 +158,14 @@ export async function validateOutputReconstruction(input: {
   output: Buffer;
   receipt: ExportReceipt;
   analysis: Analysis;
-  sourceZip?: JSZip;
+  sourcePkg?: DocxPackage;
+  sourceZip?: DocxPackage;
 }): Promise<void> {
-  const original = input.sourceZip ?? await JSZip.loadAsync(input.sourceBytes);
-  const result = await JSZip.loadAsync(input.output, { checkCRC32: true });
+  const limits = input.sourcePkg?.limits ?? input.sourceZip?.limits ?? undefined;
+  const original = DocxPackage.open(input.sourceBytes, { limits, verify: false });
+  const result = DocxPackage.open(input.output, { limits: original.limits, verify: false });
   const sourceTree = input.analysis.source.tree;
-  const outputTree: XmlNode[] = parser.parse(await result.file("word/document.xml")!.async("string"));
+  const outputTree: XmlNode[] = parser.parse(result.text("word/document.xml"));
   const revisionSet = new Set(input.receipt.revisionIds);
   const commentSet = new Set([...input.receipt.commentIds, ...input.receipt.noticeIds]);
 
@@ -178,7 +180,7 @@ export async function validateOutputReconstruction(input: {
     assert.equal(count, 1, "missing_or_duplicate_revision");
   }
 
-  const commentXml = await result.file("word/comments.xml")?.async("string");
+  const commentXml = result.has("word/comments.xml") ? result.text("word/comments.xml") : undefined;
   const commentTree: XmlNode[] = commentXml ? parser.parse(commentXml) : [];
   for (const id of commentSet) {
     for (const tag of ["w:commentRangeStart", "w:commentRangeEnd", "w:commentReference", "w:comment"] as const) {
@@ -214,7 +216,7 @@ export async function validateOutputReconstruction(input: {
     assert.deepEqual(outputRevisions.get(id), record, "existing_revision_changed");
   }
 
-  const oldCommentXml = await original.file("word/comments.xml")?.async("string");
+  const oldCommentXml = original.has("word/comments.xml") ? original.text("word/comments.xml") : undefined;
   const allExpectedCommentIds = new Set([...commentSet, ...ids(oldCommentXml ? parser.parse(oldCommentXml) : [], "w:comment")]);
   assert.deepEqual(ids(commentTree, "w:comment"), allExpectedCommentIds, "unplanned_comment");
 

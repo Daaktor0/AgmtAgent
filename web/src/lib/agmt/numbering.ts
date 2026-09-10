@@ -1,5 +1,5 @@
-import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
+import { DocxPackage } from "./docx-package.ts";
 import type { ExtractedDocument, SourceCapability } from "./types.ts";
 
 const parser = new XMLParser({
@@ -292,12 +292,11 @@ function rawNumbering(numbering: string | null): { numId: string | null; level: 
 export async function resolveExtractedNumbering(
   bytes: Buffer,
   document: ExtractedDocument,
+  pkg?: DocxPackage,
 ): Promise<ExtractedDocument> {
-  const zip = await JSZip.loadAsync(bytes, { checkCRC32: true });
-  const numberingFile = zip.file("word/numbering.xml");
-  const stylesFile = zip.file("word/styles.xml");
-  const numberingXml = numberingFile ? await numberingFile.async("string") : null;
-  const stylesXml = stylesFile ? await stylesFile.async("string") : null;
+  const opened = pkg ?? DocxPackage.open(bytes, { verify: false });
+  const numberingXml = opened.has("word/numbering.xml") ? opened.text("word/numbering.xml") : null;
+  const stylesXml = opened.has("word/styles.xml") ? opened.text("word/styles.xml") : null;
   const resolver = createNumberingResolver(numberingXml, stylesXml);
   let resolvedCount = 0;
   let unresolvedNativeCount = 0;

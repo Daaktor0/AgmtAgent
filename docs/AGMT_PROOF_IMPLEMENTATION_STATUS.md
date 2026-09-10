@@ -1206,6 +1206,71 @@ Live serving (unchanged until merge): `origin/main` `ca5e934`; Worker `agmt` 100
 
 User-facing copy on live `/proof` still states on-device processing, 1 MiB, no Agmt virus-scan. Worker script is lazy-loaded until Proofread.
 
+### Capacity policy v2 — image-heavy 100 MiB (2026-09-10)
+
+Maps to PEE spec §9 / plan item 7. Engineering targets were 100 MB source, 150 MB stretch. Those are not unlimited claims.
+
+**Bottleneck found:** the previous ~100× heap ratio was text-heavy XML (two parser trees + JSZip holding every part + export recompressing media). Image-heavy packages were dominated by repeated ZIP inflation and JSZip `generateAsync` of unchanged binary parts.
+
+**Change:** `DocxPackage` inspects/verifies once, caches XML, drops inflated media, and copies unmodified local ZIP records on rewrite. ZIP/XML/time/output-validation gates remain. `extracted_text_limit` (1e6 code points) is unchanged.
+
+**Measured (not extrapolated from the 1 MiB text fixture):**
+
+| Family | Highest ok | Time | Notes |
+|---|---|---|---|
+| Image-heavy | **150 MiB** Node and Chromium | Node 1.9 s / Chromium 11.9 s at 150; Chromium **5.4 s at 100 MiB** | Media copied as-is |
+| Text-heavy | **1.05 MiB** document.xml | 5.3 s Node | 2.1 MiB hits `extracted_text_limit` |
+| Tables | **3.4 MiB** | 6 s Node | Next size hits `extracted_text_limit` |
+| Revisions | **1.6 MiB** | 0.6 s Node | Next size hits `extracted_text_limit` |
+| Adversarial high-ratio | Refused | — | `suspicious_compression_ratio` kept |
+
+**Published policy (`proof-local-limits-v2`):** desktop **100 MiB** source / 150 MiB expanded / 90 s / 1 MiB document.xml; mobile **8 MiB** / 24 MiB expanded / 45 s. Coarse pointer or `deviceMemory` &lt; 4 selects mobile. Missing memory API does not reject. 150 MiB remains a stretch measurement, not the UI cap.
+
+**Status:** Implemented; Tested (147/147 `test:proof`; Node benches; Chromium 8/25/100/150 MiB image-heavy). Word COM Verified on launch `body` and 8 MiB image-heavy (`revisions=3 comments=2`). Firefox/Safari/physical iOS untested. **Superseded** by capacity policy v3 below (1 MiB XML admit gate raised from measurement; device class no longer uses coarse pointer).
+
+**Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no R2 fallback; uploads unset; ZIP ratio/entry/expansion/XML/time/validation still enforced.
+
+Evidence: `web/src/lib/proof-local/capacity-evidence.json`, `capacity-evidence-image_heavy.json`, `capacity-evidence-chromium.json`.
+
+### Capacity policy v3 — complete agreements (2026-09-10)
+
+Maps to PEE spec §9 / plan item 7. Continues the v2 package-memory work. Does **not** add proofreading checks.
+
+**Gates reconciled (not the same number):**
+
+| Gate | What it measures | What it stopped |
+|---|---|---|
+| `source_too_large` | Compressed ZIP bytes | Files above the published source ceiling (desktop 100 MiB) |
+| `package_too_complex` (`maxDocumentXmlBytes`) | Uncompressed `word/document.xml` (and total XML) | The old **1 MiB XML** admit gate would refuse the 150-page-target complete agreement (`document.xml` 1,533,655 bytes). Extracted text there is 376,021 code points. |
+| `extracted_text_limit` | Visible Unicode code points after projection | Previous text-heavy 2.1 MiB `document.xml` (almost all visible text). Complete 300-page-target agreements at 749,638 code points stay under 1e6. |
+| ZIP ratio / expansion / time | Package safety | Adversarial high-ratio family; unchanged |
+
+Do not confuse compressed file size, XML size, and visible document length. A 100 MiB image-heavy package can have a tiny `document.xml`. A 1.5 MiB complete agreement can be refused by a 1 MiB XML ceiling while remaining well under 1e6 extracted code points.
+
+**Representative complete agreements** (definitions, cross-refs, Schedule 1 table, formatting, existing comment/revisions, small embedded image). Page targets used `PAGE_CHARS_PER_PAGE` (2500); Word `ComputeStatistics(wdStatisticPages)` on the 150-target labelled output was **293 pages**.
+
+| Target pages | Kind | ZIP bytes | document.xml | extracted code points | Node | Chromium | Findings |
+|---|---|---|---|---|---|---|---|
+| 25 | labelled | 268,836 | 262,518 | 63,094 | 265 ms | 303 ms | planted 4 exact; 2 corrections / 2 comments |
+| 25 | clean | 268,848 | 262,530 | 63,108 | 318 ms | 188 ms | 0 / 0 |
+| 75 | labelled | 780,564 | 774,246 | 189,028 | 658 ms | 559 ms | planted 4 exact |
+| 150 | labelled | 1,539,973 | 1,533,655 | 376,021 | 1.45 s | 1.01 s | planted 4 exact |
+| 300 | labelled | 3,057,752 | 3,051,434 | 749,638 | 3.06 s | 2.49 s | planted 4 exact |
+
+Coverage is **limited** because the fixtures contain existing tracked changes (honest, not a new rule). RSS delta at 300-page labelled Node: ~39 MiB. Chromium `performance.memory` reported a constant 10,000,000 and is not treated as a reliable available-memory measurement.
+
+**Published policy (`proof-local-limits-v3`):** desktop **100 MiB** source / 150 MiB expanded / 90 s / **8 MiB document.xml** / 12 MiB total XML / 1e6 extracted code points. Mobile **8 MiB** source / 2 MiB document.xml — phone UA only; **not mobile-verified**. `deviceMemory` is a hint, not a class switch. `pointer: coarse` is not used (touchscreen laptops stay desktop). Runtime ZIP/XML/time/cancellation safeguards apply on every device. 150 MiB remains a stretch measurement, not the UI cap.
+
+**ZIP export path:** Independent tests cover data-descriptor copy of unmodified binary parts and relationships, rewrite cancellation, CRC/duplicate/ZIP64/malformed-offset refusal before rewrite, and a poisoned XML cache that must not make the independent validator accept a mutated original comment. Validators always re-open from original bytes.
+
+**Word COM (this machine, alerts suppressed):** body/table/prior_review PASS; 150-target complete agreement **293 pages, 749 revisions, 4 comments, 1 table, 1 inline shape**; image-heavy **100 MiB** output opened (`revisions=3 comments=2`). No COM error. Repair prompt not observed (DisplayAlerts=0).
+
+**Status:** Implemented; Tested (`test:proof` 156/156; `tsc --noEmit` pass; Node + desktop Chromium complete-agreement families). Word-Verified: launch pairs, 8 MiB and **100 MiB** image-heavy, 293-page complete agreement. Firefox/Safari/physical iOS **untested**. Mobile 8 MiB class **not mobile-verified**. **Not Deployed** until merge to main.
+
+**Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; ZIP ratio/entry/expansion/XML/time/validation still enforced. No additional proofreading checks were enabled.
+
+Evidence: `web/src/lib/proof-local/capacity-evidence-agreements.json`, `capacity-evidence-chromium-agreements.json`, plus v2 image-heavy files.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

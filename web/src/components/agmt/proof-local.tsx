@@ -16,6 +16,7 @@ import {
   PROOF_LOCAL_SESSION_LOST,
 } from "@/lib/proof-local/copy";
 import { localProofError } from "@/lib/proof-local/errors";
+import { publishedProofCapacityPolicy } from "@/lib/proof-local/policy";
 import { persistentStorageSnapshot } from "@/lib/proof-local/isolation";
 import type { LocalProofResult, LocalProofStage } from "@/lib/proof-local/pipeline";
 import { sanitizeDownloadBasename } from "@/lib/products/use-proof-run";
@@ -169,7 +170,7 @@ export function ProofLocalExperience() {
           {auth === "verified" && !file ? <p className="text-sm text-stone">{PROOF_LOCAL_DEVICE}</p> : null}
           <details className="text-sm leading-6 text-stone">
             <summary className="min-h-11 cursor-pointer text-ink">Supported files</summary>
-            <p className="mt-2">Native unencrypted transitional .docx up to 1 MiB. Macros, encryption, IRM, Strict OOXML, .doc, .docm, .dotx and PDF are refused. Headers, footnotes and fields are preserved but not fully checked in this beta. Open XML SDK and Microsoft Word checks are release tests, not a per-document production scan.</p>
+            <p className="mt-2">Native unencrypted transitional .docx up to {publishedProofCapacityPolicy().label} on this device. Macros, encryption, IRM, Strict OOXML, .doc, .docm, .dotx and PDF are refused. Headers, footnotes and fields are preserved but not fully checked in this beta. Proof also refuses packages that exceed its ZIP expansion, XML complexity or processing-time limits; text-heavy documents may stop earlier than the source-size ceiling. Open XML SDK and Microsoft Word checks are release tests, not a per-document production scan.</p>
           </details>
         </div>
       ) : null}

@@ -10,13 +10,13 @@
  * production target remains an isolated parser worker with a differential
  * Open XML SDK oracle.
  */
-import JSZip from "jszip";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { DocxPackage } from "./docx-package.ts";
 import { mapProofSource, type ProofSource } from "./source-map.ts";
 import type { ExtractedBlock, ExtractedBookmark, ExtractedDocument, ExtractedNote, PackageRelationship, SourceCapability } from "./types.ts";
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
-import { ZIP_LIMITS, inspectZipCentralDirectory } from "./zip-safety.ts";
+import { ZIP_LIMITS, type ZipLimitSet } from "./zip-safety.ts";
 import {
   PACKAGE_CAPABILITY_INVENTORY_VERSION,
   PackageCapabilityError,
@@ -269,29 +269,26 @@ function collectRevisions(node: unknown, output: ExtractedDocument["revisions"])
   }
 }
 
-type ZipEntryReader = {
-  async(type: "uint8array"): Promise<Uint8Array>;
-};
-
 function parserError(code: string, message: string): Error {
   return Object.assign(new Error(message), { code });
 }
 
-async function readEntryText(entry: ZipEntryReader, expectedBytes: number): Promise<string> {
-  let data: Uint8Array;
-  try {
-    data = await entry.async("uint8array");
-  } catch {
+function readPackageText(pkg: DocxPackage, name: string, expectedBytes: number): string {
+  const entry = pkg.entry(name);
+  if (!entry || entry.isDirectory) {
     throw parserError("corrupt", "ZIP entry could not be decompressed or failed its CRC");
   }
-  if (data.byteLength !== expectedBytes || data.byteLength > ZIP_LIMITS.MAX_ENTRY_BYTES) {
+  if (entry.uncompressedSize !== expectedBytes || entry.uncompressedSize > pkg.limits.MAX_ENTRY_BYTES) {
     throw parserError("package_entry_size_mismatch", "ZIP entry size differs from its central-directory declaration");
   }
   let xml: string;
   try {
-    xml = new TextDecoder("utf-8", { fatal: true }).decode(data);
+    xml = pkg.text(name);
   } catch {
-    throw parserError("invalid_xml_encoding", "XML entry is not valid UTF-8");
+    throw parserError("corrupt", "ZIP entry could not be decompressed or failed its CRC");
+  }
+  if (xml.length > pkg.limits.MAX_ENTRY_BYTES) {
+    throw parserError("package_entry_size_mismatch", "ZIP entry size differs from its central-directory declaration");
   }
   if (/<!DOCTYPE|<!ENTITY/i.test(xml) || XMLValidator.validate(xml) !== true) {
     throw parserError("invalid_xml", "Malformed XML or forbidden declaration");
@@ -453,22 +450,21 @@ function externalRelationshipTarget(target: string): boolean {
   return /^(https?|mailto):/i.test(target);
 }
 
-async function inspectRelationships(
-  zip: JSZip,
+function inspectRelationships(
+  pkg: DocxPackage,
   entries: PackageEntryMetadata[],
   names: Set<string>,
-): Promise<InspectedRelationship[]> {
+): InspectedRelationship[] {
   const relationships: InspectedRelationship[] = [];
   for (const entry of entries.filter((item) => item.name.endsWith(".rels")).sort((left, right) => left.name.localeCompare(right.name))) {
     const source = relationshipSourceName(entry.name);
     if (source && !names.has(source)) {
       throw parserError("missing_relationship_source", "Relationship part has no source part");
     }
-    const relationshipFile = zip.file(entry.name);
-    if (!relationshipFile || entry.isDirectory) {
+    if (!pkg.has(entry.name) || entry.isDirectory) {
       throw parserError("invalid_relationships", "Relationship part could not be loaded");
     }
-    const parsed = parseObject(await readEntryText(relationshipFile, entry.uncompressedSize));
+    const parsed = parseObject(readPackageText(pkg, entry.name, entry.uncompressedSize));
     const root = parsed["Relationships"];
     if (!root || typeof root !== "object" || Array.isArray(root)) {
       throw parserError("invalid_relationships", "Relationships root is missing");
@@ -611,18 +607,31 @@ function extractNotesStory(
   return { blocks, hidden, notes, nextIndex: blockIndex };
 }
 
-export async function extractDocx(bytes: Buffer, captureProofSource?: (source: ProofSource) => void): Promise<ExtractedDocument> {
-  if (bytes.byteLength > FILE_BYTE_CAP) {
+export type ExtractDocxOptions = {
+  limits?: ZipLimitSet;
+  maxSourceBytes?: number;
+  pkg?: DocxPackage;
+};
+
+export async function extractDocx(
+  bytes: Buffer,
+  captureProofSource?: (source: ProofSource) => void,
+  options: ExtractDocxOptions = {},
+): Promise<ExtractedDocument> {
+  const maxSourceBytes = options.maxSourceBytes ?? FILE_BYTE_CAP;
+  if (bytes.byteLength > maxSourceBytes) {
     throw Object.assign(new Error("file_too_large"), { code: "file_too_large" });
   }
   if (bytes.subarray(0, 2).toString("utf8") !== "PK") {
     throw Object.assign(new Error("not_docx"), { code: "not_docx" });
   }
 
-  const manifest = inspectZipCentralDirectory(bytes);
+  const limits = options.limits ?? options.pkg?.limits ?? ZIP_LIMITS;
+  const pkg = options.pkg ?? DocxPackage.open(bytes, { limits, verify: true });
+  const manifest = pkg.directory;
   let capabilityReceipt: PackageCapabilityReceipt;
   try {
-    capabilityReceipt = await inventoryPackageCapabilities(bytes);
+    capabilityReceipt = await inventoryPackageCapabilities(bytes, { pkg, limits });
   } catch (error) {
     if (error instanceof PackageCapabilityError) {
       throw parserError(error.code, error.message);
@@ -635,31 +644,24 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
       "Package capability inventory refused this document",
     );
   }
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(bytes, { checkCRC32: true, createFolders: false });
-  } catch {
-    throw Object.assign(new Error("corrupt"), { code: "corrupt" });
-  }
 
   for (const entry of manifest.entries) {
-    if (!entry.isDirectory && !zip.file(entry.name)) {
+    if (!entry.isDirectory && !pkg.has(entry.name)) {
       throw parserError("corrupt", "ZIP entry could not be loaded by the package reader");
     }
   }
   const names = manifest.entries.map((entry) => entry.name);
   const metadataByName = new Map(manifest.entries.map((entry) => [entry.name, entry]));
   const packageNames = new Set(names);
-  const contentTypesFile = zip.file("[Content_Types].xml");
   const contentTypesMetadata = metadataByName.get("[Content_Types].xml");
-  if (!contentTypesFile || !contentTypesMetadata || contentTypesMetadata.isDirectory) {
+  if (!pkg.has("[Content_Types].xml") || !contentTypesMetadata || contentTypesMetadata.isDirectory) {
     throw parserError("invalid_content_types", "Content types part is missing");
   }
   const contentTypes = inspectContentTypes(
-    await readEntryText(contentTypesFile, contentTypesMetadata.uncompressedSize),
+    readPackageText(pkg, "[Content_Types].xml", contentTypesMetadata.uncompressedSize),
     manifest.entries,
   );
-  const relationships = await inspectRelationships(zip, manifest.entries, packageNames);
+  const relationships = inspectRelationships(pkg, manifest.entries, packageNames);
   const officeDocumentRelationship = relationships.find(
     (relationship) =>
       relationship.source === "" &&
@@ -682,12 +684,11 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
   }
 
   const documentMetadata = metadataByName.get("word/document.xml");
-  const documentFile = zip.file("word/document.xml");
-  if (!documentFile || !documentMetadata || documentMetadata.isDirectory) {
+  if (!pkg.has("word/document.xml") || !documentMetadata || documentMetadata.isDirectory) {
     throw Object.assign(new Error("not_docx"), { code: "not_docx" });
   }
 
-  const documentXml = await readEntryText(documentFile, documentMetadata.uncompressedSize);
+  const documentXml = readPackageText(pkg, "word/document.xml", documentMetadata.uncompressedSize);
   const orderedDocument = orderedParser.parse(documentXml) as OrderedNode[];
   const storyProjections: StoryProjection[] = [
     projectPart({
@@ -737,11 +738,10 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
     if (!match) continue;
     const story = match[1].toLowerCase() === "footer" ? "footer" : "header";
     const headerMetadata = metadataByName.get(name);
-    const headerFile = zip.file(name);
-    if (!headerFile || !headerMetadata || headerMetadata.isDirectory) {
+    if (!pkg.has(name) || !headerMetadata || headerMetadata.isDirectory) {
       throw parserError("corrupt", "Header/footer entry could not be loaded");
     }
-    const xml = await readEntryText(headerFile, headerMetadata.uncompressedSize);
+    const xml = readPackageText(pkg, name, headerMetadata.uncompressedSize);
     storyObjects.push(parseObject(xml));
     const ordered = orderedParser.parse(xml) as OrderedNode[];
     storyProjections.push(
@@ -784,12 +784,11 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
     },
   ]) {
     const noteMetadata = metadataByName.get(noteSpec.name);
-    const noteFile = zip.file(noteSpec.name);
-    if (!noteMetadata && !noteFile) continue;
-    if (!noteMetadata || !noteFile || noteMetadata.isDirectory) {
+    if (!noteMetadata && !pkg.has(noteSpec.name)) continue;
+    if (!noteMetadata || !pkg.has(noteSpec.name) || noteMetadata.isDirectory) {
       throw parserError("invalid_ooxml_package", noteSpec.name + " could not be loaded");
     }
-    const notesXml = await readEntryText(noteFile, noteMetadata.uncompressedSize);
+    const notesXml = readPackageText(pkg, noteSpec.name, noteMetadata.uncompressedSize);
     storyObjects.push(parseObject(notesXml));
     storyProjections.push(
       projectPart({
@@ -815,13 +814,13 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
   }
 
   const comments: ExtractedDocument["comments"] = [];
-  const commentsFile = zip.file("word/comments.xml");
-  if (commentsFile) {
+  const hasComments = pkg.has("word/comments.xml");
+  if (hasComments) {
     const commentsMetadata = metadataByName.get("word/comments.xml");
     if (!commentsMetadata || commentsMetadata.isDirectory) {
       throw parserError("corrupt", "Comments entry could not be loaded");
     }
-    const parsed = parseObject(await readEntryText(commentsFile, commentsMetadata.uncompressedSize));
+    const parsed = parseObject(readPackageText(pkg, "word/comments.xml", commentsMetadata.uncompressedSize));
     const root = (parsed["w:comments"] ?? parsed) as Obj;
     const commentIds = new Set<string>();
     for (const comment of asObjectArray(root["w:comment"])) {
@@ -861,13 +860,12 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
   }
 
   let appPages: number | null = null;
-  const appFile = zip.file("docProps/app.xml");
-  if (appFile) {
+  if (pkg.has("docProps/app.xml")) {
     const appMetadata = metadataByName.get("docProps/app.xml");
     if (!appMetadata || appMetadata.isDirectory) {
       throw parserError("corrupt", "Application properties entry could not be loaded");
     }
-    const xml = await readEntryText(appFile, appMetadata.uncompressedSize);
+    const xml = readPackageText(pkg, "docProps/app.xml", appMetadata.uncompressedSize);
     const match = xml.match(/<Pages>(\d+)<\/Pages>/i);
     if (match) appPages = Number(match[1]);
   }
@@ -921,8 +919,8 @@ export async function extractDocx(bytes: Buffer, captureProofSource?: (source: P
     },
     {
       name: "comments",
-      available: commentsFile != null,
-      state: commentsFile != null ? "evaluated_present" : "evaluated_absent",
+      available: hasComments,
+      state: hasComments ? "evaluated_present" : "evaluated_absent",
       detectorVersion: "ooxml-v3",
       suppressionReason: null,
     },

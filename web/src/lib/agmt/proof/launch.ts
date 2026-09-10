@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import JSZip from "jszip";
+import { DocxPackage } from "../docx-package.ts";
 import { extractDocx } from "../docx-v2.ts";
 import { resolveExtractedNumbering } from "../numbering.ts";
 import { validateSourceSpan, type ProofSource } from "../source-map.ts";
@@ -44,17 +44,26 @@ function availableCapabilities(extracted: ExtractedDocument): Set<string> {
   return set;
 }
 
-export async function analyzeProof(bytes: Buffer, options: { profile?: "agreement" | "general"; language?: "en-GB" | "en-US" } = {}) {
+export async function analyzeProof(bytes: Buffer, options: {
+  profile?: "agreement" | "general";
+  language?: "en-GB" | "en-US";
+  pkg?: DocxPackage;
+  maxSourceBytes?: number;
+} = {}) {
   let source: ProofSource | undefined;
-  const raw = await extractDocx(bytes, (s) => { source = s; });
+  const raw = await extractDocx(bytes, (s) => { source = s; }, {
+    pkg: options.pkg,
+    limits: options.pkg?.limits,
+    maxSourceBytes: options.maxSourceBytes,
+  });
   if (!source || !source.paragraphs.some((p) => p.text.trim())) throw new Error("no_supported_text");
-  const zip = await JSZip.loadAsync(bytes);
-  const names = Object.keys(zip.files);
+  const pkg = options.pkg ?? DocxPackage.open(bytes, { verify: false });
+  const names = pkg.names();
   if (names.some((n) => /_xmlsignatures|commentsExtended|commentsIds|people\.xml/i.test(n))) throw new Error("unsupported_review_structure");
-  const settings = await zip.file("word/settings.xml")?.async("string");
+  const settings = pkg.has("word/settings.xml") ? pkg.text("word/settings.xml") : undefined;
   if (settings && /w:documentProtection|w:writeProtection/.test(settings)) throw new Error("protected_document");
   if (source.gaps.includes("complex_revision")) throw new Error("unsupported_complex_revision");
-  const extracted = await resolveExtractedNumbering(bytes, raw);
+  const extracted = await resolveExtractedNumbering(bytes, raw, pkg);
   const sourceSha256 = createHash("sha256").update(bytes).digest("hex");
   const ctx = { source, extracted, sourceSha256 };
   const runtime = executeLaunchRules(ctx, {

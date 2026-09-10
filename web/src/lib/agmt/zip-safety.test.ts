@@ -97,3 +97,16 @@ test("PWC-04 aborts when inflated bytes disagree with declared sizes or CRC", as
   }
   assert.throws(() => inspectZipCentralDirectory(forgedLocal), errorCode("zip_local_header_mismatch"));
 });
+
+test("PWC-04 rejects malformed local offsets", async () => {
+  const bytes = await packageWith(() => undefined);
+  const forged = Buffer.from(bytes);
+  const view = new DataView(forged.buffer, forged.byteOffset, forged.byteLength);
+  for (let offset = 0; offset + 46 < forged.byteLength; offset += 1) {
+    if (view.getUint32(offset, true) === 0x02014b50) {
+      view.setUint32(offset + 42, 0xffffff00, true);
+      break;
+    }
+  }
+  assert.throws(() => inspectZipCentralDirectory(forged), errorCode("zip_local_header_invalid"));
+});

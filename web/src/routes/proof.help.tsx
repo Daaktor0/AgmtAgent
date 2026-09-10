@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { PROOF_LOCAL_DEVICE, PROOF_LOCAL_PRIVACY } from "@/lib/proof-local/copy";
+import { PROOF_LOCAL_DEVICE, PROOF_LOCAL_LIMITS_NOTE, PROOF_LOCAL_PRIVACY } from "@/lib/proof-local/copy";
+import { publishedProofCapacityPolicy } from "@/lib/proof-local/policy";
 
 export const Route = createFileRoute("/proof/help")({ component: ProofHelp });
 
@@ -29,6 +30,8 @@ function ProofHelp() {
         <h2 className="font-display text-2xl">Privacy</h2>
         <p>{PROOF_LOCAL_PRIVACY}</p>
         <p>Independent JavaScript validation runs on every document before download. Open XML SDK and actual Word checks are release and regression tests, not a claimed per-document production scan. Agmt does not virus-scan the file.</p>
+        <h2 className="font-display text-2xl">Size and complexity</h2>
+        <p>The published file-size limit is {publishedProofCapacityPolicy().label}. {PROOF_LOCAL_LIMITS_NOTE} File-size refusals are distinct from complexity refusals (Word XML or extracted text). Proof does not recommend splitting an agreement into clauses, because that can miss document-wide checks.</p>
         <h2 className="font-display text-2xl">If something goes wrong</h2>
         <p>If a document cannot be processed safely, choose another file. Closing or refreshing this page loses the current run; choose the file again. Proof does not keep a copy on Agmt’s servers to resume later.</p>
         <p><Link to="/proof" className="underline underline-offset-4">Back to Proof</Link></p>

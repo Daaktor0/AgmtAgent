@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runProofWorkerJob, type ProofWorkerLike } from "./job.ts";
 import { PROOF_LOCAL_MAX_PROCESSING_MS } from "./limits.ts";
+import { PROOF_LOCAL_POLICY_VERSION } from "./policy.ts";
 import type { ProofWorkerRequest, ProofWorkerResponse } from "./protocol.ts";
 
 function fakeWorker(): ProofWorkerLike & {
@@ -52,11 +53,12 @@ function doneResponse(id: string): ProofWorkerResponse {
       findings: [{ ruleId: "language.typo_allowlist", kind: "correction", quote: "teh", replacement: "the" }],
       admit: {
         model: "proof-browser-local-v1",
-        version: "proof-local-limits-v1",
+        version: PROOF_LOCAL_POLICY_VERSION,
         clamav: "cannot_run_in_browser",
         status: "structurally_admitted",
         reason: "local_zip_xml_active_content_and_eicar_only",
         byteSize: 4,
+        capacityClass: "desktop",
       },
       sdkInBrowser: false,
       wordInBrowser: false,

@@ -130,13 +130,22 @@ Guardrails around them (all verified in source):
 
 ### 2.3 Verified current limits (not assumed)
 
-`web/src/lib/proof-local/limits.ts` (`proof-local-limits-v1`): **1 MiB source,
-2 MiB output, 30,000 ms processing, 500 entries, 16 MiB expanded ZIP, 8 MiB
-per entry, 20:1 compression ratio, 1 MiB central directory.** The server-side
-`ZIP_LIMITS` (25 MiB/100 MiB/2000 entries) are **not** the browser ceiling and
-must never be cited for the browser product. Measured basis in the file header:
-1.02 MiB synthetic ≈ 102 MiB extra JS heap in 1.3 s. These are measured
-ceilings, not architectural maxima; §9 defines the path to raising them.
+`web/src/lib/proof-local/policy.ts` (`proof-local-limits-v3`): **desktop 100 MiB
+source / 120 MiB output / 90 s / 2,000 entries / 150 MiB expanded / 100 MiB
+per entry / 20:1 / 2 MiB central directory / 8 MiB document.xml / 12 MiB total
+XML / 1e6 extracted Unicode code points.** Mobile: **8 MiB source / 12 MiB
+output / 45 s / 24 MiB expanded / 2 MiB document.xml** — conservative phone-UA
+class, **not mobile-browser verified.** Missing `navigator.deviceMemory` does
+not reject; `deviceMemory` and `pointer: coarse` do not select mobile (touch
+laptops stay desktop). Phone UA / UA-CH `mobile` selects the 8 MiB class.
+The server-side `ZIP_LIMITS` (25 MiB/100 MiB expanded) are **not** the
+browser ceiling. 2026-09-10 measurement: image-heavy 100 MiB Chromium 5.4 s
+and Word-opened; representative complete agreements at Word-measured ~293
+pages process in Chromium (~1–2.5 s) with planted findings exact. The old
+1 MiB document.xml admit gate would have refused the 150-page-target family
+(`document.xml` 1.46 MiB, extracted 376k code points). Dense prose still
+fails `extracted_text_limit` near 1e6 visible code points. 100 MiB is not
+unlimited and is not a claim that every 100 MiB agreement is text-checkable.
 
 ### 2.4 Known defects / gaps (carried from ledger, still true at `ca5e934`)
 
@@ -170,7 +179,7 @@ denominator, and a gate. **No pooled accuracy score may ever be reported.**
 | Anchoring | findings whose `exactQuote` reconstructs from source nodes / all published findings | 100% (already enforced by `validateSourceSpan`) | 100% incl. non-main stories |
 | Fidelity | lost structures, unexpected diffs, Word repair prompts in fixture matrix | 0 | 0 across expanded matrix |
 | Suppression honesty | runs with any suppressed rule showing coverage `limited` + reason codes / all such runs | 100% (already enforced) | 100% |
-| Speed | P95 wall time within `PROOF_LOCAL_MAX_PROCESSING_MS` budget, cold start included | ≤30 s for 1 MiB | ≤30 s at raised limits |
+| Speed | P95 wall time within `PROOF_LOCAL_MAX_PROCESSING_MS` budget, cold start included | ≤30 s for 1 MiB text-heavy; ≤90 s at the 100 MiB image-heavy class | ≤30 s at raised limits |
 | Cancellation | aborted runs release worker, no partial download | 100% tested | 100% |
 
 Unsafe correction (normative): any unplanned text/structure change,
@@ -550,12 +559,12 @@ measurement (≈100× source in extra heap for 1 MiB). Rules:
 3. All budgets are receipts in the run record; a rule hitting its cap is
    suppressed with `rule_budget` (existing behaviour) and counted in omitted
    counts.
-4. Raising the 1 MiB limit: measure first (extend the browser feasibility
-   prototype `web/scripts/browser-proof-prototype/` with 2/4 MiB and
-   multi-locale-dictionary configurations), then move `PROOF_LOCAL_MAX_*`
-   in one versioned limits bump (`proof-local-limits-v2`) with a re-measured
-   heap/latency table. **Limit changes are lab-measured releases, never
-   aspirational edits.**
+4. Raising limits: measure first with `npm run proof:capacity-bench` and
+   `npm run proof:capacity-browser`, then move the versioned policy in
+   `policy.ts`. **Limit changes are lab-measured releases, never
+   aspirational edits.** The 2026-09-10 v3 bump is the image-heavy 100 MiB
+   class plus an 8 MiB document.xml complexity gate measured on complete
+   agreements. The extracted-text gate remains 1e6 code points.
 
 ---
 

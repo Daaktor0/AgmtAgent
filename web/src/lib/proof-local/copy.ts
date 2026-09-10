@@ -1,3 +1,4 @@
+import { publishedProofCapacityPolicy } from "./policy.ts";
 import { PROOF_LOCAL_SIZE_LABEL } from "./limits.ts";
 
 export const PROOF_LOCAL_PRIVACY =
@@ -7,7 +8,14 @@ export const PROOF_LOCAL_HEADING = "Proofread your Word document.";
 export const PROOF_LOCAL_MAIN = "Get safe corrections as tracked changes and points to check as Word comments.";
 export const PROOF_LOCAL_CHOOSE = "Choose a Word document";
 export const PROOF_LOCAL_DEVICE = "Processing happens on this device.";
-export const PROOF_LOCAL_TOO_LARGE = `This file exceeds the ${PROOF_LOCAL_SIZE_LABEL} limit.`;
+export const PROOF_LOCAL_TOO_LARGE = `This file exceeds the ${PROOF_LOCAL_SIZE_LABEL} size limit.`;
+
+export function proofLocalTooLargeMessage(label = publishedProofCapacityPolicy().label): string {
+  return `This file exceeds the ${label} size limit.`;
+}
+
+export const PROOF_LOCAL_LIMITS_NOTE =
+  "A file under the size limit can still be refused if its Word XML, ZIP expansion or extracted text is too complex. Proof does not check every document below the size limit, and it is not unlimited.";
 export const PROOF_LOCAL_WRONG_FILE = "Choose a Word (.docx) file containing document text.";
 export const PROOF_LOCAL_MULTIPLE = "Choose one document at a time.";
 export const PROOF_LOCAL_SIGNED_OUT = "Sign in to use Proof.";

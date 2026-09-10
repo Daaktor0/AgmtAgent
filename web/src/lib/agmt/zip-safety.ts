@@ -172,7 +172,66 @@ export type ZipCentralEntry = {
   localHeaderOffset: number;
   crc32: number;
   isDirectory: boolean;
+  centralDirectoryRecordOffset: number;
+  rawName: Uint8Array;
+  extraLength: number;
+  commentLength: number;
 };
+
+/** View over `bytes` without copying. Callers must not mutate the result. */
+export function zipBytesView(bytes: Uint8Array): Buffer {
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
+export function zipLocalPayloadRange(
+  bytes: Uint8Array,
+  entry: ZipCentralEntry,
+  centralDirectoryOffset: number,
+): { start: number; end: number; dataStart: number } {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const offset = entry.localHeaderOffset;
+  const localNameLength = readU16(view, offset + 26);
+  const localExtraLength = readU16(view, offset + 28);
+  const dataStart = offset + 30 + localNameLength + localExtraLength;
+  const dataEnd = dataStart + entry.compressedSize;
+  if (dataEnd < dataStart || dataEnd > centralDirectoryOffset) {
+    reject("zip_entry_out_of_bounds", "ZIP entry data exceeds the central directory boundary");
+  }
+  return { start: offset, end: dataEnd, dataStart };
+}
+
+export function inflateZipEntry(
+  bytes: Uint8Array,
+  entry: ZipCentralEntry,
+  directory: ZipCentralDirectory,
+  limits: ZipLimitSet = ZIP_LIMITS,
+): Uint8Array {
+  if (entry.isDirectory) {
+    if (entry.compressedSize !== 0 || entry.uncompressedSize !== 0) {
+      reject("zip_local_header_invalid", "ZIP directory entry declares file data");
+    }
+    return new Uint8Array(0);
+  }
+  const range = zipLocalPayloadRange(bytes, entry, directory.centralDirectoryOffset);
+  const compressed = bytes.subarray(range.dataStart, range.end);
+  let inflated: Uint8Array;
+  if (entry.compressionMethod === 0) {
+    inflated = compressed;
+  } else {
+    try {
+      inflated = inflateRawSync(zipBytesView(compressed), { maxOutputLength: limits.MAX_ENTRY_BYTES });
+    } catch {
+      reject("zip_inflate_failed", "ZIP entry could not be inflated within the bounded limit");
+    }
+  }
+  if (inflated.byteLength !== entry.uncompressedSize) {
+    reject("zip_size_mismatch", "ZIP inflated size differs from the central-directory declaration");
+  }
+  if ((crc32(zipBytesView(inflated)) >>> 0) !== (entry.crc32 >>> 0)) {
+    reject("zip_crc_mismatch", "ZIP CRC does not match the inflated entry");
+  }
+  return inflated;
+}
 
 export type ZipCentralDirectory = {
   entries: ZipCentralEntry[];
@@ -342,6 +401,10 @@ export function inspectZipCentralDirectory(bytes: Uint8Array, limits: ZipLimitSe
       localHeaderOffset,
       crc32: crc32Value,
       isDirectory: name.endsWith("/"),
+      centralDirectoryRecordOffset: cursor,
+      rawName,
+      extraLength,
+      commentLength,
     });
     cursor = recordEnd;
   }
@@ -374,46 +437,22 @@ export function verifyZipInflation(
   directory: ZipCentralDirectory,
   onEntry?: (name: string, inflated: Uint8Array) => void,
   limits: ZipLimitSet = ZIP_LIMITS,
+  signal?: AbortSignal,
 ): { actualExpandedBytes: number } {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let actualExpandedBytes = 0;
 
   for (const entry of directory.entries) {
+    if (signal?.aborted) {
+      const error = new Error("cancelled");
+      error.name = "AbortError";
+      throw error;
+    }
     if (entry.isDirectory) {
-      if (entry.compressedSize !== 0 || entry.uncompressedSize !== 0) {
-        reject("zip_local_header_invalid", "ZIP directory entry declares file data");
-      }
+      inflateZipEntry(bytes, entry, directory, limits);
       continue;
     }
 
-    const offset = entry.localHeaderOffset;
-    const localNameLength = readU16(view, offset + 26);
-    const localExtraLength = readU16(view, offset + 28);
-    const dataStart = offset + 30 + localNameLength + localExtraLength;
-    const dataEnd = dataStart + entry.compressedSize;
-    if (dataEnd < dataStart || dataEnd > directory.centralDirectoryOffset) {
-      reject("zip_entry_out_of_bounds", "ZIP entry data exceeds the central directory boundary");
-    }
-    const compressed = bytes.subarray(dataStart, dataEnd);
-
-    let inflated: Uint8Array;
-    if (entry.compressionMethod === 0) {
-      inflated = compressed;
-    } else {
-      try {
-        inflated = inflateRawSync(Buffer.from(compressed), { maxOutputLength: limits.MAX_ENTRY_BYTES });
-      } catch {
-        reject("zip_inflate_failed", "ZIP entry could not be inflated within the bounded limit");
-      }
-    }
-
-    if (inflated.byteLength !== entry.uncompressedSize) {
-      reject("zip_size_mismatch", "ZIP inflated size differs from the central-directory declaration");
-    }
-    if ((crc32(Buffer.from(inflated)) >>> 0) !== (entry.crc32 >>> 0)) {
-      reject("zip_crc_mismatch", "ZIP CRC does not match the inflated entry");
-    }
-
+    const inflated = inflateZipEntry(bytes, entry, directory, limits);
     actualExpandedBytes += inflated.byteLength;
     if (actualExpandedBytes > limits.MAX_EXPANDED_BYTES) {
       reject("package_expanded_too_large", "ZIP package exceeds the bounded expansion limit");

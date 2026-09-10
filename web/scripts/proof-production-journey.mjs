@@ -368,12 +368,12 @@ function terminalLocator(page) {
     .or(page.getByRole("heading", { name: "Your document is ready with limited coverage." }))
     .or(page.getByText("Checking was cancelled."))
     .or(page.getByText("This file could not pass our safety checks."))
-    .or(page.getByText("This file exceeds the 1 MiB limit."))
+    .or(page.getByText(/This file exceeds the \d+ MiB(?: size)? limit\./))
     .or(page.getByText("We couldn’t finish checking this document."))
     .or(page.getByText("Proof can’t safely process this document yet."));
 }
 
-async function waitTerminal(page, timeout = 35_000) {
+async function waitTerminal(page, timeout = 120_000) {
   await page.getByRole("button", { name: "Cancel" }).or(terminalLocator(page)).waitFor({ timeout: 10_000 });
   await terminalLocator(page).waitFor({ timeout });
   const text = await page.locator("#proof-main").innerText();
@@ -382,7 +382,7 @@ async function waitTerminal(page, timeout = 35_000) {
   if (text.includes("No issues found by the completed checks.")) return "zero";
   if (text.includes("Checking was cancelled.")) return "cancelled";
   if (text.includes("This file could not pass our safety checks.")) return "unsafe";
-  if (text.includes("This file exceeds the 1 MiB limit.")) return "too_large";
+  if (/This file exceeds the \d+ MiB(?: size)? limit\./.test(text)) return "too_large";
   if (text.includes("Proof can’t safely process this document yet.")) return "unsupported";
   return "failed";
 }
@@ -440,7 +440,7 @@ async function runChromiumJourney(playwright, creds) {
     };
 
     await page.getByLabel("Choose a Word document").setInputFiles(join(fixtureDir, "oversized.docx"));
-    await page.getByText("This file exceeds the 1 MiB limit.").waitFor({ timeout: 10_000 });
+    await page.getByText(/This file exceeds the \d+ MiB(?: size)? limit\./).waitFor({ timeout: 10_000 });
     cases.oversized = { ok: true };
 
     await chooseFile(page, "body.docx");
@@ -629,7 +629,7 @@ const report = {
   workerVersion: workerIdentity.version,
   workerVersionSource: workerIdentity.source,
   workerVersionNote: "100% production deployment after GitHub Actions wrangler deploy of ca5e934; later version uploads are not 100% traffic unless wrangler deployments list says so",
-  limits: { maxSourceBytes: 1_048_576, maxExpandedBytes: 16_777_216, timeoutMs: 30_000, label: "1 MiB" },
+  limits: { maxSourceBytes: 104_857_600, maxExpandedBytes: 157_286_400, timeoutMs: 90_000, label: "100 MiB" },
   browsers: {
     chromium: "tested",
     firefox: firefox.reason,

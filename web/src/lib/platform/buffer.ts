@@ -27,8 +27,14 @@ function toBytes(input: unknown, encoding?: string): Uint8Array {
 
 // @ts-expect-error Node-compatible Buffer.from on a Uint8Array subclass
 export class BrowserBuffer extends Uint8Array {
-  static from(input: unknown, encoding?: string): BrowserBuffer {
-    const raw = toBytes(input, encoding);
+  static from(input: unknown, encodingOrOffset?: string | number, length?: number): BrowserBuffer {
+    if (input instanceof ArrayBuffer && typeof encodingOrOffset === "number") {
+      const view = new Uint8Array(input, encodingOrOffset, length);
+      const buf = new BrowserBuffer(view.byteLength);
+      buf.set(view);
+      return buf;
+    }
+    const raw = toBytes(input, typeof encodingOrOffset === "string" ? encodingOrOffset : undefined);
     const buf = new BrowserBuffer(raw.byteLength);
     buf.set(raw);
     return buf;

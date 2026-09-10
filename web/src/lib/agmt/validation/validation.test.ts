@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
+import { DocxPackage } from "../docx-package.ts";
 import { exportProofDocx, validateProofExport } from "../export/docx.ts";
 import { launchFixture } from "../corpus/launch-fixtures.ts";
 import { generatePackage, POSITIVE_SPECS } from "../corpus/pwc/generate.ts";
@@ -40,6 +41,18 @@ test("PWC-11 independent validator accepts corpus exports or records unsupported
     );
   }
   assert.equal(rejected, mutations.length);
+
+  const priorSource = await launchFixture("prior_review");
+  const priorExported = await exportProofDocx(priorSource);
+  const tamperedPrior = await mutate(priorExported.bytes, "word/comments.xml", (xml) => xml.replace("Existing comment stays unchanged.", "This is legally invalid."));
+  const poisoned = DocxPackage.open(priorSource);
+  (poisoned as unknown as { xmlCache: Map<string, string> }).xmlCache.set(
+    "word/comments.xml",
+    await (await JSZip.loadAsync(tamperedPrior)).file("word/comments.xml")!.async("string"),
+  );
+  await assert.rejects(
+    () => validateProofExport(priorSource, tamperedPrior, priorExported.receipt, priorExported.analysis, poisoned),
+  );
 
   const employment = POSITIVE_SPECS.find((spec) => spec.id === "employment_typo_split");
   assert.ok(employment);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import JSZip from "jszip";
 import { XMLValidator } from "fast-xml-parser";
+import { DocxPackage, isXmlPackagePart } from "../docx-package.ts";
 import { analyzeProof, validateLaunchFinding } from "../proof/launch.ts";
 import { ExportPlanSchema, type ExportPlan, type ProofFinding } from "../proof/contracts.ts";
 import { resolveProofFindings } from "../proof/resolve-findings.ts";
@@ -18,6 +18,10 @@ export type ProofExportOptions = {
   profile?: "agreement" | "general";
   language?: "en-GB" | "en-US";
   analysis?: Analysis;
+  pkg?: DocxPackage;
+  maxSourceBytes?: number;
+  maxOutputBytes?: number;
+  signal?: AbortSignal;
 };
 type Fragment = { node: XmlNode; start?: number; end?: number };
 
@@ -137,21 +141,26 @@ export async function exportProofDocx(
   now = new Date(),
   options: ProofExportOptions = {},
 ) {
-  const analysis = options.analysis ?? await analyzeProof(bytes, options);
+  const pkg = options.pkg ?? DocxPackage.open(bytes, { verify: false });
+  const analysis = options.analysis ?? await analyzeProof(bytes, {
+    profile: options.profile,
+    language: options.language,
+    pkg,
+    maxSourceBytes: options.maxSourceBytes,
+  });
   const plan = planProofExport(analysis);
-  const zip = await JSZip.loadAsync(bytes);
-  const original = await JSZip.loadAsync(bytes);
   const date = now.toISOString();
+  const maxOutputBytes = options.maxOutputBytes ?? pkg.limits.MAX_OUTPUT_BYTES;
   if (!plan.findings.length && !plan.notices.length) {
     const receipt = emptyExportReceipt(plan);
-    await validateProofExport(bytes, Buffer.from(bytes), receipt, analysis, original);
-    return { bytes: Buffer.from(bytes), analysis, receipt };
+    await validateProofExport(bytes, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), receipt, analysis, pkg);
+    return { bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), analysis, receipt };
   }
   const tree = structuredClone(analysis.source.tree);
   const editedPaths = new Map<string, number[]>();
   const used = new Set<string>();
-  for (const name of Object.keys(zip.files).filter((entry) => entry.endsWith(".xml") || entry.endsWith(".rels"))) {
-    const xml = await zip.file(name)!.async("string");
+  for (const name of pkg.names().filter((entry) => isXmlPackagePart(entry))) {
+    const xml = pkg.text(name);
     if (XMLValidator.validate(xml) !== true || /<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("invalid_export_source_xml");
     walk(parser.parse(xml), (node) => {
       const id = xmlAttrs(node)["@_w:id"];
@@ -201,10 +210,12 @@ export async function exportProofDocx(
     children.push(element("w:commentRangeEnd", [], { "@_w:id": id }), element("w:r", [element("w:commentReference", [], { "@_w:id": id })]));
   }
   const modifiedParts = ["word/document.xml"];
-  zip.file("word/document.xml", replaceParagraphXml(analysis.source.xml, analysis.source.tree, tree, [...editedPaths.values()]));
+  const encoder = new TextEncoder();
+  const rewritten = new Map<string, Uint8Array>();
+  rewritten.set("word/document.xml", encoder.encode(replaceParagraphXml(analysis.source.xml, analysis.source.tree, tree, [...editedPaths.values()])));
   if (comments.length) {
     const name = "word/comments.xml";
-    const existing = await zip.file(name)?.async("string");
+    const existing = pkg.has(name) ? pkg.text(name) : undefined;
     const serialized = comments.map((comment) => builder.build([element("w:comment", [element("w:p", [textRun(comment.text)])], {
       "@_w:id": comment.id,
       "@_w:author": "Agmt Proof",
@@ -212,7 +223,7 @@ export async function exportProofDocx(
       "@_w:date": date,
     })]) as string);
     if (existing) {
-      zip.file(name, appendBeforeCloseTag(existing, "</w:comments>", serialized.join("")));
+      rewritten.set(name, encoder.encode(appendBeforeCloseTag(existing, "</w:comments>", serialized.join(""))));
       modifiedParts.push(name);
     } else {
       const treeComments: XmlNode[] = [element("w:comments", comments.map((comment) => element("w:comment", [element("w:p", [textRun(comment.text)])], {
@@ -221,12 +232,11 @@ export async function exportProofDocx(
         "@_w:initials": "AP",
         "@_w:date": date,
       })), { "@_xmlns:w": W })];
-      zip.file(name, builder.build(treeComments));
+      rewritten.set(name, encoder.encode(builder.build(treeComments) as string));
       modifiedParts.push(name);
       const relName = "word/_rels/document.xml.rels";
-      const relFile = zip.file(relName);
-      if (!relFile) throw new Error("no_document_rels");
-      const relTree: XmlNode[] = parser.parse(await relFile.async("string"));
+      if (!pkg.has(relName)) throw new Error("no_document_rels");
+      const relTree: XmlNode[] = parser.parse(pkg.text(relName));
       const relRoot = relTree.find((node) => xmlTag(node) === "Relationships");
       if (!relRoot) throw new Error("no_document_rels");
       const relIds = new Set(xmlChildren(relRoot).map((node) => xmlAttrs(node)["@_Id"]));
@@ -237,20 +247,21 @@ export async function exportProofDocx(
         "@_Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
         "@_Target": "comments.xml",
       }));
-      zip.file(relName, builder.build(relTree));
+      rewritten.set(relName, encoder.encode(builder.build(relTree) as string));
       modifiedParts.push(relName);
-      const contentTree: XmlNode[] = parser.parse(await zip.file("[Content_Types].xml")!.async("string"));
+      const contentTree: XmlNode[] = parser.parse(pkg.text("[Content_Types].xml"));
       const typesRoot = contentTree.find((node) => xmlTag(node) === "Types")!;
       xmlChildren(typesRoot).push(element("Override", [], {
         "@_PartName": "/word/comments.xml",
         "@_ContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml",
       }));
-      zip.file("[Content_Types].xml", builder.build(contentTree));
+      rewritten.set("[Content_Types].xml", encoder.encode(builder.build(contentTree) as string));
       modifiedParts.push("[Content_Types].xml");
     }
   }
-  const output = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-  if (output.length > 35 * 1024 * 1024) throw new Error("output_too_large");
+  const outputBytes = pkg.rewrite(rewritten, { signal: options.signal });
+  if (outputBytes.byteLength > maxOutputBytes) throw new Error("output_too_large");
+  const output = Buffer.from(outputBytes.buffer, outputBytes.byteOffset, outputBytes.byteLength);
   const receipt = ExportReceiptSchema.parse({
     receiptVersion: EXPORT_RECEIPT_VERSION,
     exporterVersion: EXPORTER_VERSION,
@@ -262,14 +273,14 @@ export async function exportProofDocx(
     modifiedParts,
     plan,
   });
-  await validateProofExport(bytes, output, receipt, analysis, original);
+  await validateProofExport(bytes, output, receipt, analysis, pkg);
   return { bytes: output, analysis, receipt };
 }
 
-export async function validateProofExport(sourceBytes: Buffer, output: Buffer, receipt: ExportReceipt, analysis?: Analysis, sourceZip?: JSZip): Promise<void> {
-  const resolved = analysis ?? await analyzeProof(sourceBytes);
+export async function validateProofExport(sourceBytes: Buffer, output: Buffer, receipt: ExportReceipt, analysis?: Analysis, sourcePkg?: DocxPackage): Promise<void> {
+  const resolved = analysis ?? await analyzeProof(sourceBytes, { pkg: sourcePkg });
   assert.equal(createHash("sha256").update(sourceBytes).digest("hex"), receipt.plan.sourceSha256, "source_digest");
   ExportReceiptSchema.parse(receipt);
-  await validateOutputPackage({ sourceBytes, output, receipt, sourceZip });
-  await validateOutputReconstruction({ sourceBytes, output, receipt, analysis: resolved, sourceZip });
+  await validateOutputPackage({ sourceBytes, output, receipt, sourcePkg });
+  await validateOutputReconstruction({ sourceBytes, output, receipt, analysis: resolved, sourcePkg });
 }

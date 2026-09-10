@@ -200,7 +200,7 @@ const evidence = {
   architecture: "browser_only",
   hostingerUsed: false,
   cloudflareContainersProvisioned: false,
-  supportedLimit: { maxSourceBytes: 1_048_576, label: "1 MiB", maxExpandedBytes: 16_777_216 },
+  supportedLimit: { maxSourceBytes: 104_857_600, label: "100 MiB", maxExpandedBytes: 157_286_400 },
   browsers: {
     chromium: "tested",
     firefox: "not_run_this_session",

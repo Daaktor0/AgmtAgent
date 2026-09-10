@@ -20,7 +20,7 @@ Normative promises for this release:
 4. Open XML SDK and actual Word checks remain release/regression tests, not claimed per-document production checks.
 5. Refreshing or closing the page loses the current run; the user must choose the file again.
 6. Do not promise secure erasure from browser memory or deletion of users’ downloaded copies.
-7. Published file cap is the measured browser limit (1 MiB source, 16 MiB expanded). Do not claim 25 MiB.
+7. Published file cap is the measured browser policy (`proof-local-limits-v3`): desktop **100 MiB** source / 150 MiB expanded / 8 MiB `document.xml` / 1e6 extracted code points, mobile **8 MiB** source / 24 MiB expanded (phone-UA class, not mobile-verified), plus ZIP, time and cancellation gates. Do not claim unlimited processing. Do not treat file size as sufficient: XML complexity and extracted text are separate refusals. Dense prose may stop at `extracted_text_limit` while a large image-heavy package still processes. 150 MiB is a Chromium-tested image-heavy stretch, not the UI cap.
 
 PWC-12 remains a CI/lab oracle. PWC-22/23 compute and ClamAV are not launch gates for this architecture. PWC-26/27/36 two-hour Agmt content deletion is vacuous while Agmt never stores document bytes. Verified-account access to `/proof` remains. Zero LLM, owner isolation of accounts, and original-artefact preservation remain binding.
 
@@ -195,7 +195,7 @@ These are normative copy strings, with pluralisation and localised timestamps. `
 | Auth unavailable | “We couldn’t complete sign-in. Please try again shortly.” | “Try again”; no infinite disabled button |
 | Selected | “Ready to proofread” / local filename and size | “Proofread document”; “Choose a different file” |
 | Wrong extension/empty | “Choose a Word (.docx) file containing document text.” | “Choose another file” |
-| Too large | “This file exceeds the 1 MiB limit.” | “Choose a smaller Word document”; no promise that splitting preserves reference scope |
+| Too large | “This file exceeds the {policy.label} limit.” | “Choose a smaller Word document”; no promise that splitting preserves reference scope |
 | Multiple files | “Choose one document at a time.” | Keep none from multi-drop; existing selection unaffected |
 | Uploading / queued | Not used in this release | Browser-only processing has no upload or server queue |
 | Checking file | “Checking the file…” | “Cancel”; never “virus-free” |

@@ -1,7 +1,7 @@
 import { useId, useRef } from "react";
 import { interpretFileSelection } from "@/lib/products/proof-state";
-import { PROOF_LOCAL_MAX_SOURCE_BYTES, PROOF_LOCAL_SIZE_LABEL } from "@/lib/proof-local/limits";
-import { PROOF_LOCAL_CHOOSE, PROOF_LOCAL_DEVICE, PROOF_LOCAL_TOO_LARGE } from "@/lib/proof-local/copy";
+import { publishedProofCapacityPolicy } from "@/lib/proof-local/policy";
+import { PROOF_LOCAL_CHOOSE, PROOF_LOCAL_DEVICE, PROOF_LOCAL_LIMITS_NOTE, proofLocalTooLargeMessage } from "@/lib/proof-local/copy";
 
 export function ProofFilePicker({
   selected,
@@ -9,7 +9,7 @@ export function ProofFilePicker({
   disabled,
   onSelect,
   onError,
-  maxBytes = PROOF_LOCAL_MAX_SOURCE_BYTES,
+  maxBytes = publishedProofCapacityPolicy().maxSourceBytes,
 }: {
   selected: { name: string; size: number } | null;
   error: string | null;
@@ -35,7 +35,7 @@ export function ProofFilePicker({
       return;
     }
     if (interpreted.error === "too_large") {
-      onError(PROOF_LOCAL_TOO_LARGE);
+      onError(proofLocalTooLargeMessage());
       onSelect(null);
       if (inputRef.current) inputRef.current.value = "";
       return;
@@ -76,7 +76,7 @@ export function ProofFilePicker({
       >
         Drop one Word document here, or use the file control above. The native picker remains the keyboard path.
       </div>
-      <p className="text-sm text-stone">One native, unencrypted English .docx, up to {PROOF_LOCAL_SIZE_LABEL}. {PROOF_LOCAL_DEVICE}</p>
+      <p className="text-sm text-stone">One native, unencrypted English .docx, up to {publishedProofCapacityPolicy().label}. {PROOF_LOCAL_LIMITS_NOTE} {PROOF_LOCAL_DEVICE}</p>
       {selected ? <p className="break-words text-sm" aria-live="polite">{selected.name} · {(selected.size / 1024).toFixed(1)} KiB selected on your device</p> : null}
       {error ? <p id={errorId} role="alert" className="text-sm text-oxblood">{error}</p> : null}
     </div>

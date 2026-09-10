@@ -20,6 +20,8 @@ function xmlAttrs(node: XmlNode): Record<string, string> {
 }
 
 export const PROJECTION_VERSION = "proof-projection-v1";
+/** Visible-text ceiling in Unicode code points. Independent of ZIP bytes and document.xml bytes. */
+export const EXTRACTED_TEXT_LIMIT = 1_000_000;
 
 export type StoryKind = "body" | "header" | "footer" | "footnote" | "endnote";
 
@@ -228,7 +230,7 @@ export function projectPart(input: {
     gaps.add("unbalanced_field");
     skipped.push({ reason: "unbalanced_field", nodePath: [] });
   }
-  if (paragraphs.reduce((count, paragraph) => count + [...paragraph.text].length, 0) > 1_000_000) {
+  if (paragraphs.reduce((count, paragraph) => count + [...paragraph.text].length, 0) > EXTRACTED_TEXT_LIMIT) {
     throw new Error("extracted_text_limit");
   }
 

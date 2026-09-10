@@ -1150,6 +1150,7 @@ Follow-up to `de0fdae` (`fix(proof): reject cancelled jobs and follow worker-gra
 - **Behaviour:** `cancel()` still rejects immediately and terminates the Worker (the only way to stop a synchronous `analyzeProof`/`exportProofDocx` stage). Finish now clears `onmessage`/`onerror` so a late `done` cannot resolve. UI `createProofRunSession()` invalidates the run token on cancel/reset/unmount so a resolved job cannot create an object URL or become downloadable after cancel. A second `processProofInWorker` call still constructs a fresh Worker.
 - **Tests:** cancel settle; cancel with no worker response (sync-stage model); late `done` does not resolve; timeout `proof_timeout` + terminate; cancel then second worker succeeds; run-session token invalidation. Pipeline abort between stages unchanged.
 - **Remote/R2:** `web/src/lib/proof-local/remote-mode.ts` — `PROOF_REMOTE_MODE_ENABLED = false`; `remoteProofProcessingAllowed()` always false; no R2 clients or credentials. `processProofLocal` remains the host-agnostic adapter (no `localStorage`/`IndexedDB`/`createObjectURL`; `web/src/lib/agmt/` still does not import `proof-local`).
+- **Change commit:** `e36b26c` (this package, with PEE-01). Spec cherry-pick `be5afb8`.
 - **Status:** Implemented; Tested (job/run-session/remote-mode/pipeline). Lab Word COM on regenerated launch pairs: body/table/prior_review/party_name **PASS**. Live signed-in cancel **Blocked**. Not Deployed until merge.
 
 Commands:
@@ -1179,6 +1180,7 @@ Maps to PWC-15 extension (PWC-15 itself not redone). Existing `employment_typo_s
 
 **Evaluation (unique families, not packed repeats):** 40 typos × 5 families = 200 positives and 200 traps; duplicate-word 180 unique separator/family positives; placeholder 75 unique token/family positives. `canPromote` passed at correction ≥99.5% / comment ≥98% on this labelled set, zero action misses. Rules remain `defaultEnabled: true` (v1 was already enabled; v2 is a superset that met the gates). Dictionary spelling (PEE-20 / PWC-40) is **not** started.
 
+- **Change commit:** `e36b26c`.
 - **Status:** Implemented; Tested (pee01-cases, beta-rule-cases, corpus, launch, export, pipeline). Lab Word COM Verified on launch pairs as above. Live production download **Blocked**. Not Deployed until merge.
 - **Must-not-change held:** `scanning→processing` false; uploads unset; Hostinger/Containers unprovisioned; no LLM; no dictionary dependency; limits remain 1 MiB / 2 MiB / 16 MiB expanded / 500 entries / 8 MiB / 20:1 / 30 s.
 

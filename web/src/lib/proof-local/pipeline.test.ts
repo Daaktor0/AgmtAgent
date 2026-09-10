@@ -38,12 +38,31 @@ test("local pipeline maps launch fixtures, writes tracked changes, and validates
     assert.match(priorXml, /w:id="0"/);
 });
 
+test("local pipeline reports distinct admit/analyze/export/validate stages", async () => {
+    const stages: string[] = [];
+    await processProofLocal(new Uint8Array(await launchFixture("body")), {
+      onStage: (stage) => stages.push(stage),
+    });
+    assert.deepEqual(stages, ["admitting", "analyzing", "exporting", "validating"]);
+});
+
 test("local pipeline honours cancellation between stages", async () => {
     const controller = new AbortController();
     controller.abort();
     const bytes = new Uint8Array(await launchFixture("body"));
     await assert.rejects(
       () => processProofLocal(bytes, { signal: controller.signal }),
+      /cancelled/,
+    );
+
+    const mid = new AbortController();
+    await assert.rejects(
+      () => processProofLocal(bytes, {
+        signal: mid.signal,
+        onStage: (stage) => {
+          if (stage === "exporting") mid.abort();
+        },
+      }),
       /cancelled/,
     );
 });

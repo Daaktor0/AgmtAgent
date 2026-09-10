@@ -35,6 +35,16 @@ test("DOCX export creates genuine tracked corrections and exact comments, preser
   }
 });
 
+test("export reuses a provided analysis instead of requiring a second parse", async () => {
+  const source = await launchFixture("body");
+  const now = new Date("2026-09-05T00:00:00Z");
+  const analysis = await analyzeProof(source, { profile: "agreement", language: "en-GB" });
+  const reused = await exportProofDocx(source, now, { analysis, profile: "agreement", language: "en-GB" });
+  const fresh = await exportProofDocx(source, now, { profile: "agreement", language: "en-GB" });
+  assert.deepEqual(reused.bytes, fresh.bytes);
+  assert.equal(reused.receipt.revisionIds.length, fresh.receipt.revisionIds.length);
+});
+
 test("zero findings returns exact original bytes; limited coverage adds an explicit notice", async () => {
   const clean = await launchFixture("party_name");
   assert.deepEqual((await exportProofDocx(clean)).bytes, clean);

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import JSZip from "jszip";
@@ -21,14 +22,20 @@ writeFileSync(
 
 const cancelZip = await JSZip.loadAsync(await launchFixture("body"));
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-const paragraph = `<w:p><w:r><w:t xml:space="preserve">The Company shall recieve the the notice under Clause 99.2 by [●]. </w:t></w:r></w:p>`;
+const cancelParagraphs = Array.from({ length: 600 }, (_, index) => {
+  const unique = randomBytes(128).toString("hex");
+  return `<w:p><w:r><w:t xml:space="preserve">The Company shall recieve the the notice ${index} ${unique} under Clause 99.2 by [●].</w:t></w:r></w:p>`;
+}).join("");
 cancelZip.file(
   "word/document.xml",
-  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${W}"><w:body>${paragraph.repeat(2500)}<w:sectPr/></w:body></w:document>`,
+  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${W}"><w:body>${cancelParagraphs}<w:sectPr/></w:body></w:document>`,
 );
 const cancelBytes = await cancelZip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 if (cancelBytes.byteLength > PROOF_LOCAL_MAX_SOURCE_BYTES) {
   throw new Error("cancel fixture exceeded the 1 MiB source cap");
+}
+if (cancelBytes.byteLength < 80_000) {
+  throw new Error("cancel fixture compressed too far to leave a cancel window");
 }
 writeFileSync(join(outDir, "cancel_load.docx"), cancelBytes);
 

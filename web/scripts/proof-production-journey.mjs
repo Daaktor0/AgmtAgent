@@ -102,7 +102,51 @@ function loadCredentials() {
     password,
     hasPassword: Boolean(email && password),
     storageState: existsSync(storageState) ? storageState : "",
-    interactive: process.env.AGMT_PROOF_INTERACTIVE === "1" || !(email && password) && !existsSync(storageState),
+    interactive: process.env.AGMT_PROOF_INTERACTIVE === "1",
+  };
+}
+
+function liveWorkerVersion() {
+  if (process.env.AGMT_PROOF_WORKER_VERSION) {
+    return { version: process.env.AGMT_PROOF_WORKER_VERSION, source: "env" };
+  }
+  const result = spawnSync(
+    "npx",
+    ["wrangler", "deployments", "list", "--name", "agmt"],
+    { cwd: webRoot, encoding: "utf8", timeout: 45_000 },
+  );
+  const matches = [...(result.stdout || "").matchAll(/\(100%\)\s+([0-9a-f-]{36})/gi)];
+  const version = matches.at(-1)?.[1];
+  return {
+    version: version || "bf26652f-b240-4c2b-b96d-bdfd3df89d91",
+    source: version ? "wrangler_deployments_100" : "last_known_100",
+  };
+}
+
+function summarizeTraffic(traffic, processingObserved) {
+  return {
+    ok: traffic.documentLeaks.length === 0 && traffic.analytics.length === 0,
+    processingObserved,
+    note: processingObserved
+      ? "captured_during_signed_in_processing"
+      : "signed_out_page_only_processing_not_observed",
+    documentLeaks: traffic.documentLeaks,
+    analytics: traffic.analytics,
+    application: traffic.requests
+      .filter((item) => item.hostClass === "first_party")
+      .slice(0, 30)
+      .map((item) => item.url),
+    testingPlatformInjections: traffic.requests
+      .filter((item) => item.hostClass === "grok_platform_chrome")
+      .map((item) => item.url),
+    cloudflarePlatform: traffic.requests
+      .filter((item) => item.hostClass === "cloudflare_platform")
+      .map((item) => item.url),
+    thirdParty: traffic.thirdParty.slice(0, 20),
+    grokPlatform: traffic.requests.filter((item) => item.hostClass === "grok_platform_chrome").map((item) => item.url),
+    requestCount: traffic.requests.length,
+    uploadAttempts: traffic.requests.filter((item) => /\/api\/proof\/upload/.test(item.url)),
+    worker: traffic.requests.filter((item) => /proof\.worker/.test(item.url)).map((item) => item.url),
   };
 }
 
@@ -381,22 +425,19 @@ async function runChromiumJourney(playwright, creds) {
       cases.signedOutGate = { ok: await proofreadButton.isDisabled(), login: "signed_out" };
     }
 
-    if (process.env.AGMT_PROOF_SKIP_LOGIN === "1") {
+    const canSignIn = creds.hasPassword || Boolean(creds.storageState) || creds.interactive;
+    if (signedOut && (process.env.AGMT_PROOF_SKIP_LOGIN === "1" || !canSignIn)) {
       const storage = await storageSnapshot(page);
       cases.storage = {
         ok: storageHoldsDocument(storage).length === 0,
         snapshot: storage,
         leakedKeys: storageHoldsDocument(storage),
       };
-      cases.network = {
-        ok: traffic.documentLeaks.length === 0 && traffic.analytics.length === 0,
-        documentLeaks: traffic.documentLeaks,
-        analytics: traffic.analytics,
-        thirdParty: traffic.thirdParty.slice(0, 20),
-        grokPlatform: traffic.requests.filter((item) => item.hostClass === "grok_platform_chrome").map((item) => item.url),
-        requestCount: traffic.requests.length,
-        uploadAttempts: traffic.requests.filter((item) => /\/api\/proof\/upload/.test(item.url)),
-        worker: traffic.requests.filter((item) => /proof\.worker/.test(item.url)).map((item) => item.url),
+      cases.network = summarizeTraffic(traffic, false);
+      cases.login = {
+        ok: true,
+        outstanding: true,
+        actionRequired: LOGIN_URL,
       };
       return { cases, traffic, storage, signedIn: false, e2eOutstanding: true };
     }
@@ -500,15 +541,7 @@ async function runChromiumJourney(playwright, creds) {
       snapshot: storage,
       leakedKeys: storageHoldsDocument(storage),
     };
-    cases.network = {
-      ok: traffic.documentLeaks.length === 0 && traffic.analytics.length === 0,
-      documentLeaks: traffic.documentLeaks,
-      analytics: traffic.analytics,
-      thirdParty: traffic.thirdParty.slice(0, 20),
-      grokPlatform: traffic.requests.filter((item) => item.hostClass === "grok_platform_chrome").map((item) => item.url),
-      requestCount: traffic.requests.length,
-      uploadAttempts: traffic.requests.filter((item) => /\/api\/proof\/upload/.test(item.url)),
-    };
+    cases.network = summarizeTraffic(traffic, true);
 
     if (creds.interactive || creds.hasPassword) {
       await context.storageState({ path: join(workDir, "storage-state.json") });
@@ -519,8 +552,9 @@ async function runChromiumJourney(playwright, creds) {
   }
 }
 
-const commit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).stdout.trim();
-const commitSubject = spawnSync("git", ["log", "-1", "--format=%s"], { cwd: repoRoot, encoding: "utf8" }).stdout.trim();
+const commit = spawnSync("git", ["rev-parse", "origin/main"], { cwd: repoRoot, encoding: "utf8" }).stdout.trim();
+const commitSubject = spawnSync("git", ["log", "-1", "--format=%s", "origin/main"], { cwd: repoRoot, encoding: "utf8" }).stdout.trim();
+const localCommit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).stdout.trim();
 await writeFixtures();
 const playwright = await loadPlaywright();
 if (!playwright) fail("playwright_unavailable");
@@ -555,6 +589,7 @@ const signedInOk = signedIn
   && sdk.every((item) => item.ok)
   && word.ok;
 const ok = signedInOk;
+const workerIdentity = liveWorkerVersion();
 
 const report = {
   ok,
@@ -566,8 +601,10 @@ const report = {
   sourceCommit: commit,
   sourceSubject: commitSubject,
   lockfileCommit: commit,
-  workerVersion: process.env.AGMT_PROOF_WORKER_VERSION || "bf26652f-b240-4c2b-b96d-bdfd3df89d91",
-  workerVersionNote: "100% production deployment after GitHub Actions wrangler deploy of ca5e934",
+  localCommit,
+  workerVersion: workerIdentity.version,
+  workerVersionSource: workerIdentity.source,
+  workerVersionNote: "100% production deployment after GitHub Actions wrangler deploy of ca5e934; later version uploads are not 100% traffic unless wrangler deployments list says so",
   limits: { maxSourceBytes: 1_048_576, maxExpandedBytes: 16_777_216, timeoutMs: 30_000, label: "1 MiB" },
   browsers: {
     chromium: "tested",
@@ -588,6 +625,7 @@ console.log(JSON.stringify({
   e2eOutstanding: report.e2eOutstanding,
   anonymousOk: report.anonymousOk,
   sourceCommit: report.sourceCommit,
+  localCommit: report.localCommit,
   workerVersion: report.workerVersion,
   cases: Object.fromEntries(Object.entries(cases).map(([name, value]) => [name, { ok: value.ok, state: value.state, error: value.error }])),
   sdk: sdk.map((item) => ({ label: item.label, ok: item.ok })),

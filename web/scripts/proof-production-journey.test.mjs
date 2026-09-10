@@ -17,4 +17,9 @@ test("production journey waits for Proof controls and states, not networkidle", 
   assert.match(source, /Checking was cancelled/);
   assert.match(source, /This file exceeds the 1 MiB limit/);
   assert.match(source, /domcontentloaded/);
+  assert.match(source, /AGMT_PROOF_INTERACTIVE === "1"/);
+  assert.doesNotMatch(source, /interactive: process.env.AGMT_PROOF_INTERACTIVE === "1" \|\|/);
+  assert.match(source, /testingPlatformInjections/);
+  assert.match(source, /signed_out_page_only_processing_not_observed/);
+  assert.match(source, /rev-parse", "origin\/main"/);
 });

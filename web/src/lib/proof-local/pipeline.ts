@@ -1,4 +1,5 @@
 import { exportProofDocx } from "../agmt/export/docx.ts";
+import { analyzeProof } from "../agmt/proof/launch.ts";
 import type { ProofLanguage, ProofProfile } from "../products/capabilities.ts";
 import { admitLocalDocument, type LocalAdmitReceipt } from "./admit.ts";
 import { PROOF_LOCAL_MAX_OUTPUT_BYTES, PROOF_LOCAL_MAX_SOURCE_BYTES } from "./limits.ts";
@@ -66,6 +67,11 @@ function coverageLines(analysis: Awaited<ReturnType<typeof exportProofDocx>>["an
   return lines;
 }
 
+/**
+ * Host-agnostic Proof adapter: admit, analyze, export, JS-validate.
+ * The browser worker and a future explicit server/R2 mode both call this.
+ * It does not read or write persistent browser storage or R2.
+ */
 export async function processProofLocal(bytes: Uint8Array, options: LocalProofOptions = {}): Promise<LocalProofResult> {
   throwIfAborted(options.signal);
   if (bytes.byteLength < 1 || bytes.byteLength > PROOF_LOCAL_MAX_SOURCE_BYTES) {
@@ -77,10 +83,19 @@ export async function processProofLocal(bytes: Uint8Array, options: LocalProofOp
 
   const buffer = Buffer.from(bytes) as Buffer;
   options.onStage?.("analyzing");
+  throwIfAborted(options.signal);
+  const analysis = await analyzeProof(buffer, {
+    profile: options.profile,
+    language: options.language,
+  });
+  throwIfAborted(options.signal);
+
   options.onStage?.("exporting");
+  throwIfAborted(options.signal);
   const exported = await exportProofDocx(buffer, options.now ?? new Date(), {
     profile: options.profile,
     language: options.language,
+    analysis,
   });
   throwIfAborted(options.signal);
   if (exported.bytes.byteLength > PROOF_LOCAL_MAX_OUTPUT_BYTES) {

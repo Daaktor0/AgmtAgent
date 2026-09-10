@@ -12,6 +12,11 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
+import {
+  isForbiddenProofWorkerImport,
+  isProofWorkerImporter,
+  rememberProofWorkerModule,
+} from "./src/lib/proof-local/worker-graph.ts";
 
 const webRoot = dirname(fileURLToPath(import.meta.url));
 
@@ -25,24 +30,37 @@ function proofLocalBrowserShims(): Plugin {
     "node:zlib": join(platform, "node-zlib.ts"),
   };
   const envelope = join(platform, "envelope-forbidden.ts");
-  const forbidden = ["proof-antivirus", "proof-service", "runtime-env.server", "better-auth", "node:fs", "node:net", "node:child_process"];
+  const workerGraph = new Set<string>();
   return {
     name: "agmt-proof-local-shims",
     enforce: "pre",
-    resolveId(id, importer, options) {
+    async resolveId(id, importer, options) {
       if (options.ssr) return null;
-      const fromWorker = (importer ?? "").includes("proof-local") || (importer ?? "").includes("proof.worker");
-      if (fromWorker && forbidden.some((part) => id.includes(part))) {
+      const fromWorker = isProofWorkerImporter(importer, workerGraph);
+      if (fromWorker && isForbiddenProofWorkerImport(id)) {
         throw new Error(`forbidden in browser Proof worker: ${id}`);
       }
-      if (aliases[id]) return aliases[id];
+      if (aliases[id]) {
+        if (fromWorker) rememberProofWorkerModule(aliases[id], workerGraph);
+        return aliases[id];
+      }
       const importerNorm = (importer ?? "").split(/[/\\]/).join("/");
       const idNorm = id.split(/[/\\]/).join("/");
       if (
         importerNorm.includes("/src/lib/agmt/")
         && (idNorm.endsWith("crypto.ts") || idNorm.endsWith("/agmt/crypto"))
       ) {
+        if (fromWorker) rememberProofWorkerModule(envelope, workerGraph);
         return envelope;
+      }
+      if (fromWorker && importer) {
+        const resolved = await this.resolve(id, importer, { ...options, skipSelf: true });
+        if (resolved?.id) {
+          rememberProofWorkerModule(resolved.id, workerGraph);
+          if (isForbiddenProofWorkerImport(resolved.id)) {
+            throw new Error(`forbidden in browser Proof worker: ${id}`);
+          }
+        }
       }
       return null;
     },

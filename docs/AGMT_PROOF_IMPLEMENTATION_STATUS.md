@@ -1069,7 +1069,7 @@ Actual: **19/19 pass**; typecheck **exit 0**; `scanning→processing` **false**.
 
 Founder approved browser-only Proof as the launch architecture on 2026-09-09. The controlling plan section 0 supersedes server-upload, R2 document storage, Cloudflare Containers, Hostinger scanning and two-hour Agmt content deletion for this release. Hostinger remains excluded. Containers remain unprovisioned. Spending freeze unchanged. Existing engine, ZIP safety, mapping, tracked-change export, JS validators and tests are retained.
 
-- **Status:** Implemented and Tested locally. Deployed. Chromium Verified on the live anonymous `/proof` journey (explicit control waits, not `networkidle`). Signed-in live Proofread → download **outstanding**. Open XML SDK and Word COM Tested on lab browser-generated outputs (regression oracles), not on a live signed-in download this session. Not a silent substitute for ClamAV.
+- **Status:** Implemented and Tested locally. Deployed. Chromium Verified on the live anonymous `/proof` journey (explicit control waits, not `networkidle`). Signed-in live Proofread → download **outstanding**. Open XML SDK and Word COM Tested on lab browser-generated outputs (regression oracles), not on a live signed-in download this session. Not a silent substitute for ClamAV. Engine/browser split: `processProofLocal` is the host-agnostic adapter; the engine under `web/src/lib/agmt/` does not import `proof-local`. Cancel now rejects the worker job instead of leaving the promise hanging. Worker-graph forbid checks now follow engine modules, not only `proof-local` importers.
 - **Must-not-change held:** zero LLM; `scanning` → `processing` still false; `PROOF_UPLOADS_ENABLED` unset; Hostinger compute false; Containers not provisioned; no document bytes sent to Agmt servers.
 
 User-facing promises now in force:
@@ -1107,7 +1107,7 @@ Deployed artifact:
 |---|---|
 | Source commit | `ca5e934816f008e097e8572399013cebfaac462c` (`chore(web): pin lru-cache so Cloudflare CI npm ci succeeds`) |
 | Includes | merge `fc44f12` of `8d10a13` (browser-only `/proof`) plus the lockfile pin |
-| Worker `agmt` 100% version | `bf26652f-b240-4c2b-b96d-bdfd3df89d91` (GitHub Actions `wrangler-action` at 2026-09-09T15:00:10Z) |
+| Worker `agmt` 100% version | `bf26652f-b240-4c2b-b96d-bdfd3df89d91` (GitHub Actions `wrangler-action` at 2026-09-09T15:00:10Z). Reconfirmed 2026-09-10 via `wrangler deployments list`: still 100%. Later version uploads (`3e70a1fc`, `e417e32f`, `056f9138`) are not 100% traffic. |
 | Previous manual deploy | `5edda3a5-4df2-423f-a3f5-f8994c0f510e` (superseded) |
 | Live worker asset | `/assets/proof.worker-BKKWjkIl.js` (391,402 bytes): `network_forbidden` and `cannot_run_in_browser` present; `createCipheriv`, `ClamAV`, `hstgr.cloud`, `runtime-env.server` absent |
 
@@ -1129,7 +1129,11 @@ Live Chromium against `https://app.agmt.legal/proof` (explicit waits for “Choo
 
 **Verdict:** deployed with end-to-end verification outstanding. The real signed-in production journey has not passed.
 
-To finish it: set `AGMT_PROOF_TEST_EMAIL` and `AGMT_PROOF_TEST_PASSWORD` in the environment or gitignored `web/.proof-production.env` (never paste the password in chat), or sign in with a verified Agmt account in the headed Chromium window at `https://app.agmt.legal/login?returnTo=%2Fproof`, then from `web/` run `npm run proof:production-journey`. That script waits for rendered Proof controls and processing states, not `networkidle`.
+Engine specification `docs/AGMT_PROOF_ENGINE_EXCELLENCE_SPEC.md` / branch `proof-engine-excellence-spec` is **not on origin** as of this session. No competing rule architecture was added. Mixed-format `employment_typo_split` stays labelled.
+
+Chrome Default and Edge Default have no `agmt.legal` session cookies. No `AGMT_PROOF_TEST_EMAIL` / `AGMT_PROOF_TEST_PASSWORD` / `web/.proof-production.env`. Creating a production session from D1 would be a bypass and was not used.
+
+To finish it: set `AGMT_PROOF_TEST_EMAIL` and `AGMT_PROOF_TEST_PASSWORD` in the environment or gitignored `web/.proof-production.env` (never paste the password in chat), **or** sign in with a verified Agmt account in headed Chromium: from `web/` run `$env:AGMT_PROOF_INTERACTIVE=1; npm run proof:production-journey` and complete sign-in at `https://app.agmt.legal/login?returnTo=%2Fproof`. The script waits for rendered Proof controls and processing states, not `networkidle`. Unattended runs no longer open a login window; they record e2e outstanding (exit 2) after the anonymous checks. Signed-out network/storage is not treated as processing-time privacy evidence. `https://grok.com/grok-app-builder/extensions.js` is classified as a testing-platform injection, not an Agmt application script.
 
 ### Browser-side processing feasibility (synthetic prototype, retained)
 

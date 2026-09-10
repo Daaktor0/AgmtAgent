@@ -14,6 +14,11 @@ import { validateOutputReconstruction } from "../validation/reconstruct.ts";
 
 type Analysis = Awaited<ReturnType<typeof analyzeProof>>;
 export type { ExportReceipt };
+export type ProofExportOptions = {
+  profile?: "agreement" | "general";
+  language?: "en-GB" | "en-US";
+  analysis?: Analysis;
+};
 type Fragment = { node: XmlNode; start?: number; end?: number };
 
 function uniqueFindings(source: Analysis["source"], findings: ProofFinding[]): ProofFinding[] {
@@ -130,9 +135,9 @@ function rewriteParagraph(node: XmlNode, paragraph: SourceParagraph, findings: P
 export async function exportProofDocx(
   bytes: Buffer,
   now = new Date(),
-  options: { profile?: "agreement" | "general"; language?: "en-GB" | "en-US" } = {},
+  options: ProofExportOptions = {},
 ) {
-  const analysis = await analyzeProof(bytes, options);
+  const analysis = options.analysis ?? await analyzeProof(bytes, options);
   const plan = planProofExport(analysis);
   const zip = await JSZip.loadAsync(bytes);
   const original = await JSZip.loadAsync(bytes);

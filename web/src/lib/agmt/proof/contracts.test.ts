@@ -35,7 +35,7 @@ test("strict finding/plan contracts reject forged offsets, absence claims and de
   for (const change of [{ ruleId: "defterm.unused" }, { kind: "comment" }, { exactQuote: "other" }, { category: "references" }, { replacement: null }, { ruleId: "references.missing_target" }]) {
     assert.equal(ProofFindingSchema.safeParse({ ...finding, ...change }).success, false);
   }
-  assert.equal(LAUNCH_CHECKS.length, 6);
-  assert.equal(new Set(LAUNCH_CHECKS.map((s) => s.checkId)).size, 6);
+  assert.equal(LAUNCH_CHECKS.length, new Set(LAUNCH_CHECKS.map((s) => s.checkId)).size);
+  assert.equal(LAUNCH_CHECKS.length >= 6, true);
   assert.equal(ExportPlanSchema.safeParse({ sourceSha256: "a".repeat(64), ruleSetVersion: "proof-launch-v1", exporterVersion: "proof-ooxml-v1", author: "Agmt Proof", initials: "AP", findings: [finding], notices: [] }).success, true);
 });

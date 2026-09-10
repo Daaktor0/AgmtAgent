@@ -12,7 +12,7 @@ export type LaunchRuleSpec = {
   id: LaunchRuleId;
   version: 1;
   profile: "agreement" | "general" | "both";
-  phase: "A";
+  phase: "A" | "B";
   defaultEnabled: boolean;
   requiresCapabilities: readonly string[];
   languages: readonly ("en-GB" | "en-US")[];
@@ -60,7 +60,13 @@ export const LAUNCH_RULE_SPECS: readonly LaunchRuleSpec[] = Object.freeze([
   launchSpec({ id: "completion.placeholder", version: 1, profile: "both", phase: "A", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "exact-mechanical" }),
   launchSpec({ id: "references.missing_target", version: 1, profile: "agreement", phase: "A", defaultEnabled: true, requiresCapabilities: ["numbering"], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "main_body_numbering", evidenceTier: "exact-structural" }),
   launchSpec({ id: "references.duplicate_number", version: 1, profile: "agreement", phase: "A", defaultEnabled: true, requiresCapabilities: ["numbering"], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "main_body_numbering", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "references.scope_confusion", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: ["numbering"], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "main_body_numbering", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "references.ambiguous_target", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: ["numbering"], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "main_body_numbering", evidenceTier: "exact-structural" }),
   launchSpec({ id: "definitions.duplicate", version: 1, profile: "agreement", phase: "A", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "declaration_inventory", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "definitions.scope_redefinition", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "declaration_inventory", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "definitions.case_variant", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "definitions.unused", version: 1, profile: "agreement", phase: "B", defaultEnabled: false, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "declaration_inventory", evidenceTier: "exact-structural" }),
+  launchSpec({ id: "definitions.undefined_use", version: 1, profile: "agreement", phase: "B", defaultEnabled: true, requiresCapabilities: [], languages: ["en-GB", "en-US"], actionPolicy: "comment", scopeKind: "visible_text", evidenceTier: "bounded-heuristic" }),
 ]);
 
 export const LAUNCH_CHECKS: readonly Readonly<{ checkId: LaunchRuleId; version: 1 }>[] = Object.freeze(

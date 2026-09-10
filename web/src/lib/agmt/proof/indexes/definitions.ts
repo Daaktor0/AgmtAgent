@@ -28,6 +28,12 @@ function plausibleTerm(term: string): boolean {
   return true;
 }
 
+function bodyKey(paragraph: SourceParagraph, termEnd: number): string {
+  const rest = paragraph.text.slice(termEnd);
+  const match = rest.match(/^\s*[”"']?\s*(?:means|shall mean|has the meaning|shall have the meaning)\b(.*)$/i);
+  return (match?.[1] ?? rest).replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function add(
   entries: DefinitionEntry[],
   paragraph: SourceParagraph,
@@ -40,7 +46,12 @@ function add(
   const span = indexSpan(paragraph, start, end);
   if (!span) return;
   const normalisedTerm = term.replace(/\s+/g, " ").trim().toLowerCase();
-  if (entries.some((entry) => entry.scope === paragraph.scope && entry.normalisedTerm === normalisedTerm && entry.span.textStart === start)) {
+  if (entries.some((entry) =>
+    entry.scope === paragraph.scope
+    && entry.normalisedTerm === normalisedTerm
+    && JSON.stringify(entry.span.paragraphPath) === JSON.stringify(paragraph.paragraphPath)
+    && entry.span.textStart === start
+  )) {
     return;
   }
   entries.push({
@@ -50,6 +61,7 @@ function add(
     scope: paragraph.scope,
     imported,
     parentTerm: null,
+    bodyKey: bodyKey(paragraph, end),
     span,
   });
 }

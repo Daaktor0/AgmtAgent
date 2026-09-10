@@ -72,6 +72,8 @@ export type DefinitionEntry = {
   scope: string;
   imported: boolean;
   parentTerm: string | null;
+  /** Lowercased remainder after the declaration verb; comparison only, never quoted. */
+  bodyKey: string;
   span: IndexSpan;
 };
 
@@ -87,6 +89,7 @@ export type ReferenceForm = "single" | "range" | "coordinated" | "relative";
 export type ReferenceEndpoint = {
   label: string;
   status: IndexResolution;
+  otherScopeHits: readonly NumberingEntry[];
 };
 
 export type ReferenceEntry = {

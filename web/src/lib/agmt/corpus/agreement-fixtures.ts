@@ -25,7 +25,7 @@ const A = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const PIC = "http://schemas.openxmlformats.org/drawingml/2006/picture";
 
 const FILLER =
-  "The Company shall deliver notice under Clause 1.1 and shall comply with Schedule 1 in connection with Company business. ";
+  "The Company shall deliver notice under this Clause and shall comply with Schedule 1 in connection with Company business. ";
 
 const orderedParser = new XMLParser({
   ignoreAttributes: false,

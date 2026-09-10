@@ -224,7 +224,7 @@ export function ProofLocalExperience() {
         </div>
       ) : null}
       <p className="text-sm leading-6 text-stone">
-        Proof checks a small list of common typos, repeated function words, unfinished placeholders, missing internal references, duplicate clause numbers and duplicate definitions.
+        Proof checks a small list of common typos, repeated function words, unfinished placeholders, missing, ambiguous and cross-scope internal references, duplicate clause numbers, duplicate or inconsistent definitions, defined-term capitalisation, and title-case phrases that look defined but are not.
         It doesn’t provide a comprehensive legal review. You accept or reject proposed corrections in Word. Refreshing this page discards the current run. {PROOF_LOCAL_SESSION_LOST}{" "}
         <Link to="/proof/help" className="underline underline-offset-4">Help</Link>
         {import.meta.env.DEV ? <> · <Link to="/proof/dev" className="underline underline-offset-4">Development fixtures</Link></> : null}

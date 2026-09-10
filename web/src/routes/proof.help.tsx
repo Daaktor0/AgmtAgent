@@ -16,8 +16,9 @@ function ProofHelp() {
           <li>A small frozen list of common typos in ordinary English prose</li>
           <li>Repeated ordinary function words such as “the the”</li>
           <li>Unfinished placeholders such as [●] or [TBD]</li>
-          <li>Duplicate definitions in an unambiguous scope</li>
-          <li>Duplicate clause numbers and missing simple internal references when numbering scope is complete</li>
+          <li>Duplicate definitions in an unambiguous scope, schedule re-definitions that change the meaning, and defined terms used with the wrong capitalisation</li>
+          <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete</li>
+          <li>Title-case phrases that look like defined terms but have no matching definition</li>
         </ul>
         <p>Proof is not a comprehensive legal review, grammar checker or drafting assistant. It does not use a language model.</p>
         <h2 className="font-display text-2xl">Review in Word</h2>

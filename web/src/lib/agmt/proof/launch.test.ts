@@ -7,6 +7,7 @@ import https from "node:https";
 import { analyzeProof, validateLaunchFinding } from "./launch.ts";
 import { launchFixture, DEMO_EXPECTED } from "../corpus/launch-fixtures.ts";
 import { buildDocx } from "../docx.ts";
+import { LAUNCH_RULE_SPECS } from "./registry.ts";
 
 test("all four demonstration variants produce exactly two corrections and two anchored comments, without network", async (t) => {
   let calls = 0;
@@ -21,7 +22,7 @@ test("all four demonstration variants produce exactly two corrections and two an
     const result = await analyzeProof(await launchFixture(kind));
     assert.equal(result.coverage, "complete");
     assert.equal(result.plan.findings.length, 4);
-    assert.equal(result.executions.length, 6);
+    assert.equal(result.executions.length, LAUNCH_RULE_SPECS.length);
     assert.equal(result.plan.findings.filter((f) => f.kind === "correction").length, kind === "split_runs" ? 1 : 2);
     for (const e of DEMO_EXPECTED) {
       const f = result.plan.findings.find((f) => f.ruleId === e.ruleId)!;
@@ -49,8 +50,8 @@ test("negative traps: party name, valid repetition, quotes, URLs, statute, brack
     '3. Section 42 of the Companies Act, 2013 applies; [12] and [optional wording] are valid.',
     '4. The Company shall act under Clause 1.',
     '5. "Notice" means a written notice.',
-    'SCHEDULE 1', '1. "Notice" means a local notice.',
-    'SCHEDULE 2', '1. The Company shall deliver the notice.',
+    'SCHEDULE 1', '1. "Notice" means a written notice.',
+    'SCHEDULE 2', '1. The Company shall deliver the Notice.',
   ]));
   assert.deepEqual(r.plan.findings, []);
 });

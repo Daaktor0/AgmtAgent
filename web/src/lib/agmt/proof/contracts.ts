@@ -16,7 +16,8 @@ export type SourceSpan = z.infer<typeof SourceSpanSchema>;
 
 export const LaunchRuleIdSchema = z.enum([
   "language.typo_allowlist", "language.duplicate_word", "completion.placeholder",
-  "references.missing_target", "references.duplicate_number", "definitions.duplicate",
+  "references.missing_target", "references.duplicate_number", "references.scope_confusion", "references.ambiguous_target",
+  "definitions.duplicate", "definitions.scope_redefinition", "definitions.case_variant", "definitions.unused", "definitions.undefined_use",
 ]);
 export type LaunchRuleId = z.infer<typeof LaunchRuleIdSchema>;
 export const ProofFindingSchema = z.strictObject({
@@ -38,7 +39,10 @@ export const ProofFindingSchema = z.strictObject({
   }).nullable(),
 }).refine((f) => f.exactQuote.length === f.primarySpan.textEnd - f.primarySpan.textStart, "quote_length")
   .refine((f) => f.kind === "correction" ? f.replacement !== null && f.category === "language" : f.replacement === null, "invalid_markup_action")
-  .refine((f) => f.ruleId !== "references.missing_target" || f.scopeEvidence?.matchCount === 0, "missing_absence_evidence");
+  .refine((f) => f.ruleId !== "references.missing_target" || f.scopeEvidence?.matchCount === 0, "missing_absence_evidence")
+  .refine((f) => f.ruleId !== "references.scope_confusion" || f.scopeEvidence?.matchCount === 0, "scope_confusion_absence_evidence")
+  .refine((f) => f.ruleId !== "references.ambiguous_target" || (f.scopeEvidence != null && f.scopeEvidence.matchCount >= 2), "ambiguous_evidence")
+  .refine((f) => f.ruleId !== "definitions.unused" || f.scopeEvidence?.matchCount === 0, "unused_absence_evidence");
 export type ProofFinding = z.infer<typeof ProofFindingSchema>;
 
 /** Content contract only; schema validation is followed by immutable-package evidence validation. */

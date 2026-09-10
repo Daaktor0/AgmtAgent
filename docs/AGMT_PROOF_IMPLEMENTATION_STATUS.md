@@ -1295,6 +1295,42 @@ Maps to PWC-39 wholesale plus RE-5 party / RE-6 figures. **Does not enable new p
 
 **Next concrete task:** PEE-10 reference rules v2 (PWC-41 references half), then PEE-11 definitions v2. Do not promote index-backed rules on this increment.
 
+### PEE-10 / PEE-11 — Index-backed reference and definition rules (2026-09-10)
+
+Maps to PWC-41. Uses PEE-02 indexes. Comment-only. Incomplete inventories suppress absence claims. Ambiguity is never converted into a correction.
+
+**Held-out promotion** (precision ≥98%, recall ≥90%, minSamples 100; unique families across SHA/SSA/NDA/employment/letter):
+
+| Rule | Held-out TP/FP/FN | Precision / recall | Gate | defaultEnabled |
+|---|---|---|---|---|
+| `references.missing_target` v2 | 152 / 0 / 0 | 100% / 100% | pass | true (was already on; now singles, range-both-missing, coordinated missing endpoints) |
+| `references.duplicate_number` | 113 / 0 / 0 | 100% / 100% | pass | true |
+| `references.scope_confusion` | 141 / 0 / 0 | 100% / 100% | pass | **true (new)** |
+| `references.ambiguous_target` | 122 / 0 / 0 | 100% / 100% | pass | **true (new)** |
+| `definitions.duplicate` | 149 / 0 / 0 | 100% / 100% | pass | true |
+| `definitions.scope_redefinition` | 125 / 0 / 0 | 100% / 100% | pass | **true (new)** |
+| `definitions.case_variant` | 121 / 0 / 0 | 100% / 100% | pass | **true (new)** |
+| `definitions.undefined_use` | 134 / 0 / 0 | 100% / 100% | pass | **true (new)** |
+| `definitions.unused` | 124 / 0 / 0 | 100% / 100% | numeric pass; spec §6.5 requires lawyer adjudication | **false** |
+
+Detection, exact anchoring and comment action were scored separately. Capacity-corpus planted four errors were not used as the promotion set.
+
+**Examples users can now catch:** missing `Clause 99.2`; `Clauses 90.1 to 91.1` when both ends are missing; `Clause 1 and 92.1` when 92.1 is missing; `Clause 3` that exists only in a schedule; a number that appears twice in the same scope; a schedule re-definition of a main-body term with different text; `confidential information` where `Confidential Information` is defined; `Secret Project Sha1` written like a defined term with no definition.
+
+**Remaining exclusions:** external statutes/other agreements; relative `this Clause`; quoted references; reserved gaps unless referenced; identical scoped re-definitions; generic nouns `agreement`/`notice`/etc.; unused definitions (off); party-name and words-and-figures (PEE-12/13, not in this increment).
+
+**Tests:** `test:proof` **166/166**. `npx tsc --noEmit` exit 0.
+
+**Word:** Visible Word (`Visible=true`, `DisplayAlerts=-1`) opened body output (3 revisions / 2 comments), a new-rule structural output (0 revisions / 3 comments: missing, duplicate number, case-variant), and the 300-page-target labelled output (**584 pages**, 1497 revisions, 4 comments, 1 table, 1 inline shape) without a COM error or hung repair dialog. **100 MiB image-heavy Word: Blocked** (no browser-generated 100 MiB output in this workspace). Previous COM runs with alerts suppressed are not treated as absence-of-repair evidence.
+
+**Production journey:** Live `/proof` after auth settle still requires sign-in (`Sign in to Agmt` visible; Proofread disabled). Anonymous local processing is **not** enabled. That matches `web/AGENTS.md` (no anonymous deployed path). The earlier anonymous-profile report is not the current policy. `sign_in_rejected` / CI `INVALID_EMAIL_OR_PASSWORD` was **not** retried. HTTP 200 is not a processing receipt.
+
+**Status:** Implemented; Tested. Word-Verified on body + new-rule structural + 584-page output with alerts on. 100 MiB Word **Blocked**. Not Deployed until merge.
+
+**Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; no anonymous access added.
+
+**Next concrete task:** PEE-12 party consistency and PEE-13 dates/amounts; production signed-in journey when a verified test account is available.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

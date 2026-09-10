@@ -10,9 +10,10 @@ import { CHECKS, LAUNCH_RULE_SPECS, LAUNCH_RULE_BY_ID } from "./registry.ts";
 import { executeLaunchRules } from "./rule-runtime.ts";
 import { canPromote, ruleMetric } from "../corpus/pwc/metrics.ts";
 
-test("PWC-14 six launch rules have evaluation receipts; experimental CHECKS stay off", () => {
-  assert.equal(LAUNCH_RULE_SPECS.length, 6);
-  assert.equal(LAUNCH_RULE_SPECS.every((spec) => spec.defaultEnabled && spec.evaluationReceiptHash.length === 64), true);
+test("PWC-14 launch rules have evaluation receipts; experimental CHECKS stay off", () => {
+  const enabled = LAUNCH_RULE_SPECS.filter((spec) => spec.defaultEnabled);
+  assert.equal(enabled.length >= 6, true);
+  assert.equal(LAUNCH_RULE_SPECS.every((spec) => spec.evaluationReceiptHash.length === 64), true);
   assert.equal(CHECKS.some((spec) => LAUNCH_RULE_SPECS.some((launch) => launch.id === spec.checkId)), false);
   assert.equal(LAUNCH_RULE_BY_ID["language.typo_allowlist"].actionPolicy, "correction");
 });

@@ -5,7 +5,6 @@ import {
   indexSpan,
   referenceNamespace,
   type ScopesIndex,
-  type IndexResolution,
   type NumberNamespace,
   type ReferenceEndpoint,
   type ReferenceEntry,
@@ -18,7 +17,7 @@ const LABEL = /^(\d+(?:\.\d+)*|[IVXLCDM]{1,6}|[A-Z])\b/;
 const RANGE = /^(?:\s+|,\s*)(?:to|[-–—])\s*(\d+(?:\.\d+)*|[IVXLCDM]{1,6}|[A-Z])\b/;
 const COORD = /^(?:\s*,\s*|\s+and\s+)(\d+(?:\.\d+)*|[IVXLCDM]{1,6}|[A-Z])\b/;
 const RELATIVE = /\b((?:this|the (?:preceding|following|next|previous))\s+(Clause|Section|Article)s?)\b/gi;
-const STATUTE = /\b(?:Act|Rules|Regulations|statute|Code|other agreement)\b/i;
+const STATUTE = /\b(?:[A-Z][A-Za-z]+ Act|the Act|this Act|Rules|Regulations|statute|[A-Z][A-Za-z]+ Code|other agreement)\b/;
 const OTHER_INSTRUMENT = /\bof\s+(?:the|a|an)\s+[^.;]{0,100}(?:Agreement|Deed|Document)\b/i;
 const DECLARATION = /^\s*(?:(?:Clause|Section|Article)\s+)?(\d+(?:\.\d+)*)(?:[.)](?=\s)|(?=\s))\s+/i;
 
@@ -44,9 +43,10 @@ function endpointStatus(
   namespace: NumberNamespace,
   label: string,
   external: boolean,
-): IndexResolution {
-  if (external) return "external";
-  return resolveNumber(scopes, { scope: paragraph.scope, namespace, label }).status;
+): ReferenceEndpoint {
+  if (external) return { label, status: "external", otherScopeHits: [] };
+  const resolved = resolveNumber(scopes, { scope: paragraph.scope, namespace, label });
+  return { label, status: resolved.status, otherScopeHits: resolved.otherScopeHits };
 }
 
 function pushEntry(
@@ -108,16 +108,13 @@ export function buildReferencesIndex(source: ProofSource, scopes: ScopesIndex): 
       }
       if (!take(match.index, cursor)) continue;
       const external = isExternal(paragraph, match.index, namespace);
-      const endpoints = labels.map((label) => ({
-        label,
-        status: endpointStatus(scopes, paragraph, namespace, label, external),
-      }));
+      const endpoints = labels.map((label) => endpointStatus(scopes, paragraph, namespace, label, external));
       pushEntry(entries, paragraph, form, namespace, match.index, cursor, endpoints, external);
     }
     for (const match of paragraph.text.matchAll(new RegExp(RELATIVE.source, "gi"))) {
       if (!take(match.index, match.index + match[0].length)) continue;
       const namespace = referenceNamespace(match[2]!);
-      pushEntry(entries, paragraph, "relative", namespace, match.index, match.index + match[0].length, [{ label: "", status: "unknown" }], false);
+      pushEntry(entries, paragraph, "relative", namespace, match.index, match.index + match[0].length, [{ label: "", status: "unknown", otherScopeHits: [] }], false);
     }
   }
   return {

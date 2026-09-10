@@ -1,6 +1,7 @@
 import { PROOF_UI_COPY } from "@/lib/products/api-contracts";
 import type { ProofAuthKind } from "@/lib/products/proof-state";
 
+/** Server-run UI only. Browser-only local Proof at `/proof` does not use this gate. */
 export function ProofAccessGate({
   auth,
   verificationSent,

@@ -194,7 +194,7 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   assert.doesNotMatch(api, /request\.arrayBuffer\(\)/);
   assert.doesNotMatch(http, /request\.arrayBuffer\(\)/);
   assert.match(home, /PROOF_LOCAL_DEVICE/);
-  assert.match(home, /do not receive the file/);
+  assert.match(home, /PROOF_LOCAL_NO_ACCOUNT/);
   assert.match(proof, /ProofLocalExperience/);
   assert.doesNotMatch(home, /proofAvailabilityCopy/);
   assert.doesNotMatch(proof, /proofAvailabilityCopy/);

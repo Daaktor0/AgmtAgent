@@ -1,11 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ProofAccessGate } from "@/components/agmt/proof-access-gate";
 import { ProofFilePicker } from "@/components/agmt/proof-file-picker";
 import { ProofIntro } from "@/components/agmt/proof-intro";
 import { ProofOptions } from "@/components/agmt/proof-options";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { ProofLanguage, ProofProfile } from "@/lib/products/capabilities";
 import { processProofInWorker, type LocalProofJob } from "@/lib/proof-local/client";
 import { createProofRunSession } from "@/lib/proof-local/run-session";
@@ -13,6 +11,7 @@ import {
   PROOF_LOCAL_CANCELLED,
   PROOF_LOCAL_CHOOSE,
   PROOF_LOCAL_DEVICE,
+  PROOF_LOCAL_NO_ACCOUNT,
   PROOF_LOCAL_SESSION_LOST,
 } from "@/lib/proof-local/copy";
 import { localProofError } from "@/lib/proof-local/errors";
@@ -20,7 +19,6 @@ import { publishedProofCapacityPolicy } from "@/lib/proof-local/policy";
 import { persistentStorageSnapshot } from "@/lib/proof-local/isolation";
 import type { LocalProofResult, LocalProofStage } from "@/lib/proof-local/pipeline";
 import { sanitizeDownloadBasename } from "@/lib/products/use-proof-run";
-import type { ProofAuthKind } from "@/lib/products/proof-state";
 
 const STAGE_COPY: Record<LocalProofStage, string> = {
   admitting: "Checking the file…",
@@ -29,22 +27,11 @@ const STAGE_COPY: Record<LocalProofStage, string> = {
   validating: "Checking the finished document…",
 };
 
-function authKind(user: ReturnType<typeof useCurrentUserState>["user"], pending: boolean, loadingMs: number): ProofAuthKind {
-  if (pending && loadingMs < 15_000) return "loading";
-  if (pending) return "unavailable";
-  if (!user || user.isDevFallback) return "signed_out";
-  if (!user.emailVerified) return "unverified";
-  return "verified";
-}
-
 export function ProofLocalExperience() {
-  const { user, isPending } = useCurrentUserState();
   const [file, setFile] = useState<File | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProofProfile>("agreement");
   const [language, setLanguage] = useState<ProofLanguage>("en-GB");
-  const [authLoadingMs, setAuthLoadingMs] = useState(0);
-  const [verificationSent, setVerificationSent] = useState(false);
   const [stage, setStage] = useState<LocalProofStage | null>(null);
   const [result, setResult] = useState<LocalProofResult | null>(null);
   const [error, setError] = useState<{ heading: string; main: string } | null>(null);
@@ -53,14 +40,6 @@ export function ProofLocalExperience() {
   const jobRef = useRef<LocalProofJob | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const runSessionRef = useRef(createProofRunSession());
-  const auth = authKind(user, isPending, authLoadingMs);
-
-  useEffect(() => {
-    if (!isPending) return;
-    const started = Date.now();
-    const timer = window.setInterval(() => setAuthLoadingMs(Date.now() - started), 1000);
-    return () => window.clearInterval(timer);
-  }, [isPending]);
 
   useEffect(() => () => {
     runSessionRef.current.invalidate();
@@ -86,7 +65,7 @@ export function ProofLocalExperience() {
   }
 
   async function proofread() {
-    if (!file || auth !== "verified") return;
+    if (!file) return;
     setBusy(true);
     setError(null);
     setResult(null);
@@ -146,7 +125,6 @@ export function ProofLocalExperience() {
   return (
     <div className="mx-auto w-full max-w-[720px] space-y-7">
       {showSelect ? <ProofIntro /> : null}
-      <ProofAccessGate auth={auth} verificationSent={verificationSent} returnTo="/proof" />
       {showSelect ? (
         <div className="space-y-6 border-y border-rule py-7">
           <ProofFilePicker
@@ -158,7 +136,7 @@ export function ProofLocalExperience() {
           />
           <ProofOptions profile={profile} language={language} disabled={busy} onProfile={setProfile} onLanguage={setLanguage} />
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button className="min-h-11 w-full sm:w-auto" disabled={!file || auth !== "verified" || busy} onClick={() => void proofread()}>
+            <Button className="min-h-11 w-full sm:w-auto" disabled={!file || busy} onClick={() => void proofread()}>
               Proofread document
             </Button>
             {file ? (
@@ -167,7 +145,7 @@ export function ProofLocalExperience() {
               </Button>
             ) : null}
           </div>
-          {auth === "verified" && !file ? <p className="text-sm text-stone">{PROOF_LOCAL_DEVICE}</p> : null}
+          {!file ? <p className="text-sm text-stone">{PROOF_LOCAL_NO_ACCOUNT}</p> : null}
           <details className="text-sm leading-6 text-stone">
             <summary className="min-h-11 cursor-pointer text-ink">Supported files</summary>
             <p className="mt-2">Native unencrypted transitional .docx up to {publishedProofCapacityPolicy().label} on this device. Macros, encryption, IRM, Strict OOXML, .doc, .docm, .dotx and PDF are refused. Headers, footnotes and fields are preserved but not fully checked in this beta. Proof also refuses packages that exceed its ZIP expansion, XML complexity or processing-time limits; text-heavy documents may stop earlier than the source-size ceiling. Open XML SDK and Microsoft Word checks are release tests, not a per-document production scan.</p>

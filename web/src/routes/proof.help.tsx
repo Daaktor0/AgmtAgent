@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { PROOF_LOCAL_DEVICE, PROOF_LOCAL_LIMITS_NOTE, PROOF_LOCAL_PRIVACY } from "@/lib/proof-local/copy";
+import { PROOF_LOCAL_DEVICE, PROOF_LOCAL_LIMITS_NOTE, PROOF_LOCAL_NO_ACCOUNT, PROOF_LOCAL_PRIVACY } from "@/lib/proof-local/copy";
 import { publishedProofCapacityPolicy } from "@/lib/proof-local/policy";
 
 export const Route = createFileRoute("/proof/help")({ component: ProofHelp });
@@ -10,6 +10,7 @@ function ProofHelp() {
         <p className="text-sm text-stone">Agmt / Proof</p>
         <h1 className="font-display text-[32px] leading-tight sm:text-5xl">How to use Proof</h1>
         <p>Proof reads a native Word document on this device and returns a marked copy. Safe corrections appear as tracked changes. Items that need your judgment appear as Word comments.</p>
+        <p>{PROOF_LOCAL_NO_ACCOUNT}</p>
         <p>{PROOF_LOCAL_DEVICE}</p>
         <h2 className="font-display text-2xl">What Proof checks in this beta</h2>
         <ul className="list-disc space-y-1 pl-5">

@@ -59,7 +59,7 @@ This specification records the founder's newer product requirements. Apply those
 | Backup or archive the legal documents | Superseded for new temporary Proof content. No content backups, object versions, replication, archives or legal holds. |
 | Long-lived encrypted document vault and historical key migration | Not a prerequisite for the new temporary Proof path. Do not migrate or delete historical data without authorization. |
 | Exact source evidence, tenant isolation, safe ZIP parsing, transactional publication | Retained. |
-| No deployed anonymous/test access in `web/AGENTS.md` | Retained. iLovePDF is the interaction/retention reference, not authorization to bypass authentication. |
+| No deployed anonymous/test access in `web/AGENTS.md` | Retained for accounts, matters, stored resources, server document endpoints and any future R2 mode. iLovePDF is the interaction/retention reference, not authorization to bypass authentication. **Founder exception (2026-09-10):** browser-only local Proof at `/proof` is temporarily usable signed-out and must not wait on session lookup. This does not authorise anonymous server storage, processing or document access. |
 | General platform support for future signature utilities | Record as future capability. This does not authorize building or exposing them now. |
 
 Keep the historical specification and blueprint for context. Add a clear supersession note for the affected Proof scope when integrating this file. Update the existing implementation ledger instead of creating competing progress documents. Do not treat every historical backlog item as a prerequisite for this narrower release.

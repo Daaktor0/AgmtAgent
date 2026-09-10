@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Signed-in production Proof journey against https://app.agmt.legal/proof.
+ * Public local Proof journey against https://app.agmt.legal/proof.
+ * Signed-out choose → process → download is the intended path.
  * Waits for rendered controls and processing states. Never uses networkidle.
  * Never prints passwords, tokens, cookies or document bytes.
  */
@@ -128,8 +129,8 @@ function summarizeTraffic(traffic, processingObserved) {
     ok: traffic.documentLeaks.length === 0 && traffic.analytics.length === 0,
     processingObserved,
     note: processingObserved
-      ? "captured_during_signed_in_processing"
-      : "signed_out_page_only_processing_not_observed",
+      ? "captured_during_local_processing"
+      : "page_only_processing_not_observed",
     documentLeaks: traffic.documentLeaks,
     analytics: traffic.analytics,
     application: traffic.requests
@@ -276,7 +277,35 @@ async function waitForProofControls(page) {
   await page.getByRole("heading", { name: "Proofread your Word document." }).waitFor({ timeout: 30_000 });
   await page.getByLabel("Choose a Word document").waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Proofread document" }).waitFor({ timeout: 15_000 });
+  await page.getByText("No account required. Your document is processed on this device and isn’t sent to Agmt.").first().waitFor({ timeout: 15_000 });
   await page.getByText("Processing happens on this device.").first().waitFor({ timeout: 15_000 });
+}
+
+function assertLocalProofNotGated(homeText) {
+  if (!homeText.includes("No account required. Your document is processed on this device and isn’t sent to Agmt.")) {
+    fail("missing_no_account_copy");
+  }
+  if (homeText.includes("Sign in to use Proof.") || homeText.includes("Checking your sign-in…") || homeText.includes("Verify your email to use Proof.")) {
+    fail("auth_gate_still_blocks_local_proof");
+  }
+}
+
+async function interceptGetSession(page, kind) {
+  await page.route(/\/api\/auth\/get-session(?:\?|$)/, async (route) => {
+    if (kind === "abort") {
+      await route.abort("failed");
+      return;
+    }
+    if (kind === "slow") {
+      await new Promise((resolve) => setTimeout(resolve, 20_000));
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "null",
+      headers: { "cache-control": "private, no-store" },
+    });
+  });
 }
 
 async function waitAuthSettled(page) {
@@ -412,31 +441,82 @@ function obsoleteCopy(text) {
   return hits;
 }
 
-async function runChromiumJourney(playwright, creds) {
-  const traffic = { requests: [], documentLeaks: [], analytics: [], thirdParty: [], failed: [] };
-  const headed = creds.interactive || process.env.AGMT_PROOF_HEADED === "1";
-  const browser = await playwright.chromium.launch({ headless: !headed });
-  const context = await browser.newContext({
-    acceptDownloads: true,
-    ...(creds.storageState ? { storageState: creds.storageState } : {}),
+async function runSessionFault(playwright, kind) {
+  const browser = await playwright.chromium.launch({ headless: true });
+  const context = await browser.newContext({ acceptDownloads: true });
+  const page = await context.newPage();
+  try {
+    await interceptGetSession(page, kind);
+    const started = Date.now();
+    await waitForProofControls(page);
+    const controlMs = Date.now() - started;
+    const homeText = await page.locator("#proof-main").innerText();
+    assertLocalProofNotGated(homeText);
+    await chooseFile(page, "body.docx");
+    if (await page.getByRole("button", { name: "Proofread document" }).isDisabled()) {
+      fail(`proofread_disabled_${kind}_session`);
+    }
+    if (kind === "slow" && controlMs >= 8_000) fail("proof_waited_for_slow_get_session");
+    await proofread(page);
+    if (kind === "slow") {
+      await page.getByRole("button", { name: "Cancel" }).or(terminalLocator(page)).waitFor({ timeout: 15_000 });
+      return { ok: true, kind, state: "started", controlMs };
+    }
+    const state = await waitTerminal(page);
+    return { ok: state === "ready" || state === "limited", kind, state, controlMs };
+  } finally {
+    await browser.close();
+  }
+}
+
+async function assertProtectedRoutes(page) {
+  const runs = await page.request.get(`${ORIGIN}/api/proof/runs`);
+  const upload = await page.request.post(`${ORIGIN}/api/proof/upload`, {
+    headers: { origin: ORIGIN, "content-type": "application/json" },
+    data: "{}",
   });
+  const capabilities = await page.request.get(`${ORIGIN}/api/proof/capabilities`);
+  await page.goto(`${ORIGIN}/matters`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await page.waitForTimeout(1_000);
+  const mattersUrl = page.url();
+  const mattersText = await page.locator("body").innerText();
+  const mattersBlocked = /\/login/.test(mattersUrl)
+    || /Preparing your private workspace|Opening your workspace|Sign in to Agmt/i.test(mattersText);
+  const listedMatters = /New matter|Your work/.test(mattersText) && !mattersBlocked;
+  return {
+    ok: runs.status() === 401 && (upload.status() === 401 || upload.status() === 403) && capabilities.ok() && mattersBlocked && !listedMatters,
+    runs: runs.status(),
+    upload: upload.status(),
+    capabilities: capabilities.status(),
+    mattersUrl: redactUrl(mattersUrl),
+    mattersBlocked,
+  };
+}
+
+async function runChromiumJourney(playwright) {
+  const traffic = { requests: [], documentLeaks: [], analytics: [], thirdParty: [], failed: [] };
+  const headed = process.env.AGMT_PROOF_HEADED === "1";
+  const browser = await playwright.chromium.launch({ headless: !headed });
+  const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
   attachTraffic(page, traffic);
   const cases = {};
-  let signedIn = false;
   try {
     await waitForProofControls(page);
-    await waitAuthSettled(page);
     const homeText = await page.locator("#proof-main").innerText();
-    const signedOut = await page.getByRole("link", { name: "Sign in to Agmt" }).isVisible().catch(() => false);
+    assertLocalProofNotGated(homeText);
+    const signInSecondary = await page.getByRole("link", { name: "Sign in" }).isVisible().catch(() => false);
     cases.home = {
       ok: homeText.includes("Choose a Word document")
+        && homeText.includes("No account required. Your document is processed on this device and isn’t sent to Agmt.")
         && homeText.includes("processed on this device")
         && homeText.includes("Processing happens on this device.")
         && homeText.includes("Proofread your Word document.")
+        && signInSecondary
         && obsoleteCopy(homeText).length === 0,
       obsolete: obsoleteCopy(homeText),
-      signedOut,
+      signedOut: true,
+      signInSecondary,
     };
 
     await page.getByLabel("Choose a Word document").setInputFiles(join(fixtureDir, "oversized.docx"));
@@ -445,33 +525,8 @@ async function runChromiumJourney(playwright, creds) {
 
     await chooseFile(page, "body.docx");
     const proofreadButton = page.getByRole("button", { name: "Proofread document" });
-    if (signedOut) {
-      cases.signedOutGate = { ok: await proofreadButton.isDisabled(), login: "signed_out" };
-    }
-
-    const canSignIn = creds.hasPassword || Boolean(creds.storageState) || creds.interactive;
-    if (signedOut && (process.env.AGMT_PROOF_SKIP_LOGIN === "1" || !canSignIn)) {
-      const storage = await storageSnapshot(page);
-      cases.storage = {
-        ok: storageHoldsDocument(storage).length === 0,
-        snapshot: storage,
-        leakedKeys: storageHoldsDocument(storage),
-      };
-      cases.network = summarizeTraffic(traffic, false);
-      cases.login = {
-        ok: true,
-        outstanding: true,
-        actionRequired: LOGIN_URL,
-      };
-      return { cases, traffic, storage, signedIn: false, e2eOutstanding: true };
-    }
-
-    const login = await ensureVerified(page, creds, Number(process.env.AGMT_PROOF_LOGIN_TIMEOUT_MS || 300_000));
-    signedIn = true;
-    await waitForProofControls(page);
-    cases.home.login = login.method;
-    await chooseFile(page, "body.docx");
-    if (await proofreadButton.isDisabled()) fail("proofread_disabled_after_verified_sign_in");
+    if (await proofreadButton.isDisabled()) fail("proofread_disabled_signed_out");
+    cases.signedOutGate = { ok: true, login: "not_required" };
 
     await page.getByRole("button", { name: "Choose a different file" }).click();
     await page.getByLabel("Choose a Word document").waitFor({ timeout: 10_000 });
@@ -566,11 +621,8 @@ async function runChromiumJourney(playwright, creds) {
       leakedKeys: storageHoldsDocument(storage),
     };
     cases.network = summarizeTraffic(traffic, true);
-
-    if (creds.interactive || creds.hasPassword) {
-      await context.storageState({ path: join(workDir, "storage-state.json") });
-    }
-    return { cases, traffic, storage, signedIn, e2eOutstanding: !signedIn };
+    cases.protected = await assertProtectedRoutes(page);
+    return { cases, traffic, storage, signedIn: false, e2eOutstanding: false };
   } finally {
     await browser.close();
   }
@@ -582,14 +634,18 @@ const localCommit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, enc
 await writeFixtures();
 const playwright = await loadPlaywright();
 if (!playwright) fail("playwright_unavailable");
-const creds = loadCredentials();
-const chromium = await runChromiumJourney(playwright, creds);
+const sessionFaults = {
+  abort: await runSessionFault(playwright, "abort"),
+  null: await runSessionFault(playwright, "null"),
+  slow: await runSessionFault(playwright, "slow"),
+};
+const chromium = await runChromiumJourney(playwright);
 
 let firefox = { tested: false, reason: "not_run" };
 try {
   const browser = await playwright.firefox.launch();
   await browser.close();
-  firefox = { tested: false, reason: "browser_available_not_run_signed_in" };
+  firefox = { tested: false, reason: "browser_available_not_run_anonymous" };
 } catch {
   firefox = { tested: false, reason: "firefox_not_installed" };
 }
@@ -605,14 +661,26 @@ const word = existsSync(join(downloadDir, "body_Proofread.docx"))
   : { ok: false, skipped: true, error: "no_browser_download" };
 
 const cases = chromium.cases;
-const signedIn = Boolean(chromium.signedIn);
-const e2eOutstanding = Boolean(chromium.e2eOutstanding) || !signedIn;
-const anonymousOk = Boolean(cases.home?.ok && cases.oversized?.ok && cases.network?.ok && cases.storage?.ok);
-const signedInOk = signedIn
-  && Boolean(cases.body?.ok && cases.zero?.ok && cases.limited?.ok && cases.existingMarkup?.ok && cases.cancellation?.ok && cases.secondRun?.ok && cases.hostile?.ok)
-  && sdk.every((item) => item.ok)
-  && word.ok;
-const ok = signedInOk;
+const signedIn = false;
+const e2eOutstanding = false;
+const sessionFaultOk = Boolean(sessionFaults.abort?.ok && sessionFaults.null?.ok && sessionFaults.slow?.ok);
+const anonymousOk = Boolean(
+  cases.home?.ok
+  && cases.oversized?.ok
+  && cases.signedOutGate?.ok
+  && cases.body?.ok
+  && cases.zero?.ok
+  && cases.limited?.ok
+  && cases.existingMarkup?.ok
+  && cases.cancellation?.ok
+  && cases.secondRun?.ok
+  && cases.hostile?.ok
+  && cases.network?.ok
+  && cases.storage?.ok
+  && cases.protected?.ok
+  && sessionFaultOk,
+);
+const ok = anonymousOk && sdk.every((item) => item.ok) && word.ok;
 const workerIdentity = liveWorkerVersion();
 
 const report = {
@@ -637,6 +705,7 @@ const report = {
     iosSafari: "not_run_physical_device",
   },
   cases,
+  sessionFaults,
   sdk,
   word,
   firefox,
@@ -648,6 +717,7 @@ console.log(JSON.stringify({
   signedIn: report.signedIn,
   e2eOutstanding: report.e2eOutstanding,
   anonymousOk: report.anonymousOk,
+  sessionFaults: Object.fromEntries(Object.entries(sessionFaults).map(([name, value]) => [name, { ok: value.ok, state: value.state, controlMs: value.controlMs }])),
   sourceCommit: report.sourceCommit,
   localCommit: report.localCommit,
   workerVersion: report.workerVersion,

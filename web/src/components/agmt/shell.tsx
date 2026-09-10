@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { user, isPending } = useCurrentUserState();
+  const { user } = useCurrentUserState();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const proofActive = pathname === "/proof" || pathname.startsWith("/proof/");
 
@@ -43,16 +43,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
-            {isPending ? (
-              <div className="h-8 w-32 animate-pulse bg-white/5" />
-            ) : user ? (
+            {user ? (
               <div className="hidden items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-white/50 sm:flex">
                 <span className="size-1.5 bg-white/35" aria-hidden="true" />
                 Account
                 <Link to="/matters" className="text-white/50 no-underline hover:text-paper">Matters</Link>
               </div>
             ) : (
-              <Link to="/login" search={{ returnTo: "/proof" }} className="text-[13px] text-paper underline underline-offset-4">Sign in</Link>
+              <Link to="/login" search={{ returnTo: proofActive ? "/proof" : "/" }} className="text-[13px] text-paper underline underline-offset-4">Sign in</Link>
             )}
           </div>
         </div>

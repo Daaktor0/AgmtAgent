@@ -1355,6 +1355,21 @@ Detection, exact anchoring and comment action were scored separately. Capacity-c
 
 **Production download/Word:** still requires a verification-email click on a real inbox after this deploy. 100 MiB Word remains Blocked separately.
 
+### Founder exception — signed-out local Proof (2026-09-10)
+
+**Instruction:** Temporarily remove the account requirement from browser-only Proof so users can use the product. This supersedes `web/AGENTS.md` (as updated) and older specification language that local Proof required a verified account. Authentication is **not** removed across Agmt.
+
+**Scope:**
+- Signed-out users at `/proof` can choose DOCX → process on device → download.
+- Local Proof does not wait for `get-session` or AUTH_DB before becoming usable.
+- Copy: “No account required. Your document is processed on this device and isn’t sent to Agmt.”
+- Sign-in remains a secondary header action.
+- Accounts, settings, matters, server document endpoints and any future R2 mode stay authenticated. Server uploads remain disabled. No fake sessions. No document content in network, analytics or persistent browser storage.
+
+**Auth remaining (separate):** verification delivery and first-request sign-in timeouts are **not** called fixed. Signup HTTP 200 and a warm retry are not a complete auth receipt.
+
+**100 MiB Word:** still separately labelled Blocked.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

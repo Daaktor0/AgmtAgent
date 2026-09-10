@@ -8,6 +8,8 @@ export const PROOF_LOCAL_HEADING = "Proofread your Word document.";
 export const PROOF_LOCAL_MAIN = "Get safe corrections as tracked changes and points to check as Word comments.";
 export const PROOF_LOCAL_CHOOSE = "Choose a Word document";
 export const PROOF_LOCAL_DEVICE = "Processing happens on this device.";
+export const PROOF_LOCAL_NO_ACCOUNT =
+  "No account required. Your document is processed on this device and isn’t sent to Agmt.";
 export const PROOF_LOCAL_TOO_LARGE = `This file exceeds the ${PROOF_LOCAL_SIZE_LABEL} size limit.`;
 
 export function proofLocalTooLargeMessage(label = publishedProofCapacityPolicy().label): string {
@@ -18,6 +20,6 @@ export const PROOF_LOCAL_LIMITS_NOTE =
   "A file under the size limit can still be refused if its Word XML, ZIP expansion or extracted text is too complex. Proof does not check every document below the size limit, and it is not unlimited.";
 export const PROOF_LOCAL_WRONG_FILE = "Choose a Word (.docx) file containing document text.";
 export const PROOF_LOCAL_MULTIPLE = "Choose one document at a time.";
-export const PROOF_LOCAL_SIGNED_OUT = "Sign in to use Proof.";
+export const PROOF_LOCAL_SIGNED_OUT = "Sign in is optional. Local Proof does not require an account.";
 export const PROOF_LOCAL_CANCELLED = "Checking was cancelled. You can choose the file again.";
 export const PROOF_LOCAL_SESSION_LOST = "This run is no longer available. Choose the file again to restart.";

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/agmt/shell";
-import { PROOF_LOCAL_DEVICE } from "@/lib/proof-local/copy";
+import { PROOF_LOCAL_DEVICE, PROOF_LOCAL_NO_ACCOUNT } from "@/lib/proof-local/copy";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -13,7 +13,8 @@ function Home() {
       <h2 className="font-display text-3xl">Proof</h2>
       <p className="text-sm leading-6 text-stone">Proofread a Word agreement. Review safe corrections as tracked changes and items needing judgment as comments.</p>
       <p className="text-sm">Free at launch</p>
-      <p className="text-sm leading-6 text-stone">{PROOF_LOCAL_DEVICE} Agmt’s servers do not receive the file.</p>
+      <p className="text-sm leading-6 text-stone">{PROOF_LOCAL_NO_ACCOUNT}</p>
+      <p className="text-sm leading-6 text-stone">{PROOF_LOCAL_DEVICE}</p>
       <Link to="/proof" className="inline-flex min-h-10 items-center border border-oxblood bg-oxblood px-5 text-sm text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-oxblood">Open Proof</Link>
     </div>
     <Link to="/matters" className="text-sm text-stone underline underline-offset-4">Existing matters</Link>

@@ -91,11 +91,11 @@ function loadCredentials() {
   if (existsSync(envPath)) {
     for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
       const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (match) extra[match[1]] = match[2];
+      if (match) extra[match[1]] = match[2].trim().replace(/^["']|["']$/g, "");
     }
   }
-  const email = process.env.AGMT_PROOF_TEST_EMAIL || extra.AGMT_PROOF_TEST_EMAIL || "";
-  const password = process.env.AGMT_PROOF_TEST_PASSWORD || extra.AGMT_PROOF_TEST_PASSWORD || "";
+  const email = (process.env.AGMT_PROOF_TEST_EMAIL || extra.AGMT_PROOF_TEST_EMAIL || "").trim().replace(/^["']|["']$/g, "");
+  const password = (process.env.AGMT_PROOF_TEST_PASSWORD || extra.AGMT_PROOF_TEST_PASSWORD || "").trim().replace(/^["']|["']$/g, "");
   const storageState = process.env.AGMT_PROOF_STORAGE_STATE || join(workDir, "storage-state.json");
   return {
     email,
@@ -288,6 +288,22 @@ async function waitAuthSettled(page) {
   }
 }
 
+async function waitLoginFormInteractive(page) {
+  await page.getByLabel("Email").waitFor({ timeout: 15_000 });
+  const create = page.getByRole("button", { name: "Need an account? Create one" });
+  await create.waitFor({ timeout: 15_000 });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await create.click();
+    if (await page.getByLabel("Name").isVisible().catch(() => false)) {
+      await page.getByRole("button", { name: "Already have an account? Sign in" }).click();
+      await page.getByLabel("Name").waitFor({ state: "hidden", timeout: 5_000 });
+      return;
+    }
+    await page.waitForTimeout(250);
+  }
+  fail("login_form_not_interactive");
+}
+
 async function ensureVerified(page, creds, loginTimeoutMs) {
   await waitAuthSettled(page);
   const signIn = page.getByRole("link", { name: "Sign in to Agmt" });
@@ -297,11 +313,19 @@ async function ensureVerified(page, creds, loginTimeoutMs) {
 
   if (creds.hasPassword) {
     await signIn.click();
-    await page.getByLabel("Email").waitFor({ timeout: 15_000 });
+    await waitLoginFormInteractive(page);
     await page.getByLabel("Email").fill(creds.email);
     await page.getByLabel("Password").fill(creds.password);
+    const signInResponse = page.waitForResponse((response) => /\/api\/auth\/sign-in\/email/i.test(response.url()), { timeout: 20_000 });
     await page.getByRole("button", { name: "Sign in with email" }).click();
-    await page.getByRole("heading", { name: "Proofread your Word document." }).waitFor({ timeout: 30_000 });
+    const authResponse = await signInResponse.catch(() => null);
+    if (!authResponse) fail("sign_in_request_not_sent");
+    const proofHeading = page.getByRole("heading", { name: "Proofread your Word document." });
+    const loginError = page.locator("p.text-sm.text-danger, p.text-danger");
+    await proofHeading.or(loginError).waitFor({ timeout: 30_000 });
+    const errorText = (await loginError.textContent().catch(() => ""))?.trim() || "";
+    if (errorText) fail(`sign_in_rejected:${errorText}`);
+    await proofHeading.waitFor({ timeout: 15_000 });
     await waitAuthSettled(page);
     if (await page.getByRole("link", { name: "Sign in to Agmt" }).isVisible().catch(() => false)) {
       fail("sign_in_did_not_establish_verified_session");

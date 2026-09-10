@@ -22,4 +22,8 @@ test("production journey waits for Proof controls and states, not networkidle", 
   assert.match(source, /testingPlatformInjections/);
   assert.match(source, /signed_out_page_only_processing_not_observed/);
   assert.match(source, /rev-parse", "origin\/main"/);
+  assert.match(source, /\.trim\(\)\.replace\(\/\^\["'\]\|\["'\]\$\/g/);
+  assert.match(source, /sign_in_rejected/);
+  assert.match(source, /waitLoginFormInteractive/);
+  assert.match(source, /sign-in/);
 });

@@ -1265,7 +1265,7 @@ Coverage is **limited** because the fixtures contain existing tracked changes (h
 
 **Word COM (this machine, alerts suppressed):** body/table/prior_review PASS; 150-target complete agreement **293 pages, 749 revisions, 4 comments, 1 table, 1 inline shape**; image-heavy **100 MiB** output opened (`revisions=3 comments=2`). No COM error. Repair prompt not observed (DisplayAlerts=0).
 
-**Status:** Implemented; Tested (`test:proof` 156/156; `tsc --noEmit` pass; Node + desktop Chromium complete-agreement families). Word-Verified: launch pairs, 8 MiB and **100 MiB** image-heavy, 293-page complete agreement. Firefox/Safari/physical iOS **untested**. Mobile 8 MiB class **not mobile-verified**. **Not Deployed** until merge to main.
+**Status:** Implemented; Tested (`test:proof` 156/156; `tsc --noEmit` pass; Node + desktop Chromium complete-agreement families). Word-Verified: launch pairs, 8 MiB and **100 MiB** image-heavy, 293-page complete agreement. Firefox/Safari/physical iOS **untested**. Mobile 8 MiB class **not mobile-verified**. **Deployed** to `main` `bc23b29` (fast-forward). GitHub Actions run 43 (`34473618411`): build, wrangler **success**. Custom-domain smoke from GitHub IPs failed (WAF 403, same as prior). Local `https://app.agmt.legal/proof` **200** with 100 MiB size-limit copy (not 1 MiB). Signed-in Proofread → download **Blocked** (`sign_in_rejected`).
 
 **Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; ZIP ratio/entry/expansion/XML/time/validation still enforced. No additional proofreading checks were enabled.
 

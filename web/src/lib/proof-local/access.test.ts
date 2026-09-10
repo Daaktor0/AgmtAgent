@@ -24,7 +24,10 @@ test("founder exception: local Proof is usable without a session", () => {
   assert.match(copy, /PROOF_LOCAL_NO_ACCOUNT/);
   assert.match(intro, /PROOF_LOCAL_NO_ACCOUNT/);
   assert.match(local, /PROOF_LOCAL_NO_ACCOUNT/);
+  const shell = readWeb("src/components/agmt/shell.tsx");
   assert.doesNotMatch(local, /useCurrentUserState|ProofAccessGate|authKind/);
+  assert.match(shell, /IndependentAccount/);
+  assert.match(shell, /AccountErrorBoundary/);
   assert.doesNotMatch(local, /auth !== "verified"|auth === "verified"/);
   assert.match(local, /disabled=\{!file \|\| busy\}/);
   assert.match(local, /if \(!file\) return;/);

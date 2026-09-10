@@ -381,8 +381,15 @@ async function ensureVerified(page, creds, loginTimeoutMs) {
 }
 
 async function chooseFile(page, name) {
-  await page.getByLabel("Choose a Word document").setInputFiles(join(fixtureDir, name));
-  await page.getByText(new RegExp(`${name.replace(".", "\\.")} ·`)).waitFor({ timeout: 10_000 });
+  const input = page.locator("input[type=file]").first();
+  await input.waitFor({ timeout: 15_000 });
+  const selected = page.getByText(new RegExp(`${name.replace(".", "\\.")} ·`));
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await input.setInputFiles(join(fixtureDir, name));
+    if (await selected.isVisible().catch(() => false)) return;
+    await page.waitForTimeout(250);
+  }
+  fail(`file_not_selected:${name}`);
 }
 
 async function proofread(page) {

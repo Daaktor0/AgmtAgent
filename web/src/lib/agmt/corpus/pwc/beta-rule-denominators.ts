@@ -15,7 +15,7 @@ import {
   namedRecieveTraps,
 } from "./beta-rule-cases.ts";
 
-export const BETA_RULE_DENOMINATORS_VERSION = "proof-beta-rule-denominators-v1";
+export const BETA_RULE_DENOMINATORS_VERSION = "proof-beta-rule-denominators-v2";
 
 export type SplitBucket = "development" | "calibration" | "held_out";
 
@@ -45,7 +45,7 @@ export function uniqueTypoSentences(): string[] {
 }
 
 export function uniqueDuplicateWordFamilies(): string[] {
-  return [...new Set(duplicateWordPositives().map((item) => item.quote!))];
+  return [...new Set(duplicateWordPositives().map((item) => item.paragraphs[0]!))];
 }
 
 function commentFamilyKey(paragraphs: readonly string[]): string {
@@ -76,7 +76,7 @@ export function betaRuleDenominators() {
       uniquePositiveFamilies: uniqueTypos.length,
       uniqueNegativeFamilies: traps.filter((item) => item.ruleId === "language.typo_allowlist").length,
       independence:
-        "Four allowlisted spellings crossed with locked verb/object/frame templates; repeated IDs are not independent documents.",
+        "Packed PWC-15 IDs remain non-independent. Unique v2 families are counted in pee01-cases.ts, not here.",
     },
     {
       ruleId: "language.duplicate_word",
@@ -84,7 +84,7 @@ export function betaRuleDenominators() {
       generatedNegativeIds: traps.filter((item) => item.ruleId === "language.duplicate_word").length,
       uniquePositiveFamilies: uniqueDuplicateWordFamilies().length,
       uniqueNegativeFamilies: traps.filter((item) => item.ruleId === "language.duplicate_word").length,
-      independence: "One positive family per allowlisted function word; tab and grammatical traps are separate.",
+      independence: "One positive family per allowlisted function word and separator; grammatical that-that stays a trap.",
     },
     ...commentRules.map((ruleId) => {
       const positives = comments.positives.filter((item) => item.ruleId === ruleId);

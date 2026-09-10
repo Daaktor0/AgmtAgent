@@ -2,10 +2,10 @@ import JSZip from "jszip";
 import { buildDocx } from "../docx.ts";
 
 export const DEMO_SENTENCE = "The Company shall recieve the the notice under Clause 99.2 by [●].";
-export const DEMO_ACCEPTED = "The Company shall receive the notice under Clause 99.2 by [●].";
+export const DEMO_ACCEPTED = "The Company shall receive the  notice under Clause 99.2 by [●].";
 export const DEMO_EXPECTED = Object.freeze([
   { ruleId: "language.typo_allowlist", quote: "recieve", replacement: "receive", start: 18, end: 25 },
-  { ruleId: "language.duplicate_word", quote: " the", replacement: "", start: 29, end: 33 },
+  { ruleId: "language.duplicate_word", quote: "the", replacement: "", start: 30, end: 33 },
   { ruleId: "references.missing_target", quote: "Clause 99.2", replacement: null, start: 47, end: 58 },
   { ruleId: "completion.placeholder", quote: "[●]", replacement: null, start: 62, end: 65 },
 ]);

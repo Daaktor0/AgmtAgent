@@ -65,9 +65,12 @@ test("duplicate definitions and literal numbers anchor the second occurrence and
   }
 });
 
-test("PWC-15 tabs are not duplicate-word deletions and explicit non-English language is skipped", async () => {
+test("duplicate-word v2 deletes the second token including tab separators, and skips non-English", async () => {
   const tab = await analyzeProof(await buildDocx(["The Company shall pay the\tthe interest."]));
-  assert.equal(tab.plan.findings.some((finding) => finding.ruleId === "language.duplicate_word"), false);
+  const duplicate = tab.plan.findings.find((finding) => finding.ruleId === "language.duplicate_word");
+  assert.equal(duplicate?.exactQuote, "the");
+  assert.equal(duplicate?.replacement, "");
+  assert.equal(duplicate?.primarySpan.textStart, "The Company shall pay the\t".length);
   const { docxWithLang } = await import("../corpus/pwc/beta-rule-cases.ts");
   const french = await analyzeProof(await docxWithLang("The Company shall recieve the notice.", "fr-FR"));
   assert.equal(french.plan.findings.some((finding) => finding.exactQuote === "recieve"), false);

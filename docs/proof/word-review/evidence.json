@@ -1,19 +1,19 @@
 [
   {
     "fixture": "body",
-    "sourceSha256": "f082403a59ea9c6cb90811218720b77dd49ac2f6ee93b1260888a738c3ec9335",
-    "outputSha256": "de476a5e4f5398a75ea132ea8c53fd87ef82282550cd0aa1f65ca11c620bb4ed",
+    "sourceSha256": "f6d7ba5f1bb106a55a1f58217e7b2261afdb13f1ba089f0de3f9789e66eb949c",
+    "outputSha256": "a5067eed243a196e30ade428f847e36e592b106b24d2f223575bd0589724e238",
     "corrections": 2,
     "comments": 2,
     "notices": 0,
-    "wordValidation": "not_run",
+    "wordValidation": "pass_com_2026-09-10",
     "openXmlSdkValidation": "not_run",
     "developmentOnly": true
   },
   {
     "fixture": "split_runs",
-    "sourceSha256": "34db067707fe59c70856dceb59f71a82da1ab85d81bc9a3484da2ebb56b0f4ee",
-    "outputSha256": "10b7446d45108e4953e67cac4f3a1a1ee2c0581e8dabd4531e603995c773247f",
+    "sourceSha256": "cbca25c625239320c4359b1321cce5a50c2a45848050c041ae0f790a45fda232",
+    "outputSha256": "e3f65bd42e45f6a3772454660f4729646215f2a89211a8a3e598b5430308fada",
     "corrections": 1,
     "comments": 3,
     "notices": 0,
@@ -23,34 +23,34 @@
   },
   {
     "fixture": "table",
-    "sourceSha256": "71ca7a01a4e8390c887aa28230f211930149f16ae76df23fda065c79def10605",
-    "outputSha256": "a186d79e49ef646f52af668fc5222fe2cbe9258d8b18ea423691cbab8b6fff9a",
+    "sourceSha256": "222271d6e221d7e3b244c69dcd448fad2ec3b437870a69a8e024fda7be1626b4",
+    "outputSha256": "b73221106947c9044ea9c4d943abc14b7dae8d020871d374e8bcde7b0ed30a2d",
     "corrections": 2,
     "comments": 2,
     "notices": 0,
-    "wordValidation": "not_run",
+    "wordValidation": "pass_com_2026-09-10",
     "openXmlSdkValidation": "not_run",
     "developmentOnly": true
   },
   {
     "fixture": "prior_review",
-    "sourceSha256": "cc43f8b0c86d234bfa2f02becfd575cd24b6a19dfc7bae6f30c7c7e55840cb04",
-    "outputSha256": "036f0e35a04cd11a1d59b603efb5bdd93d60a1ecd799230b19b29aca21cc325b",
+    "sourceSha256": "7ecdbb5527905be81798f5a5c81b6ad5edd31839144b328f62c61e51484572fe",
+    "outputSha256": "31d1339e87eff2612b68ae8c6318737f9370f2f37744de87dd050f25fc1243d1",
     "corrections": 2,
     "comments": 2,
     "notices": 0,
-    "wordValidation": "not_run",
+    "wordValidation": "pass_com_2026-09-10",
     "openXmlSdkValidation": "not_run",
     "developmentOnly": true
   },
   {
     "fixture": "party_name",
-    "sourceSha256": "4ff59a6080ccbe8dd6797d040e4c7c3f3b338a67b4a5bd283df1d81a74fc3a21",
-    "outputSha256": "4ff59a6080ccbe8dd6797d040e4c7c3f3b338a67b4a5bd283df1d81a74fc3a21",
+    "sourceSha256": "c4094a62c6afcb36a78d6de1261c403df96c88592b4a63d83aa645f7bd4615b0",
+    "outputSha256": "c4094a62c6afcb36a78d6de1261c403df96c88592b4a63d83aa645f7bd4615b0",
     "corrections": 0,
     "comments": 0,
     "notices": 0,
-    "wordValidation": "not_run",
+    "wordValidation": "pass_com_2026-09-10",
     "openXmlSdkValidation": "not_run",
     "developmentOnly": true
   }

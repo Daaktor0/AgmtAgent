@@ -10,7 +10,7 @@ import { buildDocx } from "../../docx.ts";
 import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS } from "../../proof/typo-allowlist.ts";
 import type { LaunchRuleId } from "../../proof/contracts.ts";
 
-export const BETA_RULE_CASES_VERSION = "proof-beta-rule-cases-v1";
+export const BETA_RULE_CASES_VERSION = "proof-beta-rule-cases-v2";
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 export type Layer = "detection" | "anchoring" | "output_action";
@@ -69,16 +69,28 @@ export function correctionCases(): BetaRuleCase[] {
 }
 
 export function duplicateWordPositives(): BetaRuleCase[] {
-  return DUPLICATE_FUNCTION_WORDS.map((word, index) => ({
-    id: `dup_space_${word}_${index}`,
-    ruleId: "language.duplicate_word" as const,
-    kind: "positive" as const,
-    paragraphs: [`The Company shall pay ${word} ${word} amount on the due date.`],
-    quote: ` ${word}`,
-    replacement: "",
-    action: "track_delete" as const,
-    rationale: "Adjacent allowlisted function word separated by ordinary spaces.",
-  }));
+  return DUPLICATE_FUNCTION_WORDS.flatMap((word, index) => ([
+    {
+      id: `dup_space_${word}_${index}`,
+      ruleId: "language.duplicate_word" as const,
+      kind: "positive" as const,
+      paragraphs: [`The Company shall pay ${word} ${word} amount on the due date.`],
+      quote: word,
+      replacement: "",
+      action: "track_delete" as const,
+      rationale: "Adjacent allowlisted function word separated by ordinary spaces; delete the second token only.",
+    },
+    {
+      id: `dup_tab_${word}_${index}`,
+      ruleId: "language.duplicate_word" as const,
+      kind: "positive" as const,
+      paragraphs: [`The Company shall pay ${word}\t${word} amount on the due date.`],
+      quote: word,
+      replacement: "",
+      action: "track_delete" as const,
+      rationale: "Adjacent allowlisted function word separated by a tab; delete the second token only.",
+    },
+  ]));
 }
 
 function commentPositives(ruleId: LaunchRuleId, make: (i: number) => { paragraphs: string[]; quote: string }): BetaRuleCase[] {
@@ -114,18 +126,24 @@ function commentNegatives(ruleId: LaunchRuleId, make: (i: number) => { paragraph
 }
 
 export function placeholderCases(): { positives: BetaRuleCase[]; negatives: BetaRuleCase[] } {
-  const tokens = ["[●]", "[TBD]", "[insert date]", "[insert name]", "[insert amount]", "[insert address]"];
+  const tokens = [
+    "[●]", "[TBD]", "[insert date]", "[insert name]", "[insert amount]", "[insert address]",
+    "[…]", "[insert additional warranties]", "[TBD: fee]", "[draft clause]",
+    "________", "XX.XX", "‹amount›", "{insert date}",
+  ];
   return {
     positives: commentPositives("completion.placeholder", (i) => ({
       paragraphs: [`The Company shall deliver the ${tokens[i % tokens.length]} on the Completion Date.`],
       quote: tokens[i % tokens.length]!,
     })),
     negatives: commentNegatives("completion.placeholder", (i) => ({
-      paragraphs: i % 2 === 0
+      paragraphs: i % 3 === 0
         ? [`The formula uses [12] as a reference value in Schedule ${i + 1}.`]
-        : [`"The Parties may insert [optional wording] in Annex ${i + 1}."`],
+        : i % 3 === 1
+          ? [`"The Parties may insert [optional wording] in Annex ${i + 1}."`]
+          : ["IN WITNESS whereof the parties have executed this Agreement.", "________________"],
       quote: null,
-      rationale: "Mathematical or quoted brackets are not unfinished drafting placeholders.",
+      rationale: "Mathematical brackets, quoted optional wording, and signature underscores are not unfinished drafting placeholders.",
     })),
   };
 }
@@ -223,14 +241,14 @@ export function namedRecieveTraps(): BetaRuleCase[] {
       rationale: "Grammatical that-that and had-had are excluded.",
     },
     {
-      id: "trap_tab_duplicate",
-      ruleId: "language.duplicate_word",
+      id: "trap_quoted_recieve",
+      ruleId: "language.typo_allowlist",
       kind: "negative",
-      paragraphs: ["The Company shall pay the\tthe interest on each Interest Payment Date."],
+      paragraphs: ['The Company shall use "recieve" in the quoted message and it will apply.'],
       quote: null,
       replacement: null,
       action: "none",
-      rationale: "Tab-separated duplicates are alignment, not ordinary-space deletion.",
+      rationale: "A quoted misspelling is not an ordinary-prose correction.",
     },
   ];
 }

@@ -40,6 +40,8 @@ export function runProofWorkerJob(worker: ProofWorkerLike, input: {
   const finish = () => {
     if (timer != null) globalThis.clearTimeout(timer);
     restoreFetch();
+    worker.onmessage = null;
+    worker.onerror = null;
     worker.terminate();
   };
 

@@ -1129,11 +1129,66 @@ Live Chromium against `https://app.agmt.legal/proof` (explicit waits for “Choo
 
 **Verdict:** deployed with end-to-end verification outstanding. The real signed-in production journey has not passed.
 
-Engine specification `docs/AGMT_PROOF_ENGINE_EXCELLENCE_SPEC.md` / branch `proof-engine-excellence-spec` is **not on origin** as of this session. No competing rule architecture was added. Mixed-format `employment_typo_split` stays labelled.
+Engine specification was **not** on origin in the previous session. It is now on origin; see PEE-00 below. Mixed-format `employment_typo_split` stays labelled.
 
 Chrome Default and Edge Default have no `agmt.legal` session cookies. No `AGMT_PROOF_TEST_EMAIL` / `AGMT_PROOF_TEST_PASSWORD` / `web/.proof-production.env`. Creating a production session from D1 would be a bypass and was not used.
 
 To finish it: set `AGMT_PROOF_TEST_EMAIL` and `AGMT_PROOF_TEST_PASSWORD` in the environment or gitignored `web/.proof-production.env` (never paste the password in chat), **or** sign in with a verified Agmt account in headed Chromium: from `web/` run `$env:AGMT_PROOF_INTERACTIVE=1; npm run proof:production-journey` and complete sign-in at `https://app.agmt.legal/login?returnTo=%2Fproof`. The script waits for rendered Proof controls and processing states, not `networkidle`. Unattended runs no longer open a login window; they record e2e outstanding (exit 2) after the anonymous checks. Signed-out network/storage is not treated as processing-time privacy evidence. `https://grok.com/grok-app-builder/extensions.js` is classified as a testing-platform injection, not an Agmt application script.
+
+### PEE-00 — Reconcile engine specification and unmerged engine-v2 work (2026-09-10)
+
+- **Spec remote:** `origin/proof-engine-excellence-spec` = `a66df624292892edc8bcc4f12c365fdff68771f5` (`docs(proof): engine excellence specification (PEE-00..31)`, Daaktor0). Authenticated GitHub contents match: one file `docs/AGMT_PROOF_ENGINE_EXCELLENCE_SPEC.md`, 704 lines. Diff vs implementation: that file only.
+- **Brought onto this branch:** cherry-pick of `a66df62` → `be5afb8` (docs-only). Spec audit baseline recorded `origin/proof-world-class-implementation` = `ca5e934`; actual implementation HEAD at fetch was `de0fdae`. Newer work was preserved, not reset.
+- **engine-v2 lookup:** `web/src/lib/agmt/proof/engine-v2.ts`, `engine-v2.test.ts`, and `docs/PROOF_ENGINE_V2.md` are **absent** from this workspace, `git ls-files`, `git log --all`, and `origin/main` / `origin/proof-world-class-implementation`. **Decision: record-and-supersede.** There is no unmerged engine-v2 work to adopt. PEE-1x proceeds on the existing `launch-checks.ts` → `admitFinding` pipeline. No competing rule architecture was added.
+- **Status:** Implemented; Tested (git/GitHub inspection). Not a product behaviour change. Not Deployed as a product change (docs only, on the implementation branch).
+- **Must-not-change held:** no Hostinger, no Containers, no R2 provisioning, no uploads, no LLM.
+
+### Cancellation, late-result races, and host adapter (2026-09-10)
+
+Follow-up to `de0fdae` (`fix(proof): reject cancelled jobs and follow worker-graph imports`).
+
+- **Behaviour:** `cancel()` still rejects immediately and terminates the Worker (the only way to stop a synchronous `analyzeProof`/`exportProofDocx` stage). Finish now clears `onmessage`/`onerror` so a late `done` cannot resolve. UI `createProofRunSession()` invalidates the run token on cancel/reset/unmount so a resolved job cannot create an object URL or become downloadable after cancel. A second `processProofInWorker` call still constructs a fresh Worker.
+- **Tests:** cancel settle; cancel with no worker response (sync-stage model); late `done` does not resolve; timeout `proof_timeout` + terminate; cancel then second worker succeeds; run-session token invalidation. Pipeline abort between stages unchanged.
+- **Remote/R2:** `web/src/lib/proof-local/remote-mode.ts` — `PROOF_REMOTE_MODE_ENABLED = false`; `remoteProofProcessingAllowed()` always false; no R2 clients or credentials. `processProofLocal` remains the host-agnostic adapter (no `localStorage`/`IndexedDB`/`createObjectURL`; `web/src/lib/agmt/` still does not import `proof-local`).
+- **Status:** Implemented; Tested (job/run-session/remote-mode/pipeline). Lab Word COM on regenerated launch pairs: body/table/prior_review/party_name **PASS**. Live signed-in cancel **Blocked**. Not Deployed until merge.
+
+Commands:
+
+```
+cd web
+npx tsc --noEmit
+npm run test:proof
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\proof-word-verify.ps1 -Root <tmp-word-pee01>
+```
+
+Actual: typecheck exit 0; **138/138** `test:proof` pass; Word COM PASS (body revisions=3 comments=2; table 3/2; prior_review 5/3 including prior comment; party_name 0/0). Node v24.11.1.
+
+### PEE-01 — Typos v2, duplicate-word v2, placeholder v2 (2026-09-10)
+
+Maps to PWC-15 extension (PWC-15 itself not redone). Existing `employment_typo_split` labelled miss unchanged (`track_replace` expected / comment output). Duplicate-word expected *locus* changed from deleting `" the"` (separator + second token) to deleting the second token only (`"the"`), per spec §6.2 — authored action remains `track_delete`, not rewritten to pass.
+
+**Enabled user-facing capability (promoted after held-out-style unique-family evaluation):**
+
+| Rule | What it now detects | Action |
+|---|---|---|
+| `language.typo_allowlist` (`proof-typos-v2`, 40 tokens) | Whole-token misspellings including the original four plus `recieving`, `occurrance`/`occurence`, `untill`, `arguement`, `definately`, `buisness`, `indeminity`, and the rest of the frozen map | Tracked correction |
+| `language.duplicate_word` | Adjacent allowlisted function words separated by space, tab, or NBSP (`which` and `is` added; `that` still excluded) | Tracked deletion of the **second token only** |
+| `completion.placeholder` | Previous `[●]`/`[TBD]`/`[insert date\|name\|amount\|address]` plus `[…]`, `[insert *]`, `[TBD*]`, `[draft*]`, underscore/em-dash runs ≥4 in prose, `XX.XX`, `‹ ›`, `{insert/TBD/draft/date/name/amount/address}` | Comment only |
+
+**Still silent / excluded:** party names, quotations, URLs/emails, defined-term reuse, `Tehran` vs `teh`, grammatical `that that` / `had had`, signature underscores after `IN WITNESS`, numeric `[12]`, quoted `[optional wording]`. Mixed-format `recieve` remains comment-only.
+
+**Evaluation (unique families, not packed repeats):** 40 typos × 5 families = 200 positives and 200 traps; duplicate-word 180 unique separator/family positives; placeholder 75 unique token/family positives. `canPromote` passed at correction ≥99.5% / comment ≥98% on this labelled set, zero action misses. Rules remain `defaultEnabled: true` (v1 was already enabled; v2 is a superset that met the gates). Dictionary spelling (PEE-20 / PWC-40) is **not** started.
+
+- **Status:** Implemented; Tested (pee01-cases, beta-rule-cases, corpus, launch, export, pipeline). Lab Word COM Verified on launch pairs as above. Live production download **Blocked**. Not Deployed until merge.
+- **Must-not-change held:** `scanning→processing` false; uploads unset; Hostinger/Containers unprovisioned; no LLM; no dictionary dependency; limits remain 1 MiB / 2 MiB / 16 MiB expanded / 500 entries / 8 MiB / 20:1 / 30 s.
+
+### Production verification (this session)
+
+Still **Blocked**. No `AGMT_PROOF_TEST_EMAIL` / `AGMT_PROOF_TEST_PASSWORD` / `web/.proof-production.env`. Interactive headed login was **not** opened (would require the user at `https://app.agmt.legal/login?returnTo=%2Fproof`). Signed-out anonymous checks from the previous session are not processing-time privacy evidence.
+
+Live serving (unchanged until merge): `origin/main` `ca5e934`; Worker `agmt` 100% `bf26652f-b240-4c2b-b96d-bdfd3df89d91`.
+
+**Next concrete task:** PEE-02 indexes (PWC-39 plus RE-5 party / RE-6 figures) in parallel with PEE-30 measurement when needed; then PEE-10/11/12/13. Production signed-in journey when a verified test account is available.
 
 ### Browser-side processing feasibility (synthetic prototype, retained)
 

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { buildDocx } from "../../docx.ts";
 import { exportProofDocx } from "../../export/docx.ts";
 import { analyzeProof, validateLaunchFinding } from "../../proof/launch.ts";
-import { TYPO_ALLOWLIST } from "../../proof/typo-allowlist.ts";
+import { TYPO_ALLOWLIST, TYPO_ALLOWLIST_VERSION } from "../../proof/typo-allowlist.ts";
 import {
   allCommentCases,
   correctionCases,
@@ -32,10 +32,13 @@ async function analyseGroup(group: readonly BetaRuleCase[]) {
   return analyzeProof(await buildDocx(paragraphs));
 }
 
-test("PWC-15 four-typo allowlist is unchanged and tab/name traps stay quiet", async () => {
-  assert.deepEqual(Object.keys(TYPO_ALLOWLIST).sort(), ["occured", "recieve", "seperate", "teh"]);
+test("typo allowlist v2 keeps the original four entries and party/quote/language traps stay quiet", async () => {
+  assert.equal(TYPO_ALLOWLIST_VERSION, "proof-typos-v2");
+  for (const key of ["teh", "recieve", "occured", "seperate"]) assert.equal(key in TYPO_ALLOWLIST, true, key);
+  assert.ok(Object.keys(TYPO_ALLOWLIST).length >= 40);
   const tab = await analyzeProof(await buildDocx(["The Company shall pay the\tthe interest on each Interest Payment Date."]));
-  assert.equal(tab.plan.findings.some((finding) => finding.ruleId === "language.duplicate_word"), false);
+  const duplicate = tab.plan.findings.find((finding) => finding.ruleId === "language.duplicate_word");
+  assert.equal(duplicate?.exactQuote, "the");
   const french = await analyzeProof(await docxWithLang("The Company shall recieve the notice in writing.", "fr-FR"));
   assert.equal(french.plan.findings.some((finding) => finding.ruleId === "language.typo_allowlist"), false);
   for (const trap of namedRecieveTraps()) {

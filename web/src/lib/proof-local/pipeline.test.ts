@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import JSZip from "jszip";
 import { DEMO_EXPECTED, launchFixture } from "../agmt/corpus/launch-fixtures.ts";
 import { processProofLocal } from "./pipeline.ts";
+import { PROOF_REMOTE_MODE_ENABLED, remoteProofProcessingAllowed } from "./remote-mode.ts";
 
 test("local pipeline maps launch fixtures, writes tracked changes, and validates", async () => {
     const body = await processProofLocal(new Uint8Array(await launchFixture("body")));
@@ -44,6 +46,16 @@ test("local pipeline reports distinct admit/analyze/export/validate stages", asy
       onStage: (stage) => stages.push(stage),
     });
     assert.deepEqual(stages, ["admitting", "analyzing", "exporting", "validating"]);
+});
+
+test("processProofLocal is host-agnostic and remote/R2 mode stays disabled", async () => {
+    assert.equal(PROOF_REMOTE_MODE_ENABLED, false);
+    assert.equal(remoteProofProcessingAllowed(), false);
+    const source = await readFile(new URL("./pipeline.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|createObjectURL|window\.|document\./);
+    assert.doesNotMatch(source, /AGMT_OBJECTS|PROOF_UPLOADS_ENABLED|from ["'].*r2/i);
+    assert.match(source, /analyzeProof/);
+    assert.match(source, /exportProofDocx/);
 });
 
 test("local pipeline honours cancellation between stages", async () => {

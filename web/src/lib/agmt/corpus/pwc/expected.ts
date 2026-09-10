@@ -46,10 +46,10 @@ export type PwcExpectedFinding = z.infer<typeof PwcExpectedFindingSchema>;
 export function quoteOffsets(paragraph: string, action: ExpectedAction): { start: number; end: number } {
   if (action.ruleId === "language.duplicate_word") {
     const word = action.quote.trim();
-    const match = paragraph.match(new RegExp(`\\b${word}([ \\t]+)(${word})\\b`));
+    const match = paragraph.match(new RegExp(`\\b${word}([ \\t\\u00a0]+)(${word})\\b`));
     if (!match || match.index == null) throw new Error(`duplicate-word locus missing: ${action.quote}`);
-    const start = match.index + word.length;
-    return { start, end: start + match[1].length + word.length };
+    const start = match.index + word.length + match[1]!.length;
+    return { start, end: start + word.length };
   }
   const start = paragraph.indexOf(action.quote);
   if (start < 0) throw new Error(`quote missing from paragraph: ${action.quote}`);

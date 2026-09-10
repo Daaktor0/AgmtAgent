@@ -21,7 +21,7 @@ test("DOCX export creates genuine tracked corrections and exact comments, preser
       assert.equal(exported.receipt.commentIds.length, 2);
     }
     const extracted = await extractDocx(exported.bytes);
-    assert.equal(extracted.blocks[0].text, kind === "split_runs" ? "The Company shall recieve the notice under Clause 99.2 by [●]." : DEMO_ACCEPTED);
+    assert.equal(extracted.blocks[0].text, kind === "split_runs" ? "The Company shall recieve the  notice under Clause 99.2 by [●]." : DEMO_ACCEPTED);
     assert.equal((await extractDocx(source)).blocks[0].text, DEMO_SENTENCE);
     const xml = await (await JSZip.loadAsync(exported.bytes)).file("word/document.xml")!.async("string");
     assert.match(xml, /<w:del\b/); assert.match(xml, /<w:delText\b/);

@@ -188,7 +188,7 @@ function dupWordExpected(word: string, paragraphIndex: number): ExpectedAction[]
     ruleVersion: 1,
     kind: "correction",
     action: "track_delete",
-    quote: ` ${word}`,
+    quote: word,
     replacement: "",
     paragraphIndex,
     rationale: DUP_WORD_RATIONALE,
@@ -248,7 +248,7 @@ export const POSITIVE_SPECS: readonly PackageSpec[] = Object.freeze([
     supported: true,
     targetRule: "language.duplicate_word",
     targetKind: "duplicate_word",
-    targetQuote: " the",
+    targetQuote: "the",
     cleanFill: "the",
     expected: dupWordExpected("the", 1),
     blocks: [
@@ -360,7 +360,7 @@ export const POSITIVE_SPECS: readonly PackageSpec[] = Object.freeze([
     supported: true,
     targetRule: "language.duplicate_word",
     targetKind: "duplicate_word",
-    targetQuote: " the",
+    targetQuote: "the",
     cleanFill: "the",
     expected: dupWordExpected("the", 1),
     blocks: [
@@ -491,7 +491,7 @@ export const POSITIVE_SPECS: readonly PackageSpec[] = Object.freeze([
     supported: true,
     targetRule: "language.duplicate_word",
     targetKind: "duplicate_word",
-    targetQuote: " to",
+    targetQuote: "to",
     cleanFill: "to",
     expected: dupWordExpected("to", 1),
     blocks: [
@@ -625,7 +625,7 @@ export const POSITIVE_SPECS: readonly PackageSpec[] = Object.freeze([
     supported: true,
     targetRule: "language.duplicate_word",
     targetKind: "duplicate_word",
-    targetQuote: " the",
+    targetQuote: "the",
     cleanFill: "the",
     expected: dupWordExpected("the", 2),
     blocks: [
@@ -806,7 +806,7 @@ export function assertTargetQuoteInSpec(spec: PackageSpec): void {
   const paragraph = texts[action.paragraphIndex];
   if (!paragraph) throw new Error(`missing paragraph ${action.paragraphIndex} in ${spec.id}`);
   if (!paragraph.includes(action.quote.trim() === action.quote ? action.quote : action.quote.trim())) {
-    // duplicate_word quote is " the" (leading space + word); the source contains "the the"
+    // duplicate_word quote is the second token; the source contains "the the"
     if (action.ruleId === "language.duplicate_word") {
       const word = action.quote.trim();
       if (new RegExp(`\\b${word}[ \\t]+${word}\\b`).test(paragraph)) return;

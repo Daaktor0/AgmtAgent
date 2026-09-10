@@ -8,6 +8,7 @@ import { ProofOptions } from "@/components/agmt/proof-options";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { ProofLanguage, ProofProfile } from "@/lib/products/capabilities";
 import { processProofInWorker, type LocalProofJob } from "@/lib/proof-local/client";
+import { createProofRunSession } from "@/lib/proof-local/run-session";
 import {
   PROOF_LOCAL_CANCELLED,
   PROOF_LOCAL_CHOOSE,
@@ -50,6 +51,7 @@ export function ProofLocalExperience() {
   const [busy, setBusy] = useState(false);
   const jobRef = useRef<LocalProofJob | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const runSessionRef = useRef(createProofRunSession());
   const auth = authKind(user, isPending, authLoadingMs);
 
   useEffect(() => {
@@ -60,11 +62,13 @@ export function ProofLocalExperience() {
   }, [isPending]);
 
   useEffect(() => () => {
+    runSessionRef.current.invalidate();
     jobRef.current?.cancel();
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
   }, []);
 
   function reset(keepFile = false) {
+    runSessionRef.current.invalidate();
     jobRef.current?.cancel();
     jobRef.current = null;
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
@@ -87,6 +91,7 @@ export function ProofLocalExperience() {
     setResult(null);
     setDownloadStarted(false);
     setStage("admitting");
+    const token = runSessionRef.current.begin();
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const job = processProofInWorker({
@@ -97,6 +102,7 @@ export function ProofLocalExperience() {
       });
       jobRef.current = job;
       const next = await job.done;
+      if (!runSessionRef.current.isActive(token)) return;
       const snapshot = persistentStorageSnapshot();
       if (snapshot.localStorage.length || snapshot.sessionStorage.length) {
         const leaked = [...snapshot.localStorage, ...snapshot.sessionStorage].some((key) => /proof|docx|document/i.test(key));

@@ -1325,11 +1325,23 @@ Detection, exact anchoring and comment action were scored separately. Capacity-c
 
 **Production journey:** Live `/proof` after auth settle still requires sign-in (`Sign in to Agmt` visible; Proofread disabled). Anonymous local processing is **not** enabled. That matches `web/AGENTS.md` (no anonymous deployed path). The earlier anonymous-profile report is not the current policy. `sign_in_rejected` / CI `INVALID_EMAIL_OR_PASSWORD` was **not** retried. HTTP 200 is not a processing receipt.
 
-**Status:** Implemented; Tested. Word-Verified on body + new-rule structural + 584-page output with alerts on. 100 MiB Word **Blocked**. Not Deployed until merge.
+**Status:** Implemented; Tested. Word-Verified on body + new-rule structural + 584-page output with alerts on. 100 MiB Word **Blocked**. **Deployed** to `main` `b8f30a6`.
+
+### Deploy receipt — PEE-10/11 on main (2026-09-10)
+
+| Item | Value |
+|---|---|
+| Source commit serving | `b8f30a64d6ffdbc639ca80e4cfe11244328efb32` (fast-forward `61b0519` → `b8f30a6` on `main`) |
+| Worker `agmt` scriptVersion | `fd4c1527-47d1-40ca-8c65-714f011cfab5` (GitHub Actions wrangler-action 2026-09-10T13:32:14Z) |
+| Deploy workflow | run 47 `34483154727`: build, `npm ci`, wrangler **success**. Custom-domain smoke from GitHub IPs failed (session GET timeout; wrangler still succeeded). |
+| Web Proof corpus | run 425 **success** |
+| Eval checks | run 583 **success** |
+| Live `/proof` | signed-out: Sign in required, Proofread disabled. New check copy present (ambiguous/cross-scope references, capitalisation, undefined title-case). Help page matches. |
+| Live signed-in Proofread → download | **Blocked**. CI auth smoke: `User not found` / `INVALID_EMAIL_OR_PASSWORD`. Not retried. HTTP 200 is not a processing receipt. |
 
 **Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; no anonymous access added.
 
-**Next concrete task:** PEE-12 party consistency and PEE-13 dates/amounts; production signed-in journey when a verified test account is available.
+**Next concrete task:** PEE-12 party consistency and PEE-13 dates/amounts; production signed-in journey when a verified test account exists in the Auth database.
 
 ### Browser-side processing feasibility (synthetic prototype, retained)
 

@@ -1428,6 +1428,54 @@ User report: a small Word document with deliberately inserted proofreading error
 
 **Auth remaining (separate, not fixed):** verification delivery 422; first-request sign-in timeout untraced. Not blocking local Proof.
 
+### PEE-20/21 — Production dictionary and closed punctuation (2026-09-11)
+
+**What the production spelling check is**
+
+| Runtime | Module | Behaviour |
+|---|---|---|
+| Browser Proof worker | `dictionaries/load.browser.ts` | Inlines pinned `en-GB.aff/.dic` and `en.aff/.dic` via Vite `?raw`. nspell runs on the device. |
+| Node tests | `dictionaries/load.ts` | `readFileSync` of the same copied files. |
+| Cloudflare host Worker / SSR | `dictionaries/load.stub.ts` | Throws `incomplete_spelling_dictionary`. Does **not** run spelling. Exists so `fileURLToPath(import.meta.url)` is never bundled into the host (that crashed `a260fe9`). |
+
+The stub does **not** replace the live checker. Live `/assets/proof.worker-BjpnDdWK.js` is 1,463,021 bytes, contains two Hunspell `SET UTF-8` affix headers and `government/` dictionary entries, and includes `punctuation.duplicate_mark`. Missing dictionary initialisation is `suppressed` / `incomplete_scope`, never a silent clean result.
+
+| Dictionary | Version | Licence |
+|---|---|---|
+| nspell | 2.1.5 | MIT |
+| dictionary-en-gb (copied `en-GB.aff/.dic`) | 3.0.0 | Wrapper MIT; affix/wordlist (MIT AND BSD) SCOWL |
+| dictionary-en (copied `en.aff/.dic`) | 4.0.0 | Wrapper MIT; affix/wordlist (MIT AND BSD) SCOWL |
+
+`goverment` / `mispelled` are **not** in `TYPO_ALLOWLIST`. They are nspell misses; comments list nearby forms (`government`, `misspelled`). Independently selected misses outside the allowlist (`calender`, `yeild`, `questionaire`, `oppurtunity`, `harrassment`) are commented by `processProofLocal`.
+
+**Enabled this increment**
+
+- `spelling.dictionary`: lowercase and title-case tokens with a close dictionary suggestion; skip acronyms, identifiers, names/name-runs, defined terms, allowlist typos, legal Latin, ≥3 repeats, quoted/URL/non-English regions.
+- `punctuation.duplicate_mark`, `spacing.accidental`, `punctuation.space_before`, `punctuation.missing_space_after`: tracked corrections when the span is exact-mechanical.
+- `punctuation.unbalanced_pair`: comment only; never auto-close.
+
+**Anchoring:** findings inside existing revisions are **not** moved to a paragraph notice. They are suppressed and `prior_revision` is recorded as limited coverage. No nested revisions.
+
+**Held-out:** agreements, letters, notices, ordinary prose, clean names/URLs/quotes, table alignment spaces, split-run `calender`, and a typo inside an insertion. Per-rule promotion gates: PEE-21 comment ≥98% / correction ≥99.5% / recall ≥90% on ≥100 unique positives and ≥100 traps each. Clean documents: 0 false alerts on the labelled clean set.
+
+**Tests:** `npm run test:proof` **189/189**. `npm run typecheck` exit 0.
+
+**Remaining exclusions:** grammar and meaning (including “have an obligation”); Style; legal adequacy; names without a close dictionary suggestion; tokens inside existing tracked changes; ellipsis/decimals/initials/numbering/placeholders as punctuation traps; `definitions.unused` still default off.
+
+### Deploy receipt — dictionary + punctuation (2026-09-11)
+
+| Item | Value |
+|---|---|
+| Source commit serving | `a3399c6fe120c2bc7846d2fd85eb42c55feea223` |
+| Live client assets | `proof.worker-BjpnDdWK.js` (1,463,021 bytes, Hunspell lists present); `/proof` copy includes repeated punctuation |
+| Workers Build | `2a20044f-e262-4157-98a2-211a53e1f915` on `main` `a3399c6`, outcome success (`versions upload --keep-vars`) |
+| Live `/proof` | Signed-out. Anonymous choose → process → download **Verified** |
+| Production user-report journey | `userReport.ok=true`, state ready. Word COM: **6 revisions / 3 comments**. Open XML SDK ok. |
+| Word evidence | Tracked: `recieve`→`receive`, `teh`→`the`, `,,`→`,`. Comments: `goverment` (dictionary), `mispelled` (dictionary), `Confidential Information` (undefined-use). `have an obligation` unmarked. Clean `party_name` 0/0. |
+| Network/storage | No document leaks; empty persistent browser storage. Protected routes still 401. |
+
+**Auth remaining (separate, not fixed):** verification delivery 422; first-request sign-in timeout untraced. Not blocking local Proof.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

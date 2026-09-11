@@ -46,6 +46,11 @@ function proofLocalBrowserShims(): Plugin {
       }
       const importerNorm = (importer ?? "").split(/[/\\]/).join("/");
       const idNorm = id.split(/[/\\]/).join("/");
+      if (!options.ssr && /dictionaries\/load(?:\.ts)?$/.test(idNorm)) {
+        const browserLoad = join(webRoot, "src/lib/agmt/proof/dictionaries/load.browser.ts");
+        if (fromWorker) rememberProofWorkerModule(browserLoad, workerGraph);
+        return browserLoad;
+      }
       if (
         importerNorm.includes("/src/lib/agmt/")
         && (idNorm.endsWith("crypto.ts") || idNorm.endsWith("/agmt/crypto"))
@@ -141,6 +146,7 @@ export default defineConfig(({ command, isPreview, mode }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  assetsInclude: ["**/*.aff", "**/*.dic"],
   worker: {
     format: "es",
     plugins: () => [proofLocalBrowserShims()],

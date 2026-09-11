@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { DocxPackage } from "../docx-package.ts";
 import { extractDocx } from "../docx-v2.ts";
 import { resolveExtractedNumbering } from "../numbering.ts";
-import { validateSourceSpan, type ProofSource } from "../source-map.ts";
+import { sourceSpan, validateSourceSpan, type ProofSource } from "../source-map.ts";
 import type { ExtractedDocument } from "../types.ts";
 import { LAUNCH_RULE_SET_VERSION } from "./registry.ts";
-import { ExportPlanSchema, type ProofFinding } from "./contracts.ts";
+import { ExportPlanSchema, type ProofFinding, type SourceSpan } from "./contracts.ts";
 import { launchRuleFindings, type LaunchContext } from "./launch-checks.ts";
 import { EvidenceError, toFindingV2, validateFindingV2, type EvidenceContext } from "./evidence.ts";
 import { admitFinding } from "../export/edit-capabilities.ts";
@@ -75,6 +75,7 @@ export async function analyzeProof(bytes: Buffer, options: {
   });
   const skippedReview: string[] = [];
   const findings: ProofFinding[] = [];
+  const notices: Array<{ anchorMode: "document_notice"; presentationSpan: SourceSpan; comment: string }> = [];
   const evidence = evidenceContext(ctx);
   for (const proposed of runtime.findings) {
     try {
@@ -86,6 +87,17 @@ export async function analyzeProof(bytes: Buffer, options: {
       }
       const accepted = admitFinding(source, proposed);
       if (!accepted.finding) {
+        if (accepted.skipped === "prior_revision") {
+          const paragraph = source.paragraphs.find((item) => JSON.stringify(item.paragraphPath) === JSON.stringify(proposed.primarySpan.paragraphPath));
+          if (paragraph?.safe && paragraph.text.trim()) {
+            notices.push({
+              anchorMode: "document_notice",
+              presentationSpan: sourceSpan(paragraph, 0, paragraph.text.length),
+              comment: `${proposed.comment} This text is inside an existing tracked change, so Proof marked the paragraph rather than editing it.`,
+            });
+          }
+          continue;
+        }
         if (accepted.skipped) skippedReview.push(accepted.skipped);
         continue;
       }
@@ -115,7 +127,7 @@ export async function analyzeProof(bytes: Buffer, options: {
     author: "Agmt Proof",
     initials: "AP",
     findings: resolved.findings,
-    notices: [],
+    notices,
   });
   return {
     source,

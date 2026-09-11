@@ -65,6 +65,7 @@ export function executeLaunchRules(ctx: LaunchContext, options: RuleRuntimeOptio
   const executions: RuleExecution[] = [];
   const coverageReasons: string[] = [];
   const now = options.now ?? Date.now;
+  const runtimeCtx: LaunchContext = { ...ctx, language: options.language ?? "en-GB" };
 
   for (const spec of specs) {
     if (Number(spec.version) !== 1) {
@@ -93,7 +94,7 @@ export function executeLaunchRules(ctx: LaunchContext, options: RuleRuntimeOptio
 
     const started = now();
     try {
-      const proposed = (options.runRule ?? ((current, currentSpec) => launchRuleFindings(current, currentSpec.id)))(ctx, spec);
+      const proposed = (options.runRule ?? ((current, currentSpec) => launchRuleFindings(current, currentSpec.id)))(runtimeCtx, spec);
       if (now() - started > spec.timeBudgetMs || proposed.length > spec.maxCandidates) {
         executions.push({ ruleId: spec.id, version: spec.version, outcome: "suppressed", findingCount: 0, code: "rule_budget" });
         coverageReasons.push("rule_budget");

@@ -12,7 +12,10 @@ import {
   PROOF_LOCAL_CHOOSE,
   PROOF_LOCAL_DEVICE,
   PROOF_LOCAL_NO_ACCOUNT,
+  PROOF_LOCAL_SCOPE,
   PROOF_LOCAL_SESSION_LOST,
+  PROOF_LOCAL_ZERO_DETAIL,
+  PROOF_LOCAL_ZERO_FINDINGS,
 } from "@/lib/proof-local/copy";
 import { localProofError } from "@/lib/proof-local/errors";
 import { publishedProofCapacityPolicy } from "@/lib/proof-local/policy";
@@ -169,7 +172,7 @@ export function ProofLocalExperience() {
               ? "Your document is ready with limited coverage."
               : result.corrections + result.comments > 0
                 ? "Your proofread document is ready."
-                : "No issues found by the completed checks."}
+                : PROOF_LOCAL_ZERO_FINDINGS}
           </h1>
           {result.coverage === "limited" ? (
             <p className="border-l-2 border-oxblood pl-4 text-sm leading-6">Proof skipped some parts. Review these parts yourself. Do not treat this as a clean result.</p>
@@ -177,7 +180,7 @@ export function ProofLocalExperience() {
           {result.corrections + result.comments > 0 ? (
             <p className="text-base leading-7">{result.corrections} tracked corrections · {result.comments} comments to review</p>
           ) : (
-            <p className="text-sm leading-6">This does not confirm that the document is error-free.</p>
+            <p className="text-sm leading-6">{PROOF_LOCAL_ZERO_DETAIL}</p>
           )}
           {result.coverageLines.length ? (
             <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
@@ -202,8 +205,7 @@ export function ProofLocalExperience() {
         </div>
       ) : null}
       <p className="text-sm leading-6 text-stone">
-        Proof checks a small list of common typos, repeated function words, unfinished placeholders, missing, ambiguous and cross-scope internal references, duplicate clause numbers, duplicate or inconsistent definitions, defined-term capitalisation, and title-case phrases that look defined but are not.
-        It doesn’t provide a comprehensive legal review. You accept or reject proposed corrections in Word. Refreshing this page discards the current run. {PROOF_LOCAL_SESSION_LOST}{" "}
+        {PROOF_LOCAL_SCOPE} It doesn’t provide a comprehensive legal review. You accept or reject proposed corrections in Word. Refreshing this page discards the current run. {PROOF_LOCAL_SESSION_LOST}{" "}
         <Link to="/proof/help" className="underline underline-offset-4">Help</Link>
         {import.meta.env.DEV ? <> · <Link to="/proof/dev" className="underline underline-offset-4">Development fixtures</Link></> : null}
       </p>

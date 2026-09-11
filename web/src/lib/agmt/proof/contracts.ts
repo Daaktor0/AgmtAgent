@@ -15,7 +15,7 @@ export const SourceSpanSchema = z.strictObject({
 export type SourceSpan = z.infer<typeof SourceSpanSchema>;
 
 export const LaunchRuleIdSchema = z.enum([
-  "language.typo_allowlist", "language.duplicate_word", "completion.placeholder",
+  "language.typo_allowlist", "language.duplicate_word", "spelling.dictionary", "completion.placeholder",
   "references.missing_target", "references.duplicate_number", "references.scope_confusion", "references.ambiguous_target",
   "definitions.duplicate", "definitions.scope_redefinition", "definitions.case_variant", "definitions.unused", "definitions.undefined_use",
   "parties.consistency", "figures.date_invalid", "figures.words_figures_mismatch",

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import JSZip from "jszip";
+import { buildDocx } from "../src/lib/agmt/docx.ts";
 import { LAUNCH_FIXTURES, launchFixture } from "../src/lib/agmt/corpus/launch-fixtures.ts";
 import { PROOF_LOCAL_MAX_SOURCE_BYTES } from "../src/lib/proof-local/limits.ts";
 
@@ -12,6 +13,16 @@ mkdirSync(outDir, { recursive: true });
 for (const kind of LAUNCH_FIXTURES) {
   writeFileSync(join(outDir, `${kind}.docx`), await launchFixture(kind));
 }
+
+writeFileSync(join(outDir, "user_report.docx"), await buildDocx([
+  "Please recieve the attached schedule.",
+  "Kindly correct teh attached draft before circulation.",
+  "The Company shall goverment the process in writing.",
+  "The Company shall have mispelled the defined term in this clause.",
+  "The Company have an obligation to notify the Buyer promptly.",
+  "The Buyer must pay,, the amount immediately.",
+  "Northwind Traders Limited shall keep the Confidential Information.",
+]));
 
 const hostile = await JSZip.loadAsync(await launchFixture("body"));
 hostile.file("word/vbaProject.bin", "macro");
@@ -42,5 +53,5 @@ writeFileSync(join(outDir, "cancel_load.docx"), cancelBytes);
 writeFileSync(join(outDir, "oversized.docx"), Buffer.alloc(PROOF_LOCAL_MAX_SOURCE_BYTES + 1, 0x41));
 writeFileSync(join(outDir, "manifest.json"), JSON.stringify({
   maxSourceBytes: PROOF_LOCAL_MAX_SOURCE_BYTES,
-  files: [...LAUNCH_FIXTURES.map((kind) => `${kind}.docx`), "hostile_vba.docx", "cancel_load.docx", "oversized.docx"],
+  files: [...LAUNCH_FIXTURES.map((kind) => `${kind}.docx`), "user_report.docx", "hostile_vba.docx", "cancel_load.docx", "oversized.docx"],
 }, null, 2));

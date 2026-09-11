@@ -1388,6 +1388,32 @@ Detection, exact anchoring and comment action were scored separately. Capacity-c
 
 **Must-not-change held:** browser-only; zero LLM; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; uploads unset; no fake sessions.
 
+### PEE-20 — Dictionary spelling after empty live result (2026-09-11)
+
+User report: a small Word document with deliberately inserted proofreading errors downloaded with no tracked corrections. Historical launch fixtures still passed. That was not treated as a clean bill of health.
+
+**Cause, classified before matching output:**
+
+| Planted error | Class | What happened |
+|---|---|---|
+| Allowlist typos (`teh`, `recieve`) in ordinary sentences without legal modals | B | `ordinaryProse` required shall/will/is/are. Help copy promised ordinary English prose. |
+| `goverment`, `mispelled` and similar | D | Tiny typo allowlist is not general spelling. PEE-20 / PWC-40 was the dependency-ready task. |
+| Subject-verb disagreement, double comma | D | Grammar and sentence mechanics are Lane C / product ceiling. Not implemented. |
+| Names / defined terms | E | Left unchanged. |
+| Allowlist typo inside an existing insertion | B/C | Detected, then dropped by `prior_revision` instead of a paragraph comment. `prior_review` complete coverage was honest only where revision text had no matching error; preservation is not a substitute for checking. |
+
+**Fixes:**
+- Ordinary-prose gate is now ≥5 words plus a function-word/prose marker (`please`/`kindly`/`the`/modals), not legal verbs only.
+- `spelling.dictionary`: nspell + copied en-GB/en-US Hunspell lists, comment-only, lowercase tokens, names/defined terms/≥3 repeats/legal Latin/allowlist typos excluded. Promoted after 200 labelled positives, 0 FP / 0 FN on that set (`canPromote` comment ≥98% / recall ≥90%).
+- Findings inside existing tracked changes become paragraph notices, not silent drops, and no longer force `prior_revision` limited coverage by themselves.
+- Zero-finding heading is “Completed checks found nothing to mark.” plus an explicit grammar/meaning limitation. Processing failures still error; they do not become a clean result.
+
+**Tests:** `npm run test:proof` **182/182**. `npm run typecheck` exit 0. Browser entry `processProofLocal` covers the user-report document.
+
+**Not a comprehensive proofreader.** Grammar, style and legal meaning remain unchecked. Dictionary comments are not automatic corrections.
+
+**Must-not-change held:** anonymous local Proof; zero LLM; uploads unset; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; no fake sessions; no document-derived personal dictionary.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

@@ -12,7 +12,8 @@ $pairs = @(
   @{ Name = "body"; Source = "body.docx"; Output = "body_Proofread.docx"; Corrections = 2; Comments = 2 },
   @{ Name = "table"; Source = "table.docx"; Output = "table_Proofread.docx"; Corrections = 2; Comments = 2 },
   @{ Name = "prior_review"; Source = "prior_review.docx"; Output = "prior_review_Proofread.docx"; Corrections = 2; Comments = 2 },
-  @{ Name = "party_name"; Source = "party_name.docx"; Output = "party_name_Proofread.docx"; Corrections = 0; Comments = 0 }
+  @{ Name = "party_name"; Source = "party_name.docx"; Output = "party_name_Proofread.docx"; Corrections = 0; Comments = 0 },
+  @{ Name = "user_report"; Source = "user_report.docx"; Output = "user_report_Proofread.docx"; Corrections = 2; Comments = 2 }
 )
 
 $word = New-Object -ComObject Word.Application
@@ -23,6 +24,10 @@ try {
   foreach ($pair in $pairs) {
     $output = Join-Path $Root $pair.Output
     if (-not (Test-Path $output)) {
+      if ($pair.Name -eq "user_report") {
+        Write-Output "$($pair.Name) SKIPPED"
+        continue
+      }
       Write-Output "$($pair.Name) FILE_MISSING"
       $failed++
       continue

@@ -55,6 +55,12 @@ function throwIfAborted(signal?: AbortSignal): void {
 
 function coverageLines(analysis: Awaited<ReturnType<typeof exportProofDocx>>["analysis"]): LocalProofCoverageLine[] {
   const lines: LocalProofCoverageLine[] = [];
+  if (analysis.source.paragraphs.some((paragraph) => paragraph.nodes.some((node) => node.revision))) {
+    lines.push({
+      kind: "checked",
+      text: "existing tracked changes were read in the final text; Proof does not insert new markup inside them",
+    });
+  }
   for (const execution of analysis.executions) {
     if (execution.outcome === "not_applicable") {
       lines.push({ kind: "not_applicable", text: execution.ruleId.replaceAll(".", " ") });
@@ -139,7 +145,7 @@ export async function processProofLocal(bytes: Uint8Array, options: LocalProofOp
 
   const output = new Uint8Array(exported.bytes.buffer, exported.bytes.byteOffset, exported.bytes.byteLength);
   const corrections = exported.receipt.plan.findings.filter((finding) => finding.kind === "correction").length;
-  const comments = exported.receipt.commentIds.length;
+  const comments = exported.receipt.commentIds.length + exported.receipt.noticeIds.length;
   return {
     output,
     sourceBytes: bytes.byteLength,

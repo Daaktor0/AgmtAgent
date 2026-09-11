@@ -28,10 +28,13 @@ const NEEDLES = [
   "recieve",
   "Clause 99.2",
   "Recieve Private Limited",
+  "goverment",
+  "mispelled",
   "body.docx",
   "party_name.docx",
   "split_runs.docx",
   "prior_review.docx",
+  "user_report.docx",
   "hostile_vba.docx",
   "cancel_load.docx",
   "oversized.docx",
@@ -405,6 +408,7 @@ async function proofread(page) {
 
 function terminalLocator(page) {
   return page.getByRole("heading", { name: "Your proofread document is ready." })
+    .or(page.getByRole("heading", { name: "Completed checks found nothing to mark." }))
     .or(page.getByRole("heading", { name: "No issues found by the completed checks." }))
     .or(page.getByRole("heading", { name: "Your document is ready with limited coverage." }))
     .or(page.getByRole("alert").getByText("Checking was cancelled.", { exact: true }))
@@ -420,7 +424,7 @@ async function waitTerminal(page, timeout = 120_000) {
   const text = await page.locator("#proof-main").innerText();
   if (text.includes("Your document is ready with limited coverage.")) return "limited";
   if (text.includes("Your proofread document is ready.")) return "ready";
-  if (text.includes("No issues found by the completed checks.")) return "zero";
+  if (text.includes("Completed checks found nothing to mark.") || text.includes("No issues found by the completed checks.")) return "zero";
   if (text.includes("Checking was cancelled.")) return "cancelled";
   if (text.includes("This file could not pass our safety checks.")) return "unsafe";
   if (/This file exceeds the \d+ MiB(?: size)? limit\./.test(text)) return "too_large";
@@ -583,6 +587,30 @@ async function runChromiumJourney(playwright) {
     if (bodyDownload) writeFileSync(join(downloadDir, "body.docx"), readFileSync(join(fixtureDir, "body.docx")));
     await startAnother(page);
 
+    await chooseFile(page, "user_report.docx");
+    await proofread(page);
+    const userState = await waitTerminal(page);
+    const userDownload = userState === "ready" || userState === "limited"
+      ? await downloadNamed(page, "user_report_Proofread.docx")
+      : null;
+    const userMarkup = userDownload ? await inspectDocx(userDownload) : null;
+    const userComments = userDownload
+      ? await (await JSZip.loadAsync(readFileSync(userDownload))).file("word/comments.xml")?.async("string") ?? ""
+      : "";
+    cases.userReport = {
+      ok: userState === "ready"
+        && Boolean(userDownload)
+        && Boolean(userMarkup?.hasIns)
+        && Boolean(userMarkup?.hasDel)
+        && Boolean(userMarkup?.hasCommentRange)
+        && /goverment/.test(userComments)
+        && /mispelled/.test(userComments),
+      state: userState,
+      markup: userMarkup,
+    };
+    if (userDownload) writeFileSync(join(downloadDir, "user_report.docx"), readFileSync(join(fixtureDir, "user_report.docx")));
+    await startAnother(page);
+
     await chooseFile(page, "party_name.docx");
     await proofread(page);
     const zeroState = await waitTerminal(page);
@@ -674,7 +702,7 @@ try {
 }
 
 const sdk = [];
-for (const label of ["body", "party_name", "prior_review", "table"]) {
+for (const label of ["body", "party_name", "prior_review", "table", "user_report"]) {
   const source = join(downloadDir, `${label}.docx`);
   const output = join(downloadDir, `${label}_Proofread.docx`);
   if (existsSync(source) && existsSync(output)) sdk.push(runSdk(source, output, label));
@@ -692,6 +720,7 @@ const anonymousOk = Boolean(
   && cases.oversized?.ok
   && cases.signedOutGate?.ok
   && cases.body?.ok
+  && cases.userReport?.ok
   && cases.zero?.ok
   && cases.limited?.ok
   && cases.existingMarkup?.ok

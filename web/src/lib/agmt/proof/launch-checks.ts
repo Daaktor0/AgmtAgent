@@ -1,35 +1,14 @@
 import type { SourceParagraph } from "../source-map.ts";
 import type { ProofFinding, LaunchRuleId } from "./contracts.ts";
 import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS, DUPLICATE_WORD_SEPARATOR } from "./typo-allowlist.ts";
-import { candidateFinding, quoted, explicitEnglish, type LaunchContext } from "./launch-context.ts";
+import { candidateFinding, ordinaryProse, quoted, type LaunchContext } from "./launch-context.ts";
 import { referenceRuleFindings } from "./rules/references.ts";
 import { definitionRuleFindings } from "./rules/definitions.ts";
 import { partyRuleFindings } from "./rules/parties.ts";
 import { figureRuleFindings } from "./rules/figures.ts";
+import { spellingRuleFindings } from "./spelling.ts";
 
 export { candidateFinding, type LaunchContext } from "./launch-context.ts";
-
-function ordinaryProse(p: SourceParagraph, start: number, end: number, ctx: LaunchContext): boolean {
-  if (!p.safe || /heading|title|address|signature/i.test(p.style ?? "")) return false;
-  if (!explicitEnglish(p)) return false;
-  if (/\b(?:between|registered office|residing at|on behalf of|signed by|witness|address|party name)\b/i.test(p.text)) return false;
-  const at = ctx.source.paragraphs.indexOf(p);
-  if (ctx.source.paragraphs.slice(0, at + 1).some((s) => /^\s*(?:IN WITNESS|SIGNATURES|EXECUTION BLOCK)/i.test(s.text))) return false;
-  if (quoted(p.text, start, end)) return false;
-  // Avoid declaration labels, named/quoted identifiers and unusual language scopes.
-  if (/^\s*(?:\d+(?:\.\d+)*[.)]?\s+)?[^.]{1,100}\s+(?:means|shall mean)\b/i.test(p.text) && start < p.text.search(/\b(?:means|shall mean)\b/i)) return false;
-  if ([...p.text].some((c) => /\p{L}/u.test(c) && !/\p{Script=Latin}/u.test(c))) return false;
-  for (const m of p.text.matchAll(/\S*(?:https?:\/\/|www\.|@|[\\/])\S*/g)) if (m.index < end && m.index + m[0].length > start) return false;
-  if (!/\b(?:shall|will|must|may|should|has|have|is|are|was|were)\b/i.test(p.text)) return false;
-  // A definition/party label reused elsewhere is never an ordinary-prose correction.
-  const word = p.text.slice(start, end).trim().toLowerCase();
-  for (const other of ctx.source.paragraphs) {
-    for (const m of other.text.matchAll(/[“"]([^”"\n]{1,100})[”"]/g)) {
-      if (m[1].toLowerCase().split(/\s+/).includes(word)) return false;
-    }
-  }
-  return true;
-}
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -110,6 +89,7 @@ function skipPlaceholder(p: SourceParagraph, start: number, end: number, ctx: La
 }
 
 export function launchRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): ProofFinding[] {
+  if (rule === "spelling.dictionary") return spellingRuleFindings(ctx);
   if (rule.startsWith("language.")) return language(ctx, rule);
   const out: ProofFinding[] = [];
   if (rule === "completion.placeholder") {

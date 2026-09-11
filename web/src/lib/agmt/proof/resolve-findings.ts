@@ -26,6 +26,7 @@ export type ResolveReceipt = {
 };
 
 function evidenceTier(ruleId: string): keyof typeof TIER_RANK {
+  if (ruleId === "spelling.dictionary") return "bounded-heuristic";
   if (ruleId.startsWith("language.") || ruleId === "completion.placeholder") return "exact-mechanical";
   return "exact-structural";
 }

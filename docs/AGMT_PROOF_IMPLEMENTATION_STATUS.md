@@ -1476,6 +1476,63 @@ The stub does **not** replace the live checker. Live `/assets/proof.worker-BjpnD
 
 **Auth remaining (separate, not fixed):** verification delivery 422; first-request sign-in timeout untraced. Not blocking local Proof.
 
+### Coverage hardening — frequency, quotes, punctuation pairing (2026-09-11)
+
+**Original user example:** not reproduced. The live `user_report` fixture remains a substitute. Do not treat it as the founder’s planted document.
+
+**What changed**
+
+- Frequency ≥3 is no longer a spelling exclusion. `enviroment` is commented at 1, 2, 3 and 10 occurrences. Repeat policy `detect-all-dedupe-comments-v1`: one exact-span comment on the first non-revision hit, `relatedSpans` for the rest, comment text “also appears N more times”. Repeated errors are not treated as clean.
+- Quoted text is classified: defined-term labels and short literals stay silent; quoted ordinary prose is checked as comments (not tracked changes). Structural rules (definitions/parties/figures/placeholders) still use the existing quote skip; that is separate from the spelling/punctuation check.
+- Unbalanced brackets/quotes are evaluated across consecutive same-story paragraphs. A missing close in one paragraph is not inferred when the neighbour completes the pair. Quoted-prose punctuation is a comment. Fields/hyperlinks remain non-editable.
+
+**Previously missed, now caught (on the substitute and held-out sets)**
+
+- The same misspelling appearing 3+ times (`enviroment` ×10 → 1 comment, 9 related).
+- Quoted-sentence misspellings (`maintainance` inside a quoted letter).
+- Quoted-sentence `pay,,` as a comment.
+- Independent non-allowlist misses `accomodation`, `harrassment`.
+
+**Still excluded**
+
+- Grammar/meaning (`have an obligation`); style; legal adequacy.
+- Quoted defined names and short quoted examples (`"goverment"` as an example).
+- Title-case name runs without a close dictionary suggestion; indexed defined-term/party labels in title case.
+- Ellipsis, decimals, initials, numbering, placeholders, table alignment spaces.
+- Findings inside existing tracked changes (`prior_revision` limited; not relocated).
+- Headers/footnotes/fields not fully checked (PEE-31 / PWC-38 next).
+- `definitions.unused` still default off.
+
+**Measured quality (labelled sample, not a real-world precision claim)**
+
+| Set | Rule | TP | FP | FN | Sample P/R | Wilson 95% lower on sample precision | Independent families |
+|---|---|---|---|---|---|---|---|
+| PEE-20 packed | `spelling.dictionary` | 200 | 0 | 0 | 1.00 / 1.00 | ~0.98 on n=200 | 20 misspelling tokens × 10 frames |
+| PEE-21 packed | five punctuation/spacing rules | ≥100 each | 0 | 0 | gate passed | n≥100 per rule | unique verb/object/mark families, not packed repeats |
+| Held-out 10 docs | `spelling.dictionary` | 9 | 0 | 0 | 1.00 / 1.00 | **0.67** (n=9) | 10 documents (agreement/letter/notice/prose/clean) |
+| Held-out 10 docs | `punctuation.duplicate_mark` | 1 | 0 | 0 | 1.00 / 1.00 | n=1, uninformative | 1 family |
+| Held-out 10 docs | `punctuation.space_before` | 1 | 0 | 0 | 1.00 / 1.00 | n=1, uninformative | 1 family |
+| Held-out clean | spelling/punctuation | 0 false alerts / 3 clean docs | — | — | — | — | clean_prose, clean_names, cross_paragraph_pair |
+
+`canPromote` on the packed PEE-20/21 sets is not statistical confidence that live documents will match those rates. The held-out spelling Wilson lower bound on n=9 is 0.67.
+
+**Tests:** `npm run test:proof` **196/196**. `npm run typecheck` exit 0.
+
+### Deploy receipt — frequency/quote/punctuation pairing (2026-09-11)
+
+| Item | Value |
+|---|---|
+| Source commit serving | `e6ae8929333719773d5f9cfdc630ed1973122ed4` |
+| Live client assets | `proof.worker-Bu7RcpCt.js` (1,465,540 bytes, two `SET UTF-8` Hunspell headers, `also appears` / `defined_label` present); `/proof` copy includes repeated-misspelling policy |
+| Workers Build | `48339867-8836-4124-a1a6-950c6f1d1df8` on `main` `e6ae892`, outcome success (`versions upload --keep-vars`) |
+| Live `/proof` | Signed-out. Anonymous choose → process → download **Verified** |
+| Production journey | `ok=true`, `anonymousOk=true`. `repeatMisspelling.ok=true` (ready, 1 comment anchor). `cleanTraps.ok=true` (zero). Substitute `userReport.ok=true`. |
+| Word COM | `user_report` 6 revisions / 3 comments PASS; `repeat_misspelling` 0 revisions / 1 comment PASS; `clean_traps` 0/0 PASS. Open XML SDK ok on all seven downloads. |
+| Word evidence | Substitute user report: tracked `recieve`, `teh`, `,,`; comments `goverment`, `mispelled`, undefined-use `Confidential Information`. Repeat document: one comment on first `enviroment` stating it also appears 9 more times. Clean traps: no comments or revisions. |
+| Network/storage | No document leaks; empty persistent browser storage. Protected routes still 401. |
+
+**Auth remaining (separate, not fixed).** Next engine task: PEE-31 / PWC-38 non-main stories. Remaining PEE-21 evaluate-first items (mixed quotes, `shall not not`, lowercase sentence start) stay unpromoted.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

@@ -87,7 +87,7 @@ export function classifySpanEdit(
   const paragraph = paragraphFor(source, span);
   if (!paragraph || !paragraph.safe) return { operation: "unsupported", reason: "unsafe_paragraph" };
   const quote = paragraph.text.slice(span.textStart, span.textEnd);
-  if (!quote.trim()) return { operation: "unsupported", reason: "empty_visible_range" };
+  if (!quote.length) return { operation: "unsupported", reason: "empty_visible_range" };
   const nodes = overlappingNodes(paragraph, span);
   if (!nodes.length) return { operation: "unsupported", reason: "empty_visible_range" };
   if (!nodes.every((node) => runIsExportable(source.tree, node.nodePath))) {

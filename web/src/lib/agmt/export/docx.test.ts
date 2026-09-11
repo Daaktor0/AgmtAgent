@@ -138,14 +138,15 @@ test("PWC-10 findings inside existing revisions are suppressed with coverage, ne
   const source = await zip.generateAsync({ type: "nodebuffer" });
   const analysis = await analyzeProof(source);
   assert.equal(analysis.plan.findings.some((finding) => finding.exactQuote === "recieve"), false);
-  assert.ok(analysis.plan.notices.some((notice) => /recieve/.test(notice.comment)));
-  assert.equal(analysis.gaps.includes("prior_revision"), false);
+  assert.equal(analysis.plan.notices.some((notice) => /recieve/.test(notice.comment)), false);
+  assert.ok(analysis.gaps.includes("prior_revision"));
   const exported = await exportProofDocx(source);
   const outXml = await (await JSZip.loadAsync(exported.bytes)).file("word/document.xml")!.async("string");
   assert.match(outXml, /w:id="9"/);
   assert.equal(exported.receipt.revisionIds.length, 0);
   assert.equal(exported.receipt.plan.findings.filter((finding) => finding.kind === "correction").length, 0);
-  assert.ok(exported.receipt.plan.notices.length >= 1);
+  assert.ok(exported.receipt.plan.notices.some((notice) => /prior_revision/.test(notice.comment)));
+  assert.match(outXml, /<w:ins\b[^>]*w:id="9"/);
   await validateProofExport(source, exported.bytes, exported.receipt);
 });
 

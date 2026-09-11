@@ -7,6 +7,7 @@ import { definitionRuleFindings } from "./rules/definitions.ts";
 import { partyRuleFindings } from "./rules/parties.ts";
 import { figureRuleFindings } from "./rules/figures.ts";
 import { spellingRuleFindings } from "./spelling.ts";
+import { mechanicsRuleFindings } from "./rules/mechanics.ts";
 
 export { candidateFinding, type LaunchContext } from "./launch-context.ts";
 
@@ -90,6 +91,7 @@ function skipPlaceholder(p: SourceParagraph, start: number, end: number, ctx: La
 
 export function launchRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): ProofFinding[] {
   if (rule === "spelling.dictionary") return spellingRuleFindings(ctx);
+  if (rule.startsWith("punctuation.") || rule.startsWith("spacing.")) return mechanicsRuleFindings(ctx, rule);
   if (rule.startsWith("language.")) return language(ctx, rule);
   const out: ProofFinding[] = [];
   if (rule === "completion.placeholder") {

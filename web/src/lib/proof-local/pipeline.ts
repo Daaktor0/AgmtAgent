@@ -58,7 +58,7 @@ function coverageLines(analysis: Awaited<ReturnType<typeof exportProofDocx>>["an
   if (analysis.source.paragraphs.some((paragraph) => paragraph.nodes.some((node) => node.revision))) {
     lines.push({
       kind: "checked",
-      text: "existing tracked changes were read in the final text; Proof does not insert new markup inside them",
+      text: "existing tracked changes were read in the final text; Proof does not insert new markup inside them, and it does not move an exact finding to another location",
     });
   }
   for (const execution of analysis.executions) {

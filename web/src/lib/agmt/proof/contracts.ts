@@ -16,6 +16,7 @@ export type SourceSpan = z.infer<typeof SourceSpanSchema>;
 
 export const LaunchRuleIdSchema = z.enum([
   "language.typo_allowlist", "language.duplicate_word", "spelling.dictionary", "completion.placeholder",
+  "punctuation.duplicate_mark", "spacing.accidental", "punctuation.space_before", "punctuation.missing_space_after", "punctuation.unbalanced_pair",
   "references.missing_target", "references.duplicate_number", "references.scope_confusion", "references.ambiguous_target",
   "definitions.duplicate", "definitions.scope_redefinition", "definitions.case_variant", "definitions.unused", "definitions.undefined_use",
   "parties.consistency", "figures.date_invalid", "figures.words_figures_mismatch",

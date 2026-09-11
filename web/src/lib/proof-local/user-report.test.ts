@@ -45,7 +45,8 @@ test("browser entry: ordinary sentences with planted typos and spelling errors a
   assert.ok(quotes.includes("language.typo_allowlist:correction:teh"), quotes.join(" | "));
   assert.ok(quotes.includes("spelling.dictionary:comment:goverment"), quotes.join(" | "));
   assert.ok(quotes.includes("spelling.dictionary:comment:mispelled"), quotes.join(" | "));
-  assert.equal(quotes.some((item) => item.includes("have an obligation") || item.includes("pay,,")), false);
+  assert.ok(quotes.includes("punctuation.duplicate_mark:correction:,,"), quotes.join(" | "));
+  assert.equal(result.findings.some((finding) => /have an obligation/.test(finding.quote)), false);
   assert.equal(result.findings.some((finding) => finding.kind === "correction" && /Northwind|Confidential|Acme/.test(finding.quote)), false);
   assert.ok(result.corrections >= 2);
   assert.ok(result.comments >= 2);
@@ -68,13 +69,15 @@ test("browser entry: a clean sentence stays unmarked and is not a processing fai
   assert.match(PROOF_LOCAL_ZERO_DETAIL, /does not check grammar/);
 });
 
-test("errors inside existing insertions become paragraph comments, not silent drops or blanket limited coverage", async () => {
+test("errors inside existing insertions are not relocated; coverage records the limitation", async () => {
   const source = await revisionDocx();
   const analysis = await analyzeProof(source);
   const local = await processProofLocal(new Uint8Array(source));
-  assert.equal(analysis.gaps.includes("prior_revision"), false);
-  assert.ok(analysis.plan.notices.some((notice) => /occured/.test(notice.comment)));
+  assert.equal(analysis.plan.findings.some((finding) => finding.exactQuote === "occured"), false);
+  assert.equal(analysis.plan.notices.some((notice) => /occured/.test(notice.comment)), false);
+  assert.ok(analysis.gaps.includes("prior_revision"));
+  assert.equal(analysis.coverage, "limited");
   assert.ok(local.findings.some((finding) => finding.ruleId === "language.typo_allowlist" && finding.quote === "seperate"));
-  assert.ok(local.comments >= 1);
   assert.ok(local.coverageLines.some((line) => line.text.includes("existing tracked changes")));
+  assert.ok(local.coverageLines.some((line) => line.kind === "skipped" && line.text.includes("prior revision")));
 });

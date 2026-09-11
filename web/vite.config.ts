@@ -35,6 +35,15 @@ function proofLocalBrowserShims(): Plugin {
     name: "agmt-proof-local-shims",
     enforce: "pre",
     async resolveId(id, importer, options) {
+      const idNorm = id.split(/[/\\]/).join("/");
+      if (/dictionaries\/load(?:\.ts)?$/.test(idNorm)) {
+        if (options.ssr) {
+          return join(webRoot, "src/lib/agmt/proof/dictionaries/load.stub.ts");
+        }
+        const browserLoad = join(webRoot, "src/lib/agmt/proof/dictionaries/load.browser.ts");
+        if (isProofWorkerImporter(importer, workerGraph)) rememberProofWorkerModule(browserLoad, workerGraph);
+        return browserLoad;
+      }
       if (options.ssr) return null;
       const fromWorker = isProofWorkerImporter(importer, workerGraph);
       if (fromWorker && isForbiddenProofWorkerImport(id)) {
@@ -45,12 +54,6 @@ function proofLocalBrowserShims(): Plugin {
         return aliases[id];
       }
       const importerNorm = (importer ?? "").split(/[/\\]/).join("/");
-      const idNorm = id.split(/[/\\]/).join("/");
-      if (!options.ssr && /dictionaries\/load(?:\.ts)?$/.test(idNorm)) {
-        const browserLoad = join(webRoot, "src/lib/agmt/proof/dictionaries/load.browser.ts");
-        if (fromWorker) rememberProofWorkerModule(browserLoad, workerGraph);
-        return browserLoad;
-      }
       if (
         importerNorm.includes("/src/lib/agmt/")
         && (idNorm.endsWith("crypto.ts") || idNorm.endsWith("/agmt/crypto"))

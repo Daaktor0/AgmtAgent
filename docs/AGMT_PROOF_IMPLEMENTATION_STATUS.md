@@ -1588,13 +1588,13 @@ Remaining FPs against original labels: `Schedule 1` / `Schedule 2` (extract vs c
 - Inventory present and target absent → specific internal miss (PEE-10 positives unchanged).
 - Schedule-locator skip for undefined-use withdrawn: “stated in Schedule 1” does not prove the term is defined or that the schedule exists.
 
-**Held-out 20 against original labels** (population unchanged): planted dirty findings still match; no FNs; no blocked corrections. `Payment Date` in the amendment restatement is no longer a false positive. Remaining unplanted comments: `Reference Amount` (review question / ambiguity); qualified `Schedule 1`/`Schedule 2`; qualified `Clause 8` on the placeholder fragment. Packed PEE-10/11 promotion still passes and does not override these observations.
+**Held-out 20 against original labels** (population unchanged): planted dirty findings still match; no FNs; no blocked corrections. `Payment Date` in the amendment restatement is no longer a false positive. Remaining unplanted comments: `Reference Amount` (review question / ambiguity); qualified `Schedule 1`/`Schedule 2`; qualified `Clause 8` on the placeholder fragment. These remain false positives / noise; qualified phrasing does not count them as correct. Packed PEE-10/11 promotion still passes and does not override these observations.
 
 **Original user example:** still not reproduced.
 
 **Freeze pack:** `docs/proof/BETA_SUPERVISED_TRIAL.md`. Invitation draft and written-observation tracker are in `docs/proof/`. Category form remains `/proof/feedback` (no free text). Invitations were not sent.
 
-**Client version:** `proof-local-supervised-2026-09-11`. Source commit `64d88f8`.
+**Client version:** `proof-local-supervised-2026-09-11`. Serving git commit `a17f207`. Engine commit `64d88f8`. Serving Worker version `c038acdd-896a-4703-9330-e85dbbdbc544` (100%). Tester brief and invitation corrected: header tracked changes are in scope; header comments are not.
 
 **Production header Word evidence (live download):** `production_header_typo_Proofread.docx`. Header XML `w:del`+`w:ins`; no header comments; `recieve` not copied into the body; coverage comment `header_comments_unanchorable`. Word `StoryRanges.Item(7)` revisions=2; document-level `Revisions.Count`=0; Accept → `receive`; Reject → `recieve`.
 

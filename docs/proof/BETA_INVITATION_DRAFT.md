@@ -14,8 +14,9 @@ Please:
 
 1. Open https://app.agmt.legal/proof in current desktop Chrome or Edge. No account is required.
 2. Start with a **synthetic or non-confidential** native `.docx`. Do not use a live client file.
-3. Download the marked copy and open it in Microsoft Word with All Markup on. Accept/reject tracked changes and read the comments, including any in the header.
-4. Treat comments on missing clauses/schedules and undefined-looking terms as review questions, not as findings you must accept.
+3. Download the marked copy and open it in Microsoft Word with All Markup on. Accept or reject tracked changes in the body. Header **tracked changes** live in the header story: turn the header on and Accept/Reject there. Word’s document-level revision count may omit header stories.
+4. Read the comments in the body. Proof does **not** place comments in headers in this trial — do not look for header comments, and do not treat their absence as a miss.
+5. Treat comments on missing clauses/schedules and undefined-looking terms as review questions, not as findings you must accept.
 
 If a comment, missed error, or download/formatting problem is worth recording as a category, use https://app.agmt.legal/proof/feedback (category and optional reason only; no document text).
 

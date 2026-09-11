@@ -12,8 +12,8 @@ Start with a synthetic or non-confidential `.docx`. Review the download in Micro
 2. Choose a native unencrypted `.docx` that you are allowed to use. Prefer a synthetic or non-confidential document for this cohort.
 3. Wait for processing, then download the marked copy.
 4. Open the download in Microsoft Word. Turn on **All Markup**.
-5. Accept or reject Agmt Proof tracked changes. Read the comments. Existing comments and revisions should remain.
-6. Header tracked changes live in the header story. Turn on the header, then use Accept/Reject there. Document-level revision counts in Word may omit header stories.
+5. Accept or reject Agmt Proof tracked changes in the body. Read the comments in the body. Existing comments and revisions should remain.
+6. Header **tracked changes** (typos and punctuation) live in the header story. Turn on the header, then use Accept/Reject there. Document-level revision counts in Word may omit header stories. Proof does **not** place comments in headers. Do not review header comments, and do not treat their absence as a miss.
 
 ## Supported browsers and documents
 
@@ -33,7 +33,7 @@ Start with a synthetic or non-confidential `.docx`. Review the download in Micro
 - Duplicate or inconsistent definitions, defined-term capitalisation, missing or ambiguous internal references, duplicate clause numbers, party-name consistency, invalid calendar dates, and bound words-and-figures mismatches, when the document’s indexes are complete.
 - Title-case phrases after “the/this/such” with no matching definition are **review questions**, not confirmed errors. Title case alone does not prove a term is undefined. A term inherited from another named agreement is not flagged merely because this file omits the definition.
 - A citation with no matching clause or schedule in the checked text is a **qualified review point**, not a proven drafting error, unless other clauses or schedule headings are present and this one is not. A reference may legitimately point outside the document.
-- Headers: tracked typo and punctuation corrections only.
+- Headers: tracked typo and punctuation corrections only. Header comments are not supported in this trial.
 
 ## Material exclusions
 

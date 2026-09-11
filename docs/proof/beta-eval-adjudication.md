@@ -148,7 +148,7 @@ Engine changes after the first-run record, evaluated on fresh cases:
 - Where other clauses or schedule headings exist and this one does not, the comment remains a specific internal miss.
 - The previous schedule-locator skip for undefined-use was withdrawn. “Reference Amount stated in Schedule 1” does not prove the term is defined and does not prove Schedule 1 exists.
 
-Held-out re-run against original labels after this increment: `Payment Date` is no longer a false positive. Remaining unplanted comments: `Reference Amount` (review question / ambiguity), `Schedule 1` / `Schedule 2` (qualified unverifiable), `Clause 8` on the placeholder fragment (qualified unverifiable). Planted dirty findings still match. No missed planted findings. Packed PEE-10/11 promotion results do not override these observations.
+Held-out re-run against original labels after this increment: `Payment Date` is no longer a false positive. Remaining unplanted comments: `Reference Amount` (review question / ambiguity), `Schedule 1` / `Schedule 2` (qualified unverifiable), `Clause 8` on the placeholder fragment (qualified unverifiable). These stay **false positives / noise** in `context-increment-results.json` (`definitions.undefined_use` fp 1; `references.missing_target` fp 3). Qualified or cautious comment phrasing does **not** convert them to true positives. Planted dirty findings still match. No missed planted findings. Packed PEE-10/11 promotion results do not override these observations.
 
 ## Rewritten documents
 

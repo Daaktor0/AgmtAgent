@@ -136,6 +136,20 @@ agreements. Testers should expect missing-clause comments on extracts.
 
 No original label was rewritten to “dirty” solely because a rule fired.
 
+## Context increment (missing vs unverifiable)
+
+`references.missing_target` and `definitions.undefined_use` stay enabled. Completeness is not inferred from document length and no document-type questionnaire was added.
+
+Engine changes after the first-run record, evaluated on fresh cases:
+
+- A term expressly inherited (`as defined in`, `has the meaning given in`, bulk incorporation of the Original/Principal/Existing Agreement, or a restated original clause) is not flagged as undefined merely because this file omits the definition.
+- A citation of another named instrument remains external.
+- Where no numbered clause or schedule heading appears in the checked text, absence is a qualified review point, not a proven drafting error.
+- Where other clauses or schedule headings exist and this one does not, the comment remains a specific internal miss.
+- The previous schedule-locator skip for undefined-use was withdrawn. “Reference Amount stated in Schedule 1” does not prove the term is defined and does not prove Schedule 1 exists.
+
+Held-out re-run against original labels after this increment: `Payment Date` is no longer a false positive. Remaining unplanted comments: `Reference Amount` (review question / ambiguity), `Schedule 1` / `Schedule 2` (qualified unverifiable), `Clause 8` on the placeholder fragment (qualified unverifiable). Planted dirty findings still match. No missed planted findings. Packed PEE-10/11 promotion results do not override these observations.
+
 ## Rewritten documents
 
 The three post-observation rewrites live in

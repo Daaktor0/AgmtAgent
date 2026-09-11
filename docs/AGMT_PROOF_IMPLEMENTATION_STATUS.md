@@ -1576,6 +1576,26 @@ Remaining FPs against original labels: `Schedule 1` / `Schedule 2` (extract vs c
 
 **Tester brief:** `docs/proof/BETA_TESTER_BRIEF.md`. Invitations were not sent.
 
+### Supervised 3–5 lawyer trial freeze — context increment (2026-09-11)
+
+`references.missing_target` and `definitions.undefined_use` remain enabled. Completeness is not inferred from length. No document-type questionnaire.
+
+**Context handling**
+
+- Express inheritance (`as defined in`, meaning given in, bulk incorporation of the Original/Principal/Existing Agreement, restated original clause) is not flagged as undefined merely because this file omits the definition.
+- Citations of another named instrument stay external.
+- Empty clause/schedule inventory → qualified review point, not a proven miss.
+- Inventory present and target absent → specific internal miss (PEE-10 positives unchanged).
+- Schedule-locator skip for undefined-use withdrawn: “stated in Schedule 1” does not prove the term is defined or that the schedule exists.
+
+**Held-out 20 against original labels** (population unchanged): planted dirty findings still match; no FNs; no blocked corrections. `Payment Date` in the amendment restatement is no longer a false positive. Remaining unplanted comments: `Reference Amount` (review question / ambiguity); qualified `Schedule 1`/`Schedule 2`; qualified `Clause 8` on the placeholder fragment. Packed PEE-10/11 promotion still passes and does not override these observations.
+
+**Original user example:** still not reproduced.
+
+**Freeze pack:** `docs/proof/BETA_SUPERVISED_TRIAL.md`. Invitation draft and written-observation tracker are in `docs/proof/`. Category form remains `/proof/feedback` (no free text). Invitations were not sent.
+
+**Client version:** `proof-local-supervised-2026-09-11`. Source commit `0a6ebe2`.
+
 **Production header Word evidence (live download):** `production_header_typo_Proofread.docx`. Header XML `w:del`+`w:ins`; no header comments; `recieve` not copied into the body; coverage comment `header_comments_unanchorable`. Word `StoryRanges.Item(7)` revisions=2; document-level `Revisions.Count`=0; Accept → `receive`; Reject → `recieve`.
 
 **Tests:** `npm run test:proof` **210/210**. `npm run typecheck` exit 0.

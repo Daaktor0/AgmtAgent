@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROOF_CLIENT_VERSION = "proof-local-beta-2026-09-11";
+export const PROOF_CLIENT_VERSION = "proof-local-supervised-2026-09-11";
 export const PROOF_BETA_FEEDBACK_VERSION = "proof-beta-feedback-v2";
 
 export const ProofBetaFeedbackCategorySchema = z.enum([

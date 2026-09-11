@@ -1,0 +1,60 @@
+{
+  "run": "context-increment-after-instrument-handling",
+  "originalUserExample": "not reproduced",
+  "labelledBeforeExecution": true,
+  "heldOutPopulationUnchanged": true,
+  "documentCount": 20,
+  "cleanCount": 11,
+  "dirtyCount": 9,
+  "blocked": [],
+  "perRuleAgainstOriginalLabels": {
+    "definitions.undefined_use": { "tp": 1, "fp": 1, "fn": 0 },
+    "references.missing_target": { "tp": 0, "fp": 3, "fn": 0 },
+    "spelling.dictionary": { "tp": 3, "fp": 0, "fn": 0 },
+    "language.typo_allowlist": { "tp": 1, "fp": 0, "fn": 0 },
+    "punctuation.duplicate_mark": { "tp": 1, "fp": 0, "fn": 0 },
+    "language.duplicate_word": { "tp": 1, "fp": 0, "fn": 0 },
+    "completion.placeholder": { "tp": 1, "fp": 0, "fn": 0 },
+    "figures.words_figures_mismatch": { "tp": 1, "fp": 0, "fn": 0 }
+  },
+  "fixedAgainstOriginalLabels": [
+    { "id": "03_amendment_clean_clause", "ruleId": "definitions.undefined_use", "quote": "Payment Date", "reason": "Restated original-agreement clause; term treated as inherited, not locally missing." }
+  ],
+  "remainingUnplantedAgainstOriginalLabels": [
+    {
+      "id": "01_agreement_clean_asset_sale",
+      "ruleId": "definitions.undefined_use",
+      "quote": "Reference Amount",
+      "classification": "ambiguity",
+      "commentKind": "review_question",
+      "note": "Title case does not prove an undefined term. A schedule locator does not prove the term is defined. Original clean label preserved."
+    },
+    {
+      "id": "01_agreement_clean_asset_sale",
+      "ruleId": "references.missing_target",
+      "quote": "Schedule 1",
+      "classification": "ambiguity",
+      "commentKind": "qualified_unverifiable",
+      "note": "No schedule heading in the file. Not presented as a proven miss. Genuine if this file is the whole agreement."
+    },
+    {
+      "id": "01_agreement_clean_asset_sale",
+      "ruleId": "references.missing_target",
+      "quote": "Schedule 2",
+      "classification": "ambiguity",
+      "commentKind": "qualified_unverifiable",
+      "note": "Same as Schedule 1."
+    },
+    {
+      "id": "17_agreement_placeholder",
+      "ruleId": "references.missing_target",
+      "quote": "Clause 8",
+      "classification": "ambiguity",
+      "commentKind": "qualified_unverifiable",
+      "note": "No numbered clause in the fragment. Planted finding remains [TBD] only."
+    }
+  ],
+  "missedFindingsAgainstOriginalLabels": [],
+  "rulesNotDisabled": ["references.missing_target", "definitions.undefined_use"],
+  "packedPromotionDoesNotOverride": true
+}

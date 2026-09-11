@@ -22,8 +22,8 @@ function ProofHelp() {
           <li>Headers: tracked typo and punctuation corrections only. Proof does not place comments in headers in this cohort. Footers, footnotes and endnotes are preserved and not checked</li>
           <li>Unfinished placeholders such as [●] or [TBD]</li>
           <li>Duplicate definitions in an unambiguous scope, schedule re-definitions that change the meaning, and defined terms used with the wrong capitalisation</li>
-          <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete</li>
-          <li>Title-case phrases that look like defined terms but have no matching definition, as review questions only. Title case alone does not prove a term is undefined</li>
+          <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete. If no numbered clause or schedule heading appears in the file, the comment is qualified and is not a proven error. A citation of another named agreement is not treated as missing from this file</li>
+          <li>Title-case phrases that look like defined terms but have no matching definition, as review questions only. Title case alone does not prove a term is undefined. A term expressly inherited from another agreement is not flagged merely because this file omits the definition</li>
           <li>A party role used with a different legal name from the one declared for that role, when the names are not merely Ltd/Limited or a different group company</li>
           <li>Calendar-invalid dates such as 31 April, and bound words-and-figures pairs that do not match, such as USD 10,000 (fifteen thousand)</li>
         </ul>

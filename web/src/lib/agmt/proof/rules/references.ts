@@ -4,13 +4,13 @@
  */
 import { sourceSpan, evaluatedScope } from "../../source-map.ts";
 import { absenceBlockingReasons } from "../evidence.ts";
+import { instrumentContext, type InstrumentContext } from "../instrument-context.ts";
 import { LAUNCH_RULE_BY_ID } from "../registry.ts";
 import { candidateFinding, paragraphForSpan, quoted, explicitEnglish, type LaunchContext } from "../launch-context.ts";
 import { resolveNumber } from "../indexes/scopes.ts";
-import { clauseLike } from "../indexes/types.ts";
+import { clauseLike, type NumberNamespace, type ProofIndexSet, type ReferenceEntry } from "../indexes/types.ts";
 import type { LaunchRuleId } from "../contracts.ts";
 import type { ProofFinding } from "../contracts.ts";
-import type { ReferenceEntry } from "../indexes/types.ts";
 
 function scopeLabel(scope: string): string {
   return scope === "main_body" ? "main-body" : "schedule";
@@ -45,9 +45,42 @@ function otherHits(entry: ReferenceEntry) {
   return entry.endpoints[0]?.otherScopeHits ?? [];
 }
 
+function inventoryNoun(namespace: NumberNamespace): { singular: string; plural: string } {
+  if (clauseLike(namespace)) return { singular: "numbered clause", plural: "numbered clauses" };
+  if (namespace === "schedule") return { singular: "schedule heading", plural: "schedule headings" };
+  if (namespace === "annexure") return { singular: "annexure heading", plural: "annexure headings" };
+  if (namespace === "annex") return { singular: "annex heading", plural: "annex headings" };
+  if (namespace === "exhibit") return { singular: "exhibit heading", plural: "exhibit headings" };
+  if (namespace === "appendix") return { singular: "appendix heading", plural: "appendix headings" };
+  if (namespace === "part") return { singular: "part heading", plural: "part headings" };
+  return { singular: "numbered provision", plural: "numbered provisions" };
+}
+
+function namespaceInventory(indexes: ProofIndexSet, namespace: NumberNamespace) {
+  if (clauseLike(namespace)) return indexes.scopes.entries.filter((entry) => clauseLike(entry.namespace));
+  return indexes.scopes.entries.filter((entry) => entry.namespace === namespace);
+}
+
+function missingTargetComment(entry: ReferenceEntry, indexes: ProofIndexSet, instrument: InstrumentContext, detail: string | null): string {
+  const inventory = namespaceInventory(indexes, entry.namespace);
+  const noun = inventoryNoun(entry.namespace);
+  const other = instrument.namedInstrument;
+  if (instrument.amendsNamedInstrument && other) {
+    return inventory.length
+      ? `${entry.raw} is cited but was not found among the ${noun.plural} in this file. If it refers to the ${other}, that may be intended.`
+      : `${entry.raw} is cited but no ${noun.singular} appears in this file. If it refers to the ${other}, that may be intended.`;
+  }
+  if (!inventory.length) {
+    return `${entry.raw} is cited but no ${noun.singular} appears in the checked text. If this file is meant to include that ${noun.singular}, please confirm the reference.`;
+  }
+  if (detail) return detail;
+  return `${entry.raw} is cited but was not found among the ${noun.plural} in the checked text. Please confirm the reference.`;
+}
+
 export function referenceRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): ProofFinding[] {
   requireCompleteReferences(ctx, rule);
   const indexes = ctx.indexes!;
+  const instrument = instrumentContext(ctx.source);
   const out: ProofFinding[] = [];
 
   if (rule === "references.duplicate_number") {
@@ -86,7 +119,7 @@ export function referenceRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): P
         const labels = entry.endpoints.map((endpoint) => endpoint.label).join(" and ");
         out.push(candidateFinding(rule, {
           p: paragraph, start, end,
-          comment: `${entry.raw} was not found in the checked ${scopeLabel(entry.scope)} numbering scope (both ${labels}). Please confirm the reference.`,
+          comment: missingTargetComment(entry, indexes, instrument, `${entry.raw} is cited but was not found among the numbered clauses in the checked text (both ${labels}). Please confirm the reference.`),
           scopeEvidence: evaluatedScope(ctx.source, entry.scope, 0),
         }));
         continue;
@@ -97,11 +130,12 @@ export function referenceRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): P
         continue;
       }
       const missingLabels = missing.map((endpoint) => endpoint.label).join(" and ");
+      const detail = entry.form === "coordinated"
+        ? `${entry.raw} includes ${missingLabels}, which was not found among the numbered clauses in the checked text. Please confirm the reference.`
+        : null;
       out.push(candidateFinding(rule, {
         p: paragraph, start, end,
-        comment: entry.form === "coordinated"
-          ? `${entry.raw} includes ${missingLabels}, which was not found in the checked ${scopeLabel(entry.scope)} numbering scope. Please confirm the reference.`
-          : `${entry.raw} was not found in the checked ${scopeLabel(entry.scope)} numbering scope. Please confirm the reference.`,
+        comment: missingTargetComment(entry, indexes, instrument, detail),
         scopeEvidence: evaluatedScope(ctx.source, entry.scope, 0),
       }));
     }

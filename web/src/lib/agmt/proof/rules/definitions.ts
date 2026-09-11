@@ -6,6 +6,7 @@
 import { CAP_STOPWORDS } from "../../patterns.ts";
 import { sourceSpan, evaluatedScope, type SourceParagraph } from "../../source-map.ts";
 import { candidateFinding, paragraphForSpan, quoted, explicitEnglish, type LaunchContext } from "../launch-context.ts";
+import { instrumentContext, paragraphIdentity } from "../instrument-context.ts";
 import type { LaunchRuleId, ProofFinding } from "../contracts.ts";
 import type { DefinitionEntry } from "../indexes/types.ts";
 
@@ -38,7 +39,7 @@ const GEO_STARTERS = new Set([
   "saint", "san", "santa", "los", "las", "mount", "port", "fort", "lake", "cape",
 ]);
 const TITLE_CASE = /\b([A-Z][A-Za-z0-9'&/-]*(?:\s+[A-Z][A-Za-z0-9'&/-]*)+)\b/g;
-const LOCATION_QUALIFIER = /^\s+(?:stated|set out|listed|described|specified|identified)\s+in\s+(?:this\s+)?(?:Schedule|Annexure|Annex|Appendix|Exhibit|Clause|Section|the Original)\b/i;
+const EXPRESS_INHERITANCE = /^\s*(?:\((?:as defined in|as defined)|as defined in|has the meaning (?:given|set out|assigned) in)\b/i;
 const HEADER_DEFINITION = /[“"][^”"]+[”"]\s+(?:means and includes|shall have the meaning|has the meaning|shall mean|means|includes|as defined in)\b|[“"][^”"]+[”"]\s*:/;
 const LOCAL_PURPOSE = /\bfor the purposes of this (?:schedule|annexure|annex|appendix|exhibit|part)\b/i;
 const EXPRESS_OVERRIDE = /\b(?:notwithstanding|unless otherwise (?:defined|provided|specified)|except as otherwise (?:defined|provided|specified)|only for (?:the purposes of )?this (?:schedule|annexure|annex|appendix|exhibit|part)|in this (?:schedule|annexure|annex|appendix|exhibit|part) only)\b/i;
@@ -223,8 +224,11 @@ export function definitionRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): 
 
   if (rule === "definitions.undefined_use") {
     const defined = new Set(indexes.definitions.entries.map((entry) => entry.normalisedTerm));
+    const instrument = instrumentContext(ctx.source);
     for (const paragraph of ctx.source.paragraphs) {
       if (!explicitEnglish(paragraph) || headingOrParty(paragraph) || titleLike(paragraph)) continue;
+      if (instrument.bulkIncorporatesDefinitions) continue;
+      if (instrument.restatedParagraphIds.has(paragraphIdentity(paragraph))) continue;
       for (const match of paragraph.text.matchAll(new RegExp(TITLE_CASE.source, "g"))) {
         const phrase = match[1]!;
         const start = match.index;
@@ -233,7 +237,7 @@ export function definitionRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): 
         if (sentenceStart(paragraph.text, start)) continue;
         if (inRevision(paragraph, start, end)) continue;
         if (!definedTermDeterminer(paragraph.text, start)) continue;
-        if (LOCATION_QUALIFIER.test(paragraph.text.slice(end))) continue;
+        if (EXPRESS_INHERITANCE.test(paragraph.text.slice(end))) continue;
         if (properNounPhrase(phrase)) continue;
         const words = phrase.split(/\s+/);
         if (words.some((word) => CAP_STOPWORDS.has(word))) continue;
@@ -243,11 +247,14 @@ export function definitionRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): 
           party.shortName === phrase || party.legalName === phrase
           || phrase === party.shortName || (party.legalName != null && (phrase === party.legalName || party.legalName.includes(phrase) || phrase.includes(party.shortName)))
         )) continue;
+        const other = instrument.namedInstrument;
         out.push(candidateFinding(rule, {
           p: paragraph,
           start,
           end,
-          comment: `Review question: “${phrase}” is written like a defined term but no matching definition was found in the checked text. Please confirm whether it should be defined.`,
+          comment: instrument.amendsNamedInstrument && other
+            ? `Review question: “${phrase}” is written like a defined term and no matching definition was found in this file. If it is a term of the ${other}, a local definition is not required.`
+            : `Review question: “${phrase}” is written like a defined term but no matching definition was found in the checked text. Please confirm whether it should be defined.`,
         }));
       }
     }

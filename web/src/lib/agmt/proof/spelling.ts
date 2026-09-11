@@ -1,15 +1,23 @@
 /**
  * Dictionary spelling (PEE-20 / PWC-40). Comment-only. No autocorrect.
  * Dictionaries are bundled Hunspell lists, not a personal or document store.
+ *
+ * Repeat policy (`SPELLING_REPEAT_POLICY`): frequency is not evidence of a
+ * correct spelling or an intentional name. Every eligible occurrence is
+ * detected. Comments for the same token are published once, anchored on the
+ * first exact span that is not inside an existing revision, with relatedSpans
+ * for the remaining hits and a comment that states how many more times it
+ * appears. Repeated errors are never treated as clean.
  */
 import nspell from "nspell";
 import { hunspellFiles } from "./dictionaries/load.ts";
 import { LEGAL_ALLOWLIST } from "./legal-allowlist.ts";
-import { candidateFinding, ordinaryProse, type LaunchContext } from "./launch-context.ts";
+import { candidateFinding, knownTermTokens, ordinaryProse, type LaunchContext } from "./launch-context.ts";
 import { TYPO_ALLOWLIST } from "./typo-allowlist.ts";
-import type { ProofFinding } from "./contracts.ts";
+import { ProofFindingSchema, type ProofFinding } from "./contracts.ts";
 
-export const SPELLING_DICTIONARY_VERSION = "proof-spelling-dictionary-v1";
+export const SPELLING_DICTIONARY_VERSION = "proof-spelling-dictionary-v2";
+export const SPELLING_REPEAT_POLICY = "detect-all-dedupe-comments-v1";
 const TOKEN = /\b([A-Za-z][A-Za-z']{2,})\b/g;
 const checkers = new Map<"en-GB" | "en-US", ReturnType<typeof nspell>>();
 
@@ -79,37 +87,49 @@ function unknownTitleRun(text: string, start: number, spell: ReturnType<typeof n
   );
 }
 
-function tokenCounts(ctx: LaunchContext): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const paragraph of ctx.source.paragraphs) {
-    for (const match of paragraph.text.matchAll(/\b([A-Za-z][A-Za-z']{2,})\b/g)) {
-      const key = match[1]!.toLowerCase();
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return counts;
+function spanInRevision(ctx: LaunchContext, finding: ProofFinding): boolean {
+  const paragraph = ctx.source.paragraphs.find((item) =>
+    item.partUri === finding.primarySpan.partUri
+    && JSON.stringify(item.paragraphPath) === JSON.stringify(finding.primarySpan.paragraphPath)
+  );
+  if (!paragraph) return false;
+  return paragraph.nodes.some((node) =>
+    node.revision
+    && node.start < finding.primarySpan.textEnd
+    && node.end > finding.primarySpan.textStart
+  );
 }
 
-function knownNames(ctx: LaunchContext): Set<string> {
-  const names = new Set<string>();
-  for (const entry of ctx.indexes?.definitions.entries ?? []) {
-    for (const part of entry.normalisedTerm.split(/\s+/)) if (part) names.add(part);
+function publishRepeats(ctx: LaunchContext, findings: ProofFinding[]): ProofFinding[] {
+  const groups = new Map<string, ProofFinding[]>();
+  for (const finding of findings) {
+    const key = finding.exactQuote.toLowerCase();
+    const list = groups.get(key) ?? [];
+    list.push(finding);
+    groups.set(key, list);
   }
-  for (const entry of ctx.indexes?.parties.entries ?? []) {
-    for (const value of [entry.shortName, entry.legalName]) {
-      if (!value) continue;
-      for (const part of value.toLowerCase().split(/[^a-z']+/)) if (part.length >= 3) names.add(part);
+  const published: ProofFinding[] = [];
+  for (const group of groups.values()) {
+    const primary = group.find((finding) => !spanInRevision(ctx, finding)) ?? group[0]!;
+    const related = group.filter((finding) => finding.id !== primary.id).map((finding) => finding.primarySpan);
+    if (!related.length) {
+      published.push(primary);
+      continue;
     }
+    published.push(ProofFindingSchema.parse({
+      ...primary,
+      relatedSpans: related,
+      comment: `${primary.comment} The same spelling also appears ${related.length} more time${related.length === 1 ? "" : "s"} in this document.`,
+    }));
   }
-  return names;
+  return published;
 }
 
 export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
   const language = ctx.language === "en-US" ? "en-US" : "en-GB";
   const spell = checker(language);
-  const counts = tokenCounts(ctx);
-  const names = knownNames(ctx);
-  const out: ProofFinding[] = [];
+  const names = knownTermTokens(ctx);
+  const detected: ProofFinding[] = [];
   for (const paragraph of ctx.source.paragraphs) {
     for (const match of paragraph.text.matchAll(new RegExp(TOKEN.source, "g"))) {
       const word = match[1]!;
@@ -121,8 +141,7 @@ export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
       if (!ordinaryProse(paragraph, start, end, ctx)) continue;
       if (lower in TYPO_ALLOWLIST) continue;
       if (LEGAL_ALLOWLIST.has(lower)) continue;
-      if (names.has(lower)) continue;
-      if ((counts.get(lower) ?? 0) >= 3) continue;
+      if (shape !== "lower" && names.has(lower)) continue;
       if (dictionaryKnown(spell, word)) continue;
       if (shape === "title" && unknownTitleRun(paragraph.text, start, spell)) continue;
       if (shape === "title" && !closeSuggestion(spell, word)) continue;
@@ -130,7 +149,7 @@ export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
       const nearby = suggestions.length
         ? ` Nearby dictionary forms include: ${suggestions.join(", ")}.`
         : "";
-      out.push(candidateFinding("spelling.dictionary", {
+      detected.push(candidateFinding("spelling.dictionary", {
         p: paragraph,
         start,
         end,
@@ -138,5 +157,5 @@ export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
       }));
     }
   }
-  return out;
+  return publishRepeats(ctx, detected);
 }

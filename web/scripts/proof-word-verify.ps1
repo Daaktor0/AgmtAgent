@@ -13,7 +13,9 @@ $pairs = @(
   @{ Name = "table"; Source = "table.docx"; Output = "table_Proofread.docx"; Corrections = 2; Comments = 2 },
   @{ Name = "prior_review"; Source = "prior_review.docx"; Output = "prior_review_Proofread.docx"; Corrections = 2; Comments = 2 },
   @{ Name = "party_name"; Source = "party_name.docx"; Output = "party_name_Proofread.docx"; Corrections = 0; Comments = 0 },
-  @{ Name = "user_report"; Source = "user_report.docx"; Output = "user_report_Proofread.docx"; Corrections = 2; Comments = 2 }
+  @{ Name = "user_report"; Source = "user_report.docx"; Output = "user_report_Proofread.docx"; Corrections = 3; Comments = 3 },
+  @{ Name = "repeat_misspelling"; Source = "repeat_misspelling.docx"; Output = "repeat_misspelling_Proofread.docx"; Corrections = 0; Comments = 1 },
+  @{ Name = "clean_traps"; Source = "clean_traps.docx"; Output = "clean_traps_Proofread.docx"; Corrections = 0; Comments = 0 }
 )
 
 $word = New-Object -ComObject Word.Application

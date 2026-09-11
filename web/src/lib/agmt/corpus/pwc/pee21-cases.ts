@@ -252,6 +252,8 @@ function unbalancedTraps(): BetaRuleCase[] {
     { id: "pee21_unbal_apostrophe", ruleId: "punctuation.unbalanced_pair", kind: "negative", paragraphs: ["The Buyer must keep the Company's records with the file."], quote: null, replacement: null, action: "none", rationale: "Apostrophe is not a quote pair." },
     { id: "pee21_unbal_nested", ruleId: "punctuation.unbalanced_pair", kind: "negative", paragraphs: ["The Buyer must pay the amount (including (local) tax) now."], quote: null, replacement: null, action: "none", rationale: "Nested parentheses." },
     { id: "pee21_unbal_quotes", ruleId: "punctuation.unbalanced_pair", kind: "negative", paragraphs: ['The Buyer must use "Confidential Information" in writing.'], quote: null, replacement: null, action: "none", rationale: "Balanced quotes." },
+    { id: "pee21_unbal_cross_para", ruleId: "punctuation.unbalanced_pair", kind: "negative", paragraphs: ["The Buyer must pay the amount (including tax", "and insurance) immediately after completion."], quote: null, replacement: null, action: "none", rationale: "A pair spanning consecutive paragraphs is not unmatched." },
+    { id: "pee21_unbal_cross_quote", ruleId: "punctuation.unbalanced_pair", kind: "negative", paragraphs: ['The Buyer must keep the "Confidential', 'Information" records with the file today.'], quote: null, replacement: null, action: "none", rationale: "Straight quotes spanning consecutive paragraphs." },
   ];
   for (let i = 0; i < 95; i++) {
     traps.push({

@@ -9,7 +9,7 @@ import {
   splitRunSpellingDocument,
   tableSpacingDocument,
 } from "./held-out-generalisation.ts";
-import { ruleMetric } from "./metrics.ts";
+import { ruleMetric, wilsonInterval } from "./metrics.ts";
 
 test("held-out documents generalise spelling and punctuation without allowlist stuffing", async () => {
   const byRule = new Map<string, { truePositive: number; falsePositive: number; falseNegative: number }>();
@@ -74,9 +74,24 @@ test("held-out documents generalise spelling and punctuation without allowlist s
   assert.equal(revision.coverage, "limited");
   assert.ok(revision.plan.findings.some((finding) => finding.exactQuote === "seperate"));
 
-  const report = [...byRule.entries()].map(([ruleId, counts]) => ruleMetric({ ruleId, ...counts }));
-  assert.ok(report.some((row) => row.ruleId === "spelling.dictionary" && (row.recall ?? 0) >= 0.9), JSON.stringify(report));
-  assert.ok(report.some((row) => row.ruleId === "punctuation.duplicate_mark" && (row.precision ?? 0) >= 0.98), JSON.stringify(report));
-  assert.equal(cleanDocs >= 2, true);
+  const repeat = await analyzeProof(await heldOutBytes(HELD_OUT_DOCUMENTS.find((doc) => doc.id === "repeat_misspelling")!));
+  const enviroment = repeat.plan.findings.find((finding) => finding.exactQuote === "enviroment");
+  assert.equal(enviroment?.ruleId, "spelling.dictionary");
+  assert.equal(enviroment?.relatedSpans.length, 9);
+  assert.match(enviroment?.comment ?? "", /also appears 9 more/);
+
+  const report = [...byRule.entries()].map(([ruleId, counts]) => {
+    const metric = ruleMetric({ ruleId, ...counts });
+    const precisionN = counts.truePositive + counts.falsePositive;
+    return {
+      ...metric,
+      independentDocuments: HELD_OUT_DOCUMENTS.length,
+      wilsonPrecision: wilsonInterval(counts.truePositive, precisionN),
+    };
+  });
+  assert.ok(report.some((row) => row.ruleId === "spelling.dictionary" && row.truePositive >= 1 && (row.recall ?? 0) >= 0.9), JSON.stringify(report));
+  assert.ok(report.some((row) => row.ruleId === "punctuation.duplicate_mark" && row.falsePositive === 0), JSON.stringify(report));
+  assert.equal(cleanDocs >= 3, true);
   assert.equal(cleanFalseAlerts, 0);
+  assert.equal(HELD_OUT_DOCUMENTS.length >= 8, true);
 });

@@ -87,11 +87,11 @@ export function pee01TypoTraps(): BetaRuleCase[] {
         id: `pee01_typo_defined_${typo}`,
         ruleId: "language.typo_allowlist" as const,
         kind: "negative" as const,
-        paragraphs: [`"${named}" means a defined party. The Company shall ${typo} the notice.`],
+        paragraphs: [`"${named}" means a defined party. The Company shall notify ${named} in writing.`],
         quote: null,
         replacement: null,
         action: "none" as const,
-        rationale: "A token reused from a quoted defined term is excluded.",
+        rationale: "A title-case defined-term or party label is excluded; lowercase ordinary uses are not skipped merely because the same letters appear in a name.",
       },
     ] satisfies BetaRuleCase[];
   });

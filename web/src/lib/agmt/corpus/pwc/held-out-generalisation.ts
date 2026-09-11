@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import { buildDocx } from "../../docx.ts";
 import type { LaunchRuleId } from "../../proof/contracts.ts";
 
-export const HELD_OUT_VERSION = "proof-held-out-generalisation-v1";
+export const HELD_OUT_VERSION = "proof-held-out-generalisation-v2";
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 export type HeldOutExpect = {
@@ -115,6 +115,49 @@ export const HELD_OUT_DOCUMENTS: readonly HeldOutDocument[] = [
     ],
     expected: [],
     forbiddenQuotes: ["Zyxxco", "Blorple", "recieve", "goverment"],
+  },
+  {
+    id: "quoted_prose",
+    genre: "prose",
+    paragraphs: [
+      "The letter states \"The Supplier shall deliver the maintainance schedule in writing.\"",
+    ],
+    expected: [
+      { ruleId: "spelling.dictionary", quote: "maintainance", kind: "comment" },
+    ],
+    forbiddenQuotes: [],
+  },
+  {
+    id: "repeat_misspelling",
+    genre: "prose",
+    paragraphs: Array.from({ length: 10 }, (_, index) => `Please send the enviroment notice in writing ${index}.`),
+    expected: [
+      { ruleId: "spelling.dictionary", quote: "enviroment", kind: "comment" },
+    ],
+    forbiddenQuotes: [],
+  },
+  {
+    id: "independent_misspellings",
+    genre: "prose",
+    paragraphs: [
+      "Please send the accomodation notice in writing today.",
+      "Kindly return the harrassment schedule before Friday.",
+    ],
+    expected: [
+      { ruleId: "spelling.dictionary", quote: "accomodation", kind: "comment" },
+      { ruleId: "spelling.dictionary", quote: "harrassment", kind: "comment" },
+    ],
+    forbiddenQuotes: [],
+  },
+  {
+    id: "cross_paragraph_pair",
+    genre: "clean",
+    paragraphs: [
+      "The Buyer must pay the amount (including tax",
+      "and insurance) immediately after completion.",
+    ],
+    expected: [],
+    forbiddenQuotes: ["(", ")"],
   },
 ];
 

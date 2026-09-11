@@ -85,3 +85,29 @@ test("PEE-21 punctuation and spacing rules meet promotion gates", async () => {
     assert.equal(LAUNCH_RULE_BY_ID[row.ruleId].actionPolicy, row.action === "correction" ? "correction" : "comment");
   }
 });
+
+test("unbalanced pairs spanning consecutive paragraphs are not flagged; a true miss still is", async () => {
+  const balanced = await analyzeProof(await buildDocx([
+    "The Buyer must pay the amount (including tax",
+    "and insurance) immediately after completion.",
+  ]));
+  assert.equal(balanced.plan.findings.some((finding) => finding.ruleId === "punctuation.unbalanced_pair"), false);
+
+  const unmatched = await analyzeProof(await buildDocx([
+    "The Buyer must pay the amount (including extras immediately after completion.",
+    "The Buyer must send the notice in writing today.",
+  ]));
+  assert.ok(unmatched.plan.findings.some((finding) => finding.ruleId === "punctuation.unbalanced_pair" && finding.exactQuote === "("));
+});
+
+test("quoted prose punctuation is a comment; short quoted examples stay silent", async () => {
+  const literal = await analyzeProof(await buildDocx(['The Buyer must use "pay,," only as a quoted example.']));
+  assert.equal(literal.plan.findings.some((finding) => finding.ruleId === "punctuation.duplicate_mark"), false);
+
+  const prose = await analyzeProof(await buildDocx([
+    'The letter states "The Buyer must pay,, the outstanding amount immediately after completion."',
+  ]));
+  const hit = prose.plan.findings.find((finding) => finding.ruleId === "punctuation.duplicate_mark" && finding.exactQuote === ",,");
+  assert.equal(hit?.kind, "comment");
+  assert.equal(hit?.replacement, null);
+});

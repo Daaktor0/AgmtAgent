@@ -35,6 +35,8 @@ const NEEDLES = [
   "split_runs.docx",
   "prior_review.docx",
   "user_report.docx",
+  "repeat_misspelling.docx",
+  "clean_traps.docx",
   "hostile_vba.docx",
   "cancel_load.docx",
   "oversized.docx",
@@ -611,6 +613,39 @@ async function runChromiumJourney(playwright) {
     if (userDownload) writeFileSync(join(downloadDir, "user_report.docx"), readFileSync(join(fixtureDir, "user_report.docx")));
     await startAnother(page);
 
+    await chooseFile(page, "repeat_misspelling.docx");
+    await proofread(page);
+    const repeatState = await waitTerminal(page);
+    const repeatDownload = repeatState === "ready" || repeatState === "limited"
+      ? await downloadNamed(page, "repeat_misspelling_Proofread.docx")
+      : null;
+    const repeatComments = repeatDownload
+      ? await (await JSZip.loadAsync(readFileSync(repeatDownload))).file("word/comments.xml")?.async("string") ?? ""
+      : "";
+    const repeatXml = repeatDownload
+      ? await (await JSZip.loadAsync(readFileSync(repeatDownload))).file("word/document.xml")?.async("string") ?? ""
+      : "";
+    const repeatAnchors = (repeatXml.match(/<w:commentRangeStart\b/g) ?? []).length;
+    cases.repeatMisspelling = {
+      ok: (repeatState === "ready" || repeatState === "limited")
+        && Boolean(repeatDownload)
+        && /enviroment/.test(repeatComments)
+        && /also appears 9 more/.test(repeatComments)
+        && repeatAnchors === 1,
+      state: repeatState,
+      commentAnchors: repeatAnchors,
+    };
+    if (repeatDownload) writeFileSync(join(downloadDir, "repeat_misspelling.docx"), readFileSync(join(fixtureDir, "repeat_misspelling.docx")));
+    await startAnother(page);
+
+    await chooseFile(page, "clean_traps.docx");
+    await proofread(page);
+    const cleanState = await waitTerminal(page);
+    const cleanDownload = cleanState === "zero" ? await downloadNamed(page, "clean_traps_Proofread.docx") : null;
+    cases.cleanTraps = { ok: cleanState === "zero" && Boolean(cleanDownload), state: cleanState };
+    if (cleanDownload) writeFileSync(join(downloadDir, "clean_traps.docx"), readFileSync(join(fixtureDir, "clean_traps.docx")));
+    await startAnother(page);
+
     await chooseFile(page, "party_name.docx");
     await proofread(page);
     const zeroState = await waitTerminal(page);
@@ -702,7 +737,7 @@ try {
 }
 
 const sdk = [];
-for (const label of ["body", "party_name", "prior_review", "table", "user_report"]) {
+for (const label of ["body", "party_name", "prior_review", "table", "user_report", "repeat_misspelling", "clean_traps"]) {
   const source = join(downloadDir, `${label}.docx`);
   const output = join(downloadDir, `${label}_Proofread.docx`);
   if (existsSync(source) && existsSync(output)) sdk.push(runSdk(source, output, label));
@@ -721,6 +756,8 @@ const anonymousOk = Boolean(
   && cases.signedOutGate?.ok
   && cases.body?.ok
   && cases.userReport?.ok
+  && cases.repeatMisspelling?.ok
+  && cases.cleanTraps?.ok
   && cases.zero?.ok
   && cases.limited?.ok
   && cases.existingMarkup?.ok

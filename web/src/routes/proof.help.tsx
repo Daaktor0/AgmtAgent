@@ -14,11 +14,11 @@ function ProofHelp() {
         <p>{PROOF_LOCAL_DEVICE}</p>
         <h2 className="font-display text-2xl">What Proof checks in this beta</h2>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Ordinary English spelling in prose, as Word comments, using a UK or US dictionary. Names, defined terms and repeated unknown words are left alone</li>
+          <li>Ordinary English spelling in prose, as Word comments, using a UK or US dictionary. Names, defined terms, identifiers, quoted defined names and short quoted examples are left alone. Quoted sentences of ordinary prose are commented. A word that appears many times is not treated as correct merely because it repeats; repeated comments are combined onto the first exact span</li>
           <li>A small frozen list of common typos that can be corrected as tracked changes</li>
           <li>Repeated ordinary function words such as “the the”</li>
           <li>Repeated punctuation such as “pay,,”, extra ordinary-prose spaces, a space before a comma or full stop, and a missing space after punctuation, as tracked changes when the span is exact</li>
-          <li>Unmatched brackets or quotation marks in a paragraph, as comments. Proof does not insert the missing mark</li>
+          <li>Unmatched brackets or quotation marks, as comments, after checking neighbouring paragraphs. Proof does not insert the missing mark merely because one paragraph is missing it</li>
           <li>Unfinished placeholders such as [●] or [TBD]</li>
           <li>Duplicate definitions in an unambiguous scope, schedule re-definitions that change the meaning, and defined terms used with the wrong capitalisation</li>
           <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete</li>

@@ -1,7 +1,7 @@
 import type { SourceParagraph } from "../source-map.ts";
 import type { ProofFinding, LaunchRuleId } from "./contracts.ts";
 import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS, DUPLICATE_WORD_SEPARATOR } from "./typo-allowlist.ts";
-import { candidateFinding, ordinaryProse, quoted, type LaunchContext } from "./launch-context.ts";
+import { candidateFinding, ordinaryProse, quoteKind, quoted, type LaunchContext } from "./launch-context.ts";
 import { referenceRuleFindings } from "./rules/references.ts";
 import { definitionRuleFindings } from "./rules/definitions.ts";
 import { partyRuleFindings } from "./rules/parties.ts";
@@ -36,6 +36,17 @@ function language(ctx: LaunchContext, rule: LaunchRuleId): ProofFinding[] {
       const nodes = p.nodes.filter((n) => n.start < end && n.end > start);
       const replacement = rule === "language.typo_allowlist" ? TYPO_ALLOWLIST[m[0]] : "";
       if (rule === "language.typo_allowlist" && !replacement) continue;
+      if (quoteKind(p.text, m.index, m.index + m[0].length, ctx) === "prose") {
+        out.push(candidateFinding(rule, {
+          p,
+          start,
+          end,
+          comment: rule === "language.typo_allowlist"
+            ? `Possible typo: ‘${m[0]}’ → ‘${replacement}’. Quoted prose is marked as a comment, not a tracked change.`
+            : "Repeated function word. Quoted prose is marked as a comment, not a tracked change.",
+        }));
+        continue;
+      }
       if (nodes.some((n) => !n.editable)) {
         if (nodes.every((n) => n.editable || n.revision)) out.push(candidateFinding(rule, { p, start, end, comment: `Possible correction: ‘${p.text.slice(start, end)}’ → ‘${replacement}’. This text is already within an existing tracked change.` }));
         continue;

@@ -29,7 +29,7 @@ async function revisionDocx(): Promise<Buffer> {
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-test("browser entry: ordinary sentences with planted typos and spelling errors are marked", async () => {
+test("substitute fixture: ordinary sentences with planted typos and spelling errors are marked (original user example not reproduced)", async () => {
   const source = await buildDocx([
     "Please recieve the attached schedule.",
     "Kindly correct teh attached draft before circulation.",
@@ -54,6 +54,36 @@ test("browser entry: ordinary sentences with planted typos and spelling errors a
   assert.match(xml, /<w:ins\b/);
   assert.match(xml, /<w:del\b/);
   assert.match(xml, /<w:commentRangeStart\b/);
+});
+
+test("browser entry: a repeated misspelling is not dropped and comments are combined", async () => {
+  const source = await buildDocx(Array.from({ length: 10 }, (_, index) => `Please send the enviroment notice in writing ${index}.`));
+  const result = await processProofLocal(new Uint8Array(source));
+  const hits = result.findings.filter((finding) => finding.ruleId === "spelling.dictionary" && finding.quote === "enviroment");
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0]?.kind, "comment");
+  const xml = await (await JSZip.loadAsync(result.output)).file("word/document.xml")!.async("string");
+  const comments = await (await JSZip.loadAsync(result.output)).file("word/comments.xml")!.async("string");
+  assert.equal((xml.match(/<w:commentRangeStart\b/g) ?? []).length, 1);
+  assert.match(comments, /enviroment/);
+  assert.match(comments, /also appears 9 more/);
+});
+
+test("browser entry: clean contextual traps stay unmarked", async () => {
+  const source = await buildDocx([
+    "The Company shall deliver the notice in writing.",
+    "Please send the colour certificate to the buyer.",
+    "The amount is 3.14 percent of the price stated below.",
+    "The Company shall use e.g. the attached form.",
+    "Mr. Smith shall notify the buyer before completion.",
+    "The Buyer must wait... then collect the papers from the office.",
+    "Zyxxco Blorple Limited shall keep the records with the file.",
+    "The Company shall use \"goverment\" only as a quoted example.",
+    "The Buyer must pay the amount (including tax",
+    "and insurance) immediately after completion.",
+  ]);
+  const result = await processProofLocal(new Uint8Array(source));
+  assert.equal(result.findings.some((finding) => finding.ruleId === "spelling.dictionary" || finding.ruleId.startsWith("punctuation.") || finding.ruleId.startsWith("spacing.")), false, result.findings.map((finding) => `${finding.ruleId}:${finding.quote}`).join("|"));
 });
 
 test("browser entry: a clean sentence stays unmarked and is not a processing failure", async () => {

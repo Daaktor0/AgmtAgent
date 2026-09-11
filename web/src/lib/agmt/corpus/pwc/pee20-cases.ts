@@ -5,7 +5,7 @@
 import type { LaunchRuleId } from "../../proof/contracts.ts";
 import type { BetaRuleCase } from "./beta-rule-cases.ts";
 
-export const PEE20_CASES_VERSION = "proof-pee20-cases-v1";
+export const PEE20_CASES_VERSION = "proof-pee20-cases-v2";
 export const PEE20_COMMENT_PRECISION = 0.98;
 export const PEE20_SUPPORTED_RECALL = 0.9;
 export const PEE20_MIN_SAMPLES = 200;
@@ -72,7 +72,7 @@ export function pee20Traps(): BetaRuleCase[] {
       quote: null,
       replacement: null,
       action: "none",
-      rationale: "Quoted misspelling is excluded.",
+      rationale: "Short quoted example is literal quoted material, not ordinary quoted prose.",
     });
   }
   for (let i = 0; i < 20; i++) {
@@ -113,18 +113,19 @@ export function pee20Traps(): BetaRuleCase[] {
   }
   for (let i = 0; i < 20; i++) {
     traps.push({
-      id: `pee20_repeat_${i}`,
+      id: `pee20_defined_repeat_${i}`,
       ruleId: "spelling.dictionary",
       kind: "negative",
       paragraphs: [
-        `The Company shall send the zyxxco notice in writing.`,
-        `The Borrower will review the zyxxco statement before completion.`,
-        `Please deliver the zyxxco certificate to the buyer ${i}.`,
+        `"Zyxxco" means a defined party in this agreement.`,
+        `The Company shall send the Zyxxco notice in writing.`,
+        `The Borrower will review the Zyxxco statement before completion.`,
+        `Please deliver the Zyxxco certificate to the buyer ${i}.`,
       ],
       quote: null,
       replacement: null,
       action: "none",
-      rationale: "Unknown token repeated three times is treated as a matter name.",
+      rationale: "Repeated defined-term token is excluded by the definition index, not by frequency.",
     });
   }
   return traps;

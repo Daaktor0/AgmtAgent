@@ -5,7 +5,7 @@ Invitations are **not** sent by this freeze. The founder sends them.
 | Item | Value |
 |---|---|
 | Freeze id | `proof-local-supervised-2026-09-11` |
-| Serving commit | `0a6ebe2` (deployed this freeze) |
+| Serving commit | `64d88f8` |
 | Public journey | https://app.agmt.legal/proof (anonymous; no account required) |
 | Help | https://app.agmt.legal/proof/help |
 | Category feedback | https://app.agmt.legal/proof/feedback |

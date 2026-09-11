@@ -1594,7 +1594,7 @@ Remaining FPs against original labels: `Schedule 1` / `Schedule 2` (extract vs c
 
 **Freeze pack:** `docs/proof/BETA_SUPERVISED_TRIAL.md`. Invitation draft and written-observation tracker are in `docs/proof/`. Category form remains `/proof/feedback` (no free text). Invitations were not sent.
 
-**Client version:** `proof-local-supervised-2026-09-11`. Source commit `0a6ebe2`.
+**Client version:** `proof-local-supervised-2026-09-11`. Source commit `64d88f8`.
 
 **Production header Word evidence (live download):** `production_header_typo_Proofread.docx`. Header XML `w:del`+`w:ins`; no header comments; `recieve` not copied into the body; coverage comment `header_comments_unanchorable`. Word `StoryRanges.Item(7)` revisions=2; document-level `Revisions.Count`=0; Accept → `receive`; Reject → `recieve`.
 

@@ -70,12 +70,26 @@ const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
   /\{(?:insert [^}]{1,80}|TBD[^}]{0,40}|draft[^}]{0,40}|date|name|amount|address|●|…|\.{3})\}/gi,
 ];
 
+const EMPTY_SLOT = /\[[\s\-–—_]*[-–—_][\s\-–—_]*\]/g;
+const SALUTATION_BEFORE = /(?:^|\n)\s*(?:dear|hello|hi|to|attention|attn|fao|cc)\b[^.!?\n]{0,48}$/i;
+const RECIPIENT_AFTER = /^[\s,:;–—-]*(?:team|sir|madam|sirs|mesdames|colleagues|counsel)\b/i;
+
+function unfinishedSlotContext(text: string, start: number, end: number): boolean {
+  const before = text.slice(Math.max(0, start - 48), start);
+  const after = text.slice(end, end + 48);
+  return SALUTATION_BEFORE.test(before) || RECIPIENT_AFTER.test(after);
+}
+
 function placeholderHits(text: string): { start: number; end: number }[] {
   const hits: { start: number; end: number }[] = [];
   for (const pattern of PLACEHOLDER_PATTERNS) {
     for (const m of text.matchAll(pattern)) {
       hits.push({ start: m.index, end: m.index + m[0].length });
     }
+  }
+  for (const m of text.matchAll(new RegExp(EMPTY_SLOT.source, "g"))) {
+    if (!unfinishedSlotContext(text, m.index, m.index + m[0].length)) continue;
+    hits.push({ start: m.index, end: m.index + m[0].length });
   }
   hits.sort((a, b) => a.start - b.start || (b.end - a.end));
   const kept: { start: number; end: number }[] = [];

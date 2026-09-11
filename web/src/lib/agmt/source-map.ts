@@ -115,13 +115,14 @@ export function graphemeBoundary(text: string, offset: number): boolean {
 }
 
 /** Called only by docx-v2 after its ZIP, package and XML gates. Paths index its preserve-order tree. */
-export function mapProofSource(xml: string, tree: XmlNode[]): ProofSource {
+export function mapProofSource(xml: string, tree: XmlNode[], inheritedLanguage: string | null = null): ProofSource {
   const story = projectPart({
     xml,
     tree,
     partUri: "/word/document.xml",
     storyKind: "body",
     storyId: "body:main",
+    inheritedLanguage,
   });
   const part = { partUri: "/word/document.xml", xml, tree };
   return deepFreeze({

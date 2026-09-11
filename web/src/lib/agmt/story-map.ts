@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import type { DocxPackage } from "./docx-package.ts";
 import { parser } from "./export/ooxml.ts";
 import { projectPart, type StoryKind } from "./projection.ts";
+import { stylesDefaultLanguage } from "./proof/language.ts";
 import {
   deepFreeze,
   xmlAttrs,
@@ -158,7 +159,7 @@ function isSeparatorNote(id: string, type: string): boolean {
   return NOTE_SEPARATOR_TYPES.has(type) || id === "-1" || id === "0";
 }
 
-function projectXml(xml: string, partUri: string, storyKind: StoryKind, storyId: string): {
+function projectXml(xml: string, partUri: string, storyKind: StoryKind, storyId: string, inheritedLanguage: string | null): {
   tree: XmlNode[];
   paragraphs: SourceParagraph[];
   complete: boolean;
@@ -166,7 +167,7 @@ function projectXml(xml: string, partUri: string, storyKind: StoryKind, storyId:
   digest: string;
 } {
   const tree: XmlNode[] = parser.parse(xml);
-  const projected = projectPart({ xml, tree, partUri, storyKind, storyId });
+  const projected = projectPart({ xml, tree, partUri, storyKind, storyId, inheritedLanguage });
   return {
     tree,
     paragraphs: projected.paragraphs,
@@ -208,6 +209,7 @@ export function mapDocumentStories(pkg: DocxPackage, document: { xml: string; tr
   const refs = sectionReferences(document.tree);
   const stories: StoryRecord[] = [];
   const seenParts = new Set<string>();
+  const inheritedLanguage = pkg.has("word/styles.xml") ? stylesDefaultLanguage(pkg.text("word/styles.xml")) : null;
 
   const headerFooterRels = documentRels.filter((rel) => HEADER_REL.test(rel.type) || FOOTER_REL.test(rel.type));
   for (const rel of headerFooterRels) {
@@ -217,7 +219,7 @@ export function mapDocumentStories(pkg: DocxPackage, document: { xml: string; tr
     const storyKind: StoryKind = HEADER_REL.test(rel.type) ? "header" : "footer";
     const policy = STORY_EXPORT_POLICY[storyKind];
     const xml = pkg.text(name);
-    const projected = projectXml(xml, partUri, storyKind, `${storyKind}:${name}`);
+    const projected = projectXml(xml, partUri, storyKind, `${storyKind}:${name}`, inheritedLanguage);
     const matchingRels = headerFooterRels.filter((item) => item.resolved === name);
     const sectionTypes = refs.filter((item) => matchingRels.some((candidate) => candidate.id === item.id)).map((item) => item.type);
     const record: StoryRecord = {
@@ -251,7 +253,7 @@ export function mapDocumentStories(pkg: DocxPackage, document: { xml: string; tr
     if (!pkg.has(spec.name)) continue;
     const partUri = `/${spec.name}`;
     const xml = pkg.text(spec.name);
-    const projected = projectXml(xml, partUri, spec.kind, `${spec.kind}:${spec.name}`);
+    const projected = projectXml(xml, partUri, spec.kind, `${spec.kind}:${spec.name}`, inheritedLanguage);
     const noteNodes: { node: XmlNode; path: number[]; id: string; type: string }[] = [];
     walk(projected.tree, (node, path) => {
       if (xmlTag(node) !== spec.noteTag) return;

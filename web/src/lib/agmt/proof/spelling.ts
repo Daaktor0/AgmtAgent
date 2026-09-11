@@ -13,15 +13,21 @@ import nspell from "nspell";
 import { hunspellFiles } from "./dictionaries/load.ts";
 import { LEGAL_ALLOWLIST } from "./legal-allowlist.ts";
 import { candidateFinding, knownTermTokens, lexicalParagraphs, ordinaryProse, type LaunchContext } from "./launch-context.ts";
+import { resolveSpellingDictionary, type EnglishSpellingDictionary } from "./language.ts";
 import { TYPO_ALLOWLIST } from "./typo-allowlist.ts";
 import { ProofFindingSchema, type ProofFinding } from "./contracts.ts";
 
 export const SPELLING_DICTIONARY_VERSION = "proof-spelling-dictionary-v2";
 export const SPELLING_REPEAT_POLICY = "detect-all-dedupe-comments-v1";
 const TOKEN = /\b([A-Za-z][A-Za-z']{2,})\b/g;
-const checkers = new Map<"en-GB" | "en-US", ReturnType<typeof nspell>>();
+const LEGAL_PREFIXES = new Set([
+  "sub", "non", "pre", "post", "co", "re", "inter", "intra", "multi", "anti",
+  "extra", "over", "under", "mid", "cross", "self", "quasi", "ex", "counter",
+  "pro", "semi", "ultra", "trans", "supra", "infra", "vice", "neo",
+]);
+const checkers = new Map<EnglishSpellingDictionary, ReturnType<typeof nspell>>();
 
-function checker(language: "en-GB" | "en-US"): ReturnType<typeof nspell> {
+function checker(language: EnglishSpellingDictionary): ReturnType<typeof nspell> {
   const cached = checkers.get(language);
   if (cached) return cached;
   const files = hunspellFiles(language);
@@ -67,6 +73,39 @@ function dictionaryKnown(spell: ReturnType<typeof nspell>, word: string): boolea
 function closeSuggestion(spell: ReturnType<typeof nspell>, word: string): boolean {
   const lower = word.toLowerCase();
   return spell.suggest(lower).some((item) => item && editDistanceAtMost(lower, item.toLowerCase(), 2));
+}
+
+function matchTokenShape(source: string, suggestion: string): string {
+  if (/^[A-Z][a-z']+$/.test(source)) return suggestion.charAt(0).toUpperCase() + suggestion.slice(1).toLowerCase();
+  if (/^[A-Z]+$/.test(source)) return suggestion.toUpperCase();
+  return suggestion;
+}
+
+function hyphenNeighbours(text: string, start: number, end: number): { left: string | null; right: string | null } {
+  let left: string | null = null;
+  let right: string | null = null;
+  if (start >= 2 && text[start - 1] === "-") {
+    left = text.slice(0, start - 1).match(/([A-Za-z][A-Za-z']*)$/)?.[1] ?? null;
+  }
+  if (end + 1 < text.length && text[end] === "-") {
+    right = text.slice(end + 1).match(/^([A-Za-z][A-Za-z']*)/)?.[1] ?? null;
+  }
+  return { left, right };
+}
+
+function partKnown(spell: ReturnType<typeof nspell>, part: string): boolean {
+  const lower = part.toLowerCase();
+  return LEGAL_PREFIXES.has(lower) || LEGAL_ALLOWLIST.has(lower) || dictionaryKnown(spell, part);
+}
+
+function hyphenatedKnown(spell: ReturnType<typeof nspell>, word: string, text: string, start: number, end: number): boolean {
+  const { left, right } = hyphenNeighbours(text, start, end);
+  if (!left && !right) return false;
+  const parts = [left, word, right].filter((part): part is string => Boolean(part));
+  if (parts.every((part) => partKnown(spell, part))) return true;
+  if (LEGAL_PREFIXES.has(word.toLowerCase()) && right && partKnown(spell, right)) return true;
+  if (left && LEGAL_PREFIXES.has(left.toLowerCase()) && partKnown(spell, word)) return true;
+  return false;
 }
 
 function adjacentTokens(left: RegExpMatchArray, right: RegExpMatchArray, text: string): boolean {
@@ -126,11 +165,13 @@ function publishRepeats(ctx: LaunchContext, findings: ProofFinding[]): ProofFind
 }
 
 export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
-  const language = ctx.language === "en-US" ? "en-US" : "en-GB";
-  const spell = checker(language);
+  const uiLanguage = ctx.language === "en-US" ? "en-US" : "en-GB";
   const names = knownTermTokens(ctx);
   const detected: ProofFinding[] = [];
   for (const paragraph of lexicalParagraphs(ctx)) {
+    const resolved = resolveSpellingDictionary(paragraph.language, uiLanguage);
+    if (!resolved.english) continue;
+    const spell = checker(resolved.dictionary);
     for (const match of paragraph.text.matchAll(new RegExp(TOKEN.source, "g"))) {
       const word = match[1]!;
       const start = match.index;
@@ -141,13 +182,16 @@ export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
       if (!ordinaryProse(paragraph, start, end, ctx)) continue;
       if (lower in TYPO_ALLOWLIST) continue;
       if (LEGAL_ALLOWLIST.has(lower)) continue;
+      if (hyphenatedKnown(spell, word, paragraph.text, start, end)) continue;
       if (shape !== "lower" && names.has(lower)) continue;
       if (dictionaryKnown(spell, word)) continue;
       if (shape === "title" && unknownTitleRun(paragraph.text, start, spell)) continue;
       if (shape === "title" && !closeSuggestion(spell, word)) continue;
-      const suggestions = [...new Set(spell.suggest(lower).filter((item) => item && item.toLowerCase() !== lower))].slice(0, 3);
+      const suggestions = [...new Set(spell.suggest(lower).filter((item) => item && item.toLowerCase() !== lower))]
+        .map((item) => matchTokenShape(word, item))
+        .slice(0, 3);
       const nearby = suggestions.length
-        ? ` Nearby dictionary forms include: ${suggestions.join(", ")}.`
+        ? ` Suggested spelling: ${suggestions[0]}.${suggestions.length > 1 ? ` Nearby dictionary forms include: ${suggestions.join(", ")}.` : ""}`
         : "";
       detected.push(candidateFinding("spelling.dictionary", {
         p: paragraph,

@@ -97,7 +97,8 @@ export function spanHasProtectedMarkup(source: ProofSource, paragraph: SourcePar
 export function ordinaryProse(p: SourceParagraph, start: number, end: number, ctx: LaunchContext): boolean {
   if (!p.safe || /heading|title|address|signature/i.test(p.style ?? "")) return false;
   if (!explicitEnglish(p)) return false;
-  if (/\b(?:between|registered office|residing at|on behalf of|signed by|witness|address|party name)\b/i.test(p.text)) return false;
+  if (/\b(?:registered office|residing at|on behalf of|signed by|witness|address|party name)\b/i.test(p.text)) return false;
+  if (/\bthis agreement\b.{0,80}\bbetween\b/i.test(p.text) || /^\s*between\b/i.test(p.text)) return false;
   const at = ctx.source.paragraphs.indexOf(p);
   if (ctx.source.paragraphs.slice(0, at + 1).some((s) => /^\s*(?:IN WITNESS|SIGNATURES|EXECUTION BLOCK)/i.test(s.text))) return false;
   const kind = quoteKind(p.text, start, end, ctx);

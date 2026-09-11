@@ -95,6 +95,7 @@ export function projectPart(input: {
   partUri: string;
   storyKind: StoryKind;
   storyId: string;
+  inheritedLanguage?: string | null;
 }): StoryProjection {
   const paragraphs: ProjectedParagraph[] = [];
   const skipped: SkippedRegion[] = [];
@@ -225,7 +226,7 @@ export function projectPart(input: {
     });
   }
 
-  visit(input.tree, [], false, false, null);
+  visit(input.tree, [], false, false, input.inheritedLanguage ?? null);
   if (fieldDepth !== 0) {
     gaps.add("unbalanced_field");
     skipped.push({ reason: "unbalanced_field", nodePath: [] });

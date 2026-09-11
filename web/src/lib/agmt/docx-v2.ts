@@ -13,6 +13,7 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { DocxPackage } from "./docx-package.ts";
 import { mapProofSource, type ProofSource } from "./source-map.ts";
+import { stylesDefaultLanguage } from "./proof/language.ts";
 import type { ExtractedBlock, ExtractedBookmark, ExtractedDocument, ExtractedNote, PackageRelationship, SourceCapability } from "./types.ts";
 import { FILE_BYTE_CAP } from "./config.ts";
 import { estimatePageCount } from "./page-count.ts";
@@ -690,6 +691,10 @@ export async function extractDocx(
 
   const documentXml = readPackageText(pkg, "word/document.xml", documentMetadata.uncompressedSize);
   const orderedDocument = orderedParser.parse(documentXml) as OrderedNode[];
+  const stylesMetadata = metadataByName.get("word/styles.xml");
+  const inheritedLanguage = stylesMetadata && pkg.has("word/styles.xml") && !stylesMetadata.isDirectory
+    ? stylesDefaultLanguage(readPackageText(pkg, "word/styles.xml", stylesMetadata.uncompressedSize))
+    : null;
   const storyProjections: StoryProjection[] = [
     projectPart({
       xml: documentXml,
@@ -697,10 +702,11 @@ export async function extractDocx(
       partUri: "/word/document.xml",
       storyKind: "body",
       storyId: "body:main",
+      inheritedLanguage,
     }),
   ];
   // Optional memory-only source map. Existing durable ingestion never receives or persists it.
-  if (captureProofSource) captureProofSource(mapProofSource(documentXml, orderedDocument));
+  if (captureProofSource) captureProofSource(mapProofSource(documentXml, orderedDocument, inheritedLanguage));
   const documentChildren = firstTag(orderedDocument, "w:document");
   const bodyChildren = firstTag(documentChildren, "w:body");
   if (!bodyChildren.length) {
@@ -751,6 +757,7 @@ export async function extractDocx(
         partUri: "/" + name,
         storyKind: story as StoryKind,
         storyId: `${story}:${name}`,
+        inheritedLanguage,
       }),
     );
     const root = firstTag(ordered, story === "header" ? "w:hdr" : "w:ftr");
@@ -797,6 +804,7 @@ export async function extractDocx(
         partUri: "/" + noteSpec.name,
         storyKind: noteSpec.story,
         storyId: `${noteSpec.story}:${noteSpec.name}`,
+        inheritedLanguage,
       }),
     );
     const extractedNotes = extractNotesStory(

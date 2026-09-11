@@ -1533,6 +1533,58 @@ The stub does **not** replace the live checker. Live `/assets/proof.worker-BjpnD
 
 **Auth remaining (separate, not fixed).** Remaining PEE-21 evaluate-first items (mixed quotes, `shall not not`, lowercase sentence start) stay unpromoted.
 
+### Agmt Proof lexical-defect handoff — cross-run spelling, party context, and recipient placeholders (2026-09-12)
+
+This is the bounded continuation of the unfinished Agmt Proof fix. The attached production document was used locally and through the signed-out browser flow; its content is not committed and is not used as a CI fixture.
+
+**Confirmed root causes**
+
+- Cross-run extraction was already correct: `Plaaase` was joined as one lexical token and nspell already proposed `Please`. The original miss was the broad ordinary-prose exclusion that treated any paragraph containing `between` as a party block, so the escalation paragraph was skipped.
+- The language reader selected the first generic `w:val` attribute in styles, so a preceding `w:sz w:val="22"` could be mistaken for a language. Language now comes from the exact inherited `w:lang` path; `en-IN` and other English variants fall back explicitly to the bundled `en-GB` dictionary, while explicit non-English text is not checked as English.
+- `Licensor`/`Sub-Licensor` were missing from the legal vocabulary allowlist, and the placeholder rule lacked salutation/recipient context. `[-]` is now flagged only in a salutation-recipient pattern such as `Dear [-] team`.
+- `w:proofErr` and `rsid` metadata are proofing/editing metadata, not tracked revisions. No tracked correction was forced merely to make the revision count nonzero.
+
+**Edits retained and reviewed**
+
+Retained the language inheritance/parser correction, cross-run source mapping, exact-span spelling comments, contextual party-introduction gate, legal allowlist, contextual recipient-placeholder rule, and the permanent synthetic regression suite. The edits are confined to the eleven files in commit `53b1dbe`; the attached file, diagnostic scripts, credentials, Word review artifacts, and unrelated untracked work were excluded from the commit.
+
+**Verification**
+
+- Focused regressions: **69/69** passed.
+- Full Proof suite: `npm run test:proof`, **231/231** passed.
+- `npm run typecheck`: exit 0.
+- `npm run build`: exit 0.
+- `npm run build:cloudflare` plus `npm run deploy:cloudflare`: completed from `main` at `53b1dbe`; Cloudflare Worker version `bcbaa996-24ab-44e0-b93d-bc78eaf6f2d5` is serving `agmt`.
+
+**Required outcomes**
+
+| Outcome | Evidence |
+|---|---|
+| `Plaaase` | The post-deployment download contains a spelling comment suggesting `Please`, anchored over the exact split-run span; no tracked edit was generated. |
+| `Licensor` / `Sub-Licensor` | The existing Licensor comment remains exactly once; no new Licensor spelling warning appears. |
+| `Dear [-] team` | The post-deployment download contains an `unfilled: [-]` comment anchored near `Dear`. |
+
+**Production browser/download evidence**
+
+Signed-out `https://app.agmt.legal/proof` was exercised as choose → Proofread → ready result → Download. The result showed `0 tracked corrections · 10 comments to review`, with spelling and completion-placeholder checks marked checked. The downloaded artifact was `Cover email - Sub License Agreement__Proofread_Proofread-postdeploy_Proofread.docx` in the local Downloads folder. Structural verification reported 11 comments, 0 tracked insertions, 0 tracked deletions, 4 preserved proofing markers, exact `Plaaase` and recipient anchors, one existing Licensor comment, unchanged logical text, and unchanged run formatting.
+
+Microsoft Word desktop verification is **Blocked** in this environment: the computer-use surface exposed no native applications, and `winword.exe` was neither available on PATH nor running. Therefore Word-rendered comment balloons, native alerts, and Word's own revision count are not claimed as verified. The downloadable OOXML evidence above is independent of that blocker.
+
+**Independent GPT Luna reproduction**
+
+Use the deployed URL while signed out and create a synthetic DOCX containing these separate cases:
+
+1. Ordinary prose: `Please confirm the escalation. Plaaase confirm the next step between the teams.` Expected: one exact-span spelling comment for `Plaaase` suggesting `Please`; the ordinary paragraph is checked despite `between`.
+2. Party introduction: `This Agreement is between Alpha Limited ("Licensor") and Beta Limited ("Sub-Licensor").` Expected: no new spelling warning on either legal term.
+3. Split runs: store `Plaaase` as runs `Pl`, `aa`, `ase`, with Word proofing/rsid metadata around them. Expected: the comment covers the complete token, without changing run formatting or creating a tracked revision.
+4. Recipient placeholders: `Dear [-] team, please review.` Expected: anchored unfinished-recipient-placeholder comment. `party [-]` and `team may use [-]` are negative controls and should remain unmarked.
+5. Language/parser controls: put `w:sz w:val="22"` before `w:lang w:val="en-IN"` in `styles.xml`; repeat with inherited `en-GB`, `en-US`, missing language, and explicit non-English `w:lang`. Expected: size is never read as language; English fallback is explicit; non-English text is not treated as an English misspelling.
+6. Vocabulary controls: use valid `Licensor`, `Sub-Licensor`, and a hyphenated legal compound beside an intentionally misspelled variant. Expected: valid terms stay silent while the misspelled variant remains eligible for a comment.
+
+The permanent equivalents are in `web/src/lib/agmt/proof/lexical-defects.test.ts`. Run them with `npm run test:proof`, then repeat the browser journey and inspect the downloaded DOCX for the three anchors. Do not use the attached document as a fixture or commit it.
+
+Product decisions remain unchanged: anonymous browser-only Proof is available, documents stay on-device with no model calls or server upload, protected server resources remain protected, no new storage/provider/auth work was added, and beta invitations remain paused.
+
 ### Beta readiness — original issue, evaluation, feedback, PEE-31/PWC-38 header increment (2026-09-11)
 
 **Original user example:** still not reproduced. Ask once for a non-confidential copy of that Word file or the exact planted sentences. Substitute fixtures are not that document. Do not mark the original issue resolved.

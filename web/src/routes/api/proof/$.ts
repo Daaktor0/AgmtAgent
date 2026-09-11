@@ -12,6 +12,7 @@ import { liveProofR2Bucket } from "@/lib/server/proof-r2";
 import { readProofHealth } from "@/lib/server/proof-health";
 import { admitProofBudget, proofBudgetIsFresh, readProofBudget } from "@/lib/server/proof-budget";
 import { createLiveProofRuntime, dispatchOwnedProofDeletion, dispatchOwnedProofPipeline } from "@/lib/server/proof-runtime";
+import { handleProofBetaFeedback, ProofBetaFeedbackError } from "@/lib/server/proof-beta-feedback";
 
 function parts(request: Request): string[] {
   return new URL(request.url).pathname.replace(/^\/api\/proof\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
@@ -64,6 +65,16 @@ async function handler(request: Request): Promise<Response> {
     const gate = await liveGate(now);
     if (proofCapabilitiesPath(path, request.method)) {
       return Response.json({ ...getProofCapabilities(now), acceptingUploads: gate.acceptingUploads }, { headers: noStore });
+    }
+    if (path.length === 1 && path[0] === "beta-feedback") {
+      try {
+        return await handleProofBetaFeedback(request, now);
+      } catch (error) {
+        if (error instanceof ProofBetaFeedbackError) {
+          return Response.json({ error: error.code, message: error.message }, { status: error.status, headers: noStore });
+        }
+        throw error;
+      }
     }
     const acceptingUploads = gate.acceptingUploads;
     const userId = await requireUserId();

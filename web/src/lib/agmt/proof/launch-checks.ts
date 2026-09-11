@@ -1,7 +1,7 @@
 import type { SourceParagraph } from "../source-map.ts";
 import type { ProofFinding, LaunchRuleId } from "./contracts.ts";
 import { TYPO_ALLOWLIST, DUPLICATE_FUNCTION_WORDS, DUPLICATE_WORD_SEPARATOR } from "./typo-allowlist.ts";
-import { candidateFinding, ordinaryProse, quoteKind, quoted, type LaunchContext } from "./launch-context.ts";
+import { candidateFinding, lexicalParagraphs, ordinaryProse, quoteKind, quoted, type LaunchContext } from "./launch-context.ts";
 import { referenceRuleFindings } from "./rules/references.ts";
 import { definitionRuleFindings } from "./rules/definitions.ts";
 import { partyRuleFindings } from "./rules/parties.ts";
@@ -27,7 +27,7 @@ function duplicateWordPattern(): RegExp {
 function language(ctx: LaunchContext, rule: LaunchRuleId): ProofFinding[] {
   const out: ProofFinding[] = [];
   const regex = rule === "language.typo_allowlist" ? typoTokenPattern() : duplicateWordPattern();
-  for (const p of ctx.source.paragraphs) {
+  for (const p of lexicalParagraphs(ctx)) {
     for (const m of p.text.matchAll(regex)) {
       if (rule === "language.duplicate_word" && !(DUPLICATE_FUNCTION_WORDS as readonly string[]).includes(m[1]!)) continue;
       const start = rule === "language.duplicate_word" ? m.index + m[1]!.length + m[2]!.length : m.index;
@@ -106,7 +106,7 @@ export function launchRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): Proo
   if (rule.startsWith("language.")) return language(ctx, rule);
   const out: ProofFinding[] = [];
   if (rule === "completion.placeholder") {
-    for (const p of ctx.source.paragraphs.filter((paragraph) => paragraph.safe)) {
+    for (const p of lexicalParagraphs(ctx).filter((paragraph) => paragraph.safe)) {
       for (const hit of placeholderHits(p.text)) {
         if (skipPlaceholder(p, hit.start, hit.end, ctx)) continue;
         const quote = p.text.slice(hit.start, hit.end);

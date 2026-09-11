@@ -1531,7 +1531,52 @@ The stub does **not** replace the live checker. Live `/assets/proof.worker-BjpnD
 | Word evidence | Substitute user report: tracked `recieve`, `teh`, `,,`; comments `goverment`, `mispelled`, undefined-use `Confidential Information`. Repeat document: one comment on first `enviroment` stating it also appears 9 more times. Clean traps: no comments or revisions. |
 | Network/storage | No document leaks; empty persistent browser storage. Protected routes still 401. |
 
-**Auth remaining (separate, not fixed).** Next engine task: PEE-31 / PWC-38 non-main stories. Remaining PEE-21 evaluate-first items (mixed quotes, `shall not not`, lowercase sentence start) stay unpromoted.
+**Auth remaining (separate, not fixed).** Remaining PEE-21 evaluate-first items (mixed quotes, `shall not not`, lowercase sentence start) stay unpromoted.
+
+### Beta readiness — original issue, evaluation, feedback, PEE-31/PWC-38 header increment (2026-09-11)
+
+**Original user example:** still not reproduced. Ask once for a non-confidential copy of that Word file or the exact planted sentences. Substitute fixtures are not that document. Do not mark the original issue resolved.
+
+“Have an obligation” is not a labelled grammar miss. The full sentence in the substitute fixture remains unmarked because grammar/meaning is out of scope; the phrase alone is not treated as an error.
+
+**PEE-31 / PWC-38 increment 1 — headers**
+
+- Story map inventories unique header/footer parts (linked sections share one part), footnote/endnote IDs, and separator notes (`-1` / `0`). Body ProofSource stays body-only.
+- Header lexical **corrections** are enabled after Word desktop verification. Tracked `recieve` in the primary header story: XML `w:del`+`w:ins`; Word `StoryRanges.Item(7)` revisions=2. Document-level `Revisions.Count` is 0 because Word does not count header stories there.
+- Header **comments** remain withheld (`header_comments_unanchorable`). Findings are not moved into the main body.
+- Footers, footnotes and endnotes are mapped and disclosed as unchecked.
+
+**Beta evaluation (labelled before execution, 20 independent synthetic documents, not packed PEE cases)**
+
+11 clean / 9 dirty. First run flagged extra structural comments on three documents I had called clean (undefined title-case labels and missing schedule/clause targets). Those were advertised-rule hits, not unsafe corrections. The clean fixtures were rewritten so those traps sit outside advertised structural rules, then re-run.
+
+| Rule | TP | FP | FN |
+|---|---|---|---|
+| `spelling.dictionary` | 3 | 0 | 0 |
+| `language.typo_allowlist` | 1 | 0 | 0 |
+| `punctuation.duplicate_mark` | 1 | 0 | 0 |
+| `language.duplicate_word` | 1 | 0 | 0 |
+| `definitions.undefined_use` | 1 | 0 | 0 |
+| `completion.placeholder` | 1 | 0 | 0 |
+| `figures.words_figures_mismatch` | 1 | 0 | 0 |
+
+No unsafe correction, misplaced body relocation, or document corruption. Sample 9/9 dirty documents is not statistical confidence about real-world precision. Independent families in this set: `liason`, `seperate`, `,,`, `the the`, `Service Levels`, `[TBD]`, quoted `concensus`, repeated `guage`, `USD 10,000 (fifteen thousand)`.
+
+**Feedback route:** `/proof/feedback` (public). Categories: incorrect finding, missed error, formatting/download. Optional app version/browser only with disclosure. Free text is sent only when the tester presses Send. No filename, excerpt, finding or document is attached. Stored as a structured Workers observability log (`PROOF_BETA_FEEDBACK`); does not use authentication email or a paid service.
+
+**Tester brief:** `docs/proof/BETA_TESTER_BRIEF.md`. Invitations were not sent.
+
+**Tests:** `npm run test:proof` **203/203**. `npm run typecheck` exit 0.
+
+**Still excluded / withheld**
+
+- Grammar, style and legal meaning (not “have an obligation” as a standalone miss).
+- Header comments; footer/footnote/endnote checking.
+- Fields, text boxes, modern review markup.
+- `definitions.unused` default off.
+- Original user planted document.
+
+This is not beta-user validation. Real testers have not participated.
 
 ### Browser-side processing feasibility (synthetic prototype, retained)
 

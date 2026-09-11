@@ -47,14 +47,18 @@ export function emptyExportReceipt(plan: ExportPlan): ExportReceipt {
 
 export function plannedModifiedParts(sourceHasComments: boolean, plan: ExportPlan): string[] {
   if (!plan.findings.length && !plan.notices.length) return [];
-  const parts = ["word/document.xml"];
+  const parts = new Set<string>();
+  for (const finding of plan.findings) {
+    parts.add(finding.primarySpan.partUri.replace(/^\//, ""));
+  }
+  if (plan.notices.length) parts.add("word/document.xml");
   const needsComments = plan.findings.some((finding) => finding.kind === "comment") || plan.notices.length > 0;
   if (needsComments) {
-    parts.push("word/comments.xml");
+    parts.add("word/comments.xml");
     if (!sourceHasComments) {
-      parts.push("word/_rels/document.xml.rels");
-      parts.push("[Content_Types].xml");
+      parts.add("word/_rels/document.xml.rels");
+      parts.add("[Content_Types].xml");
     }
   }
-  return parts;
+  return [...parts];
 }

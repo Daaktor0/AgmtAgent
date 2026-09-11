@@ -982,7 +982,11 @@ export async function extractDocx(
       detectorVersion: "ooxml-v3-story",
       suppressionReason: capabilityReceipt.coverageReasons.includes("headers_footers_not_checked")
         ? "headers_footers_not_checked"
-        : null,
+        : capabilityReceipt.coverageReasons.includes("header_comments_unanchorable")
+          ? "header_comments_unanchorable"
+        : capabilityReceipt.coverageReasons.includes("footers_not_checked")
+          ? "footers_not_checked"
+          : null,
     },
     {
       name: "package_profile",

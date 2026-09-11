@@ -2,7 +2,8 @@
  * Preflight whether an exact span can be realized as a tracked change or
  * classic comment (PWC-08). Unsupported anchors are suppressed, never moved.
  */
-import { nodeAt, xmlAttrs, xmlChildren, xmlTag, type ProofSource, type SourceParagraph, type XmlNode } from "../source-map.ts";
+import { findSourceParagraph, nodeAt, treeFor, xmlAttrs, xmlChildren, xmlTag, type ProofSource, type SourceParagraph, type XmlNode } from "../source-map.ts";
+import { storyAllows, storyKindOf } from "../story-map.ts";
 import { ProofFindingSchema, type ProofFinding, type SourceSpan } from "../proof/contracts.ts";
 
 export const EDIT_CAPABILITY_VERSION = "proof-edit-capabilities-v1";
@@ -39,10 +40,7 @@ function overlappingNodes(paragraph: SourceParagraph, span: SourceSpan) {
 }
 
 function paragraphFor(source: ProofSource, span: SourceSpan): SourceParagraph | undefined {
-  return source.paragraphs.find((paragraph) =>
-    paragraph.partUri === span.partUri &&
-    JSON.stringify(paragraph.paragraphPath) === JSON.stringify(span.paragraphPath)
-  );
+  return findSourceParagraph(source, span.partUri, span.paragraphPath);
 }
 
 function commentBoundaryConflict(tree: XmlNode[], paragraph: SourceParagraph, span: SourceSpan): boolean {
@@ -86,17 +84,24 @@ export function classifySpanEdit(
 ): SpanEditCapability {
   const paragraph = paragraphFor(source, span);
   if (!paragraph || !paragraph.safe) return { operation: "unsupported", reason: "unsafe_paragraph" };
+  const tree = treeFor(source, span.partUri);
+  if (storyKindOf(paragraph.storyId) !== "body" && !storyAllows(paragraph.storyId, intended)) {
+    return {
+      operation: "unsupported",
+      reason: intended === "comment" ? "story_comment_unanchorable" : "story_correction_unanchorable",
+    };
+  }
   const quote = paragraph.text.slice(span.textStart, span.textEnd);
   if (!quote.length) return { operation: "unsupported", reason: "empty_visible_range" };
   const nodes = overlappingNodes(paragraph, span);
   if (!nodes.length) return { operation: "unsupported", reason: "empty_visible_range" };
-  if (!nodes.every((node) => runIsExportable(source.tree, node.nodePath))) {
+  if (!nodes.every((node) => runIsExportable(tree, node.nodePath))) {
     return { operation: "unsupported", reason: "complex_run" };
   }
-  if (commentBoundaryConflict(source.tree, paragraph, span)) {
+  if (commentBoundaryConflict(tree, paragraph, span)) {
     return { operation: "unsupported", reason: "classic_comment_boundary" };
   }
-  if (nodes.some((node) => fieldOrProtected(source.tree, node.nodePath))) {
+  if (nodes.some((node) => fieldOrProtected(tree, node.nodePath))) {
     return { operation: "unsupported", reason: "field_or_protected" };
   }
   if (nodes.some((node) => !node.editable && !node.revision)) {
@@ -104,8 +109,8 @@ export function classifySpanEdit(
   }
 
   const priorRevision = nodes.some((node) => node.revision);
-  const agmtPrior = nodes.some((node) => revisionAuthor(source.tree, node.nodePath) === "Agmt Proof");
-  const mixedFormat = new Set(nodes.map((node) => rPrKey(source.tree, node.nodePath))).size > 1;
+  const agmtPrior = nodes.some((node) => revisionAuthor(tree, node.nodePath) === "Agmt Proof");
+  const mixedFormat = new Set(nodes.map((node) => rPrKey(tree, node.nodePath))).size > 1;
 
   if (priorRevision || agmtPrior) {
     return {
@@ -129,7 +134,7 @@ export function classifySpanEdit(
 export function paragraphChildrenExportable(source: ProofSource, span: SourceSpan): boolean {
   const paragraph = paragraphFor(source, span);
   if (!paragraph) return false;
-  const node = nodeAt(source.tree, paragraph.paragraphPath);
+  const node = nodeAt(treeFor(source, span.partUri), paragraph.paragraphPath);
   return xmlChildren(node).every((child, index) => {
     const prefix = [...paragraph.paragraphPath, index];
     const nodes = paragraph.nodes.filter((candidate) => JSON.stringify(candidate.nodePath.slice(0, prefix.length)) === JSON.stringify(prefix));

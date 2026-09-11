@@ -1,0 +1,34 @@
+{
+  "version": "pwc-38-word-receipts-v1",
+  "header_correction": {
+    "status": "verified",
+    "storyKind": "header",
+    "action": "correction",
+    "fixture": "headerTypoDocx",
+    "wordDesktop": {
+      "mainStoryRevisions": 0,
+      "primaryHeaderStoryRevisions": 2,
+      "comments": 1,
+      "note": "Word document-level Revisions.Count excludes header stories; StoryRanges.Item(7) showed the tracked recieve/receive pair."
+    }
+  },
+  "header_comment": {
+    "status": "withheld",
+    "storyKind": "header",
+    "action": "comment",
+    "reason": "Word comment balloons are not treated as reliable in headers until a native Word receipt exists",
+    "wordDesktop": null
+  },
+  "footer": {
+    "status": "mapped_unchecked",
+    "storyKind": "footer"
+  },
+  "footnote": {
+    "status": "mapped_unchecked",
+    "storyKind": "footnote"
+  },
+  "endnote": {
+    "status": "mapped_unchecked",
+    "storyKind": "endnote"
+  }
+}

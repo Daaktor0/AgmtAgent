@@ -3,6 +3,7 @@ import { DocxPackage } from "../docx-package.ts";
 import { extractDocx } from "../docx-v2.ts";
 import { resolveExtractedNumbering } from "../numbering.ts";
 import { validateSourceSpan, type ProofSource } from "../source-map.ts";
+import { attachStoryParts, mapDocumentStories, storyCoverageReasons, storyParagraphs } from "../story-map.ts";
 import type { ExtractedDocument } from "../types.ts";
 import { LAUNCH_RULE_SET_VERSION } from "./registry.ts";
 import { ExportPlanSchema, type ProofFinding, type SourceSpan } from "./contracts.ts";
@@ -25,7 +26,7 @@ export function evidenceContext(ctx: LaunchContext): EvidenceContext {
 }
 
 export function validateLaunchFinding(ctx: LaunchContext, finding: ProofFinding): void {
-  validateSourceSpan(ctx.source, finding.primarySpan, finding.exactQuote);
+  validateSourceSpan(ctx.source, finding.primarySpan, finding.exactQuote, storyParagraphs(ctx.storyMap));
   // Predicate replay binds absence inventories, related anchors, eligibility, replacement and edit preflight.
   const proposed = launchRuleFindings(ctx, finding.ruleId).find((f) => f.id === finding.id);
   if (!proposed) throw new Error("invalid_rule_evidence");
@@ -59,6 +60,8 @@ export async function analyzeProof(bytes: Buffer, options: {
   });
   if (!source || !source.paragraphs.some((p) => p.text.trim())) throw new Error("no_supported_text");
   const pkg = options.pkg ?? DocxPackage.open(bytes, { verify: false });
+  const storyMap = mapDocumentStories(pkg, { xml: source.xml, tree: source.tree });
+  source = attachStoryParts(source, storyMap);
   const names = pkg.names();
   if (names.some((n) => /_xmlsignatures|commentsExtended|commentsIds|people\.xml/i.test(n))) throw new Error("unsupported_review_structure");
   const settings = pkg.has("word/settings.xml") ? pkg.text("word/settings.xml") : undefined;
@@ -67,7 +70,7 @@ export async function analyzeProof(bytes: Buffer, options: {
   const extracted = await resolveExtractedNumbering(bytes, raw, pkg);
   const sourceSha256 = createHash("sha256").update(bytes).digest("hex");
   const indexes = buildProofIndexes(source, extracted);
-  const ctx = { source, extracted, sourceSha256, indexes };
+  const ctx = { source, extracted, sourceSha256, indexes, storyMap };
   const runtime = executeLaunchRules(ctx, {
     profile: options.profile ?? "agreement",
     language: options.language ?? "en-GB",
@@ -79,11 +82,14 @@ export async function analyzeProof(bytes: Buffer, options: {
   const evidence = evidenceContext(ctx);
   for (const proposed of runtime.findings) {
     try {
-      validateSourceSpan(source, proposed.primarySpan, proposed.exactQuote);
+      validateSourceSpan(source, proposed.primarySpan, proposed.exactQuote, storyParagraphs(storyMap));
       for (const span of proposed.relatedSpans) {
-        const paragraph = source.paragraphs.find((item) => JSON.stringify(item.paragraphPath) === JSON.stringify(span.paragraphPath));
+        const extra = storyParagraphs(storyMap);
+        const paragraph = extra.concat(source.paragraphs).find((item) =>
+          item.partUri === span.partUri && JSON.stringify(item.paragraphPath) === JSON.stringify(span.paragraphPath)
+        );
         if (!paragraph) throw new Error("invalid_related_evidence");
-        validateSourceSpan(source, span, paragraph.text.slice(span.textStart, span.textEnd));
+        validateSourceSpan(source, span, paragraph.text.slice(span.textStart, span.textEnd), extra);
       }
       const accepted = admitFinding(source, proposed);
       if (!accepted.finding) {
@@ -100,8 +106,8 @@ export async function analyzeProof(bytes: Buffer, options: {
     throw new Error("all_checks_failed");
   }
   const resolved = resolveProofFindings(source, findings);
-  const gaps = [...source.gaps, ...skippedReview, ...resolved.coverageReasons, ...runtime.coverageReasons];
-  if (extracted.blocks.some((block) => block.isHeaderFooter && block.text.trim())) gaps.push("non_main_story_checks");
+  const gaps = [...source.gaps, ...skippedReview, ...resolved.coverageReasons, ...runtime.coverageReasons, ...storyCoverageReasons(storyMap)];
+  if (skippedReview.includes("story_comment_unanchorable")) gaps.push("header_comments_unanchorable");
   if (source.paragraphs.some((paragraph) => paragraph.nodes.some((node) => !node.editable && !node.revision))) {
     gaps.push("protected_text_language_checks");
   }
@@ -127,6 +133,7 @@ export async function analyzeProof(bytes: Buffer, options: {
     gaps,
     sourceSha256,
     indexes,
+    storyMap,
     llmCalls: 0 as const,
   };
 }

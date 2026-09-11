@@ -31,6 +31,8 @@ export const ProofStageSchema = z.enum([
 
 export const CoverageReasonCodeSchema = z.enum([
   "headers_footers_not_checked",
+  "footers_not_checked",
+  "header_comments_unanchorable",
   "notes_not_checked",
   "existing_revisions_not_edited",
   "existing_comments_preserved",

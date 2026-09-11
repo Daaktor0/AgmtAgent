@@ -35,7 +35,7 @@ test("substitute fixture: ordinary sentences with planted typos and spelling err
     "Kindly correct teh attached draft before circulation.",
     "The Company shall goverment the process in writing.",
     "The Company shall have mispelled the defined term in this clause.",
-    "The Company have an obligation to notify the Buyer promptly.",
+    "The Company have an obligation to notify the Buyer promptly.", // full sentence kept as a clean trap; the phrase is not a labelled grammar error
     "The Buyer must pay,, the amount immediately.",
     "Northwind Traders Limited shall keep the Confidential Information.",
   ]);

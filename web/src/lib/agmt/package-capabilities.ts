@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { DocxPackage, isXmlPackagePart } from "./docx-package.ts";
 import { inspectZipCentralDirectory, ZIP_LIMITS, type ZipLimitSet } from "./zip-safety.ts";
+import { STORY_EXPORT_POLICY } from "./story-map.ts";
 
 export const PACKAGE_CAPABILITY_INVENTORY_VERSION = "proof-package-capabilities-v1";
 export const SUPPORTED_PROFILE_ID = "proof-docx-phase-a-v1";
@@ -629,7 +630,17 @@ function classifyPart(input: {
     };
   }
 
-  if (/^word\/(header|footer)\d*\.xml$/i.test(name)) {
+  if (/^word\/header\d*\.xml$/i.test(name)) {
+    if (STORY_EXPORT_POLICY.header.lexical) {
+      return {
+        ...base,
+        preserve: "full",
+        read: "limited",
+        edit: STORY_EXPORT_POLICY.header.correction ? "surgical" : "none",
+        disposition: "limited",
+        unsupportedReason: STORY_EXPORT_POLICY.header.comment ? null : "header_comments_unanchorable",
+      };
+    }
     return {
       ...base,
       preserve: "opaque",
@@ -637,6 +648,16 @@ function classifyPart(input: {
       edit: "none",
       disposition: "limited",
       unsupportedReason: "headers_footers_not_checked",
+    };
+  }
+  if (/^word\/footer\d*\.xml$/i.test(name)) {
+    return {
+      ...base,
+      preserve: "opaque",
+      read: "none",
+      edit: "none",
+      disposition: "limited",
+      unsupportedReason: "footers_not_checked",
     };
   }
   if (name === "word/footnotes.xml" || name === "word/endnotes.xml") {

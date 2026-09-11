@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ExtractedDocument } from "../types.ts";
-import { sourceSpan, xmlChildren, xmlTag, type ProofSource, type SourceParagraph } from "../source-map.ts";
+import { sourceSpan, treeFor, xmlChildren, xmlTag, type ProofSource, type SourceParagraph } from "../source-map.ts";
+import { lexicalParagraphs as storyLexicalParagraphs, type StoryMap } from "../story-map.ts";
 import { ProofFindingSchema, type ProofFinding, type LaunchRuleId } from "./contracts.ts";
 import type { IndexSpan, ProofIndexSet } from "./indexes/types.ts";
 
@@ -10,7 +11,12 @@ export type LaunchContext = {
   sourceSha256: string;
   indexes?: ProofIndexSet;
   language?: "en-GB" | "en-US";
+  storyMap?: StoryMap;
 };
+
+export function lexicalParagraphs(ctx: LaunchContext): SourceParagraph[] {
+  return storyLexicalParagraphs(ctx.source, ctx.storyMap);
+}
 export type Candidate = { p: SourceParagraph; start: number; end: number; replacement?: string; comment: string; related?: ProofFinding["relatedSpans"]; scopeEvidence?: ProofFinding["scopeEvidence"] };
 
 const PROSE_FUNCTION = /\b(?:the|a|an|of|to|and|in|for|by|with|from|that|this|please|kindly|each|any|all|or|as|shall|will|must|may|should|has|have|is|are|was|were)\b/i;
@@ -70,9 +76,9 @@ export function quoteKind(text: string, start: number, end: number, ctx?: Launch
   return "literal";
 }
 
-function ancestorTags(source: ProofSource, nodePath: number[]): string[] {
+function ancestorTags(source: ProofSource, partUri: string, nodePath: number[]): string[] {
   const tags: string[] = [];
-  let nodes = source.tree;
+  let nodes = treeFor(source, partUri);
   for (const index of nodePath) {
     const node = nodes[index];
     if (!node) break;
@@ -84,7 +90,7 @@ function ancestorTags(source: ProofSource, nodePath: number[]): string[] {
 
 export function spanHasProtectedMarkup(source: ProofSource, paragraph: SourceParagraph, start: number, end: number): boolean {
   return paragraph.nodes.some((node) =>
-    node.start < end && node.end > start && ancestorTags(source, node.nodePath).some((tag) => PROTECTED_MARKUP.has(tag))
+    node.start < end && node.end > start && ancestorTags(source, paragraph.partUri, node.nodePath).some((tag) => PROTECTED_MARKUP.has(tag))
   );
 }
 

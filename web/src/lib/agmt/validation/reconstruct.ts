@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { DocxPackage } from "../docx-package.ts";
-import { nodeAt, xmlAttrs, xmlChildren, xmlTag, type XmlNode } from "../source-map.ts";
+import { nodeAt, treeFor, xmlAttrs, xmlChildren, xmlTag, type XmlNode } from "../source-map.ts";
 import { parser, walk, ids } from "../export/ooxml.ts";
 import type { ExportReceipt } from "../export/receipt.ts";
 import type { ProofFinding, SourceSpan } from "../proof/contracts.ts";
@@ -64,9 +64,14 @@ function applyCorrections(text: string, findings: ProofFinding[], spanOf: (findi
   return expected;
 }
 
-function shiftForCorrections(position: number, findings: ProofFinding[], paragraphPath: number[]): number {
+function shiftForCorrections(position: number, findings: ProofFinding[], span: { partUri: string; paragraphPath: number[] }): number {
   return findings
-    .filter((finding) => finding.kind === "correction" && JSON.stringify(finding.primarySpan.paragraphPath) === JSON.stringify(paragraphPath) && finding.primarySpan.textEnd <= position)
+    .filter((finding) =>
+      finding.kind === "correction"
+      && finding.primarySpan.partUri === span.partUri
+      && JSON.stringify(finding.primarySpan.paragraphPath) === JSON.stringify(span.paragraphPath)
+      && finding.primarySpan.textEnd <= position
+    )
     .reduce((sum, finding) => sum + (finding.replacement ?? "").length - finding.exactQuote.length, 0);
 }
 
@@ -164,19 +169,27 @@ export async function validateOutputReconstruction(input: {
   const limits = input.sourcePkg?.limits ?? input.sourceZip?.limits ?? undefined;
   const original = DocxPackage.open(input.sourceBytes, { limits, verify: false });
   const result = DocxPackage.open(input.output, { limits: original.limits, verify: false });
-  const sourceTree = input.analysis.source.tree;
-  const outputTree: XmlNode[] = parser.parse(result.text("word/document.xml"));
+  const outputTrees = new Map<string, XmlNode[]>();
+  outputTrees.set("/word/document.xml", parser.parse(result.text("word/document.xml")));
+  for (const name of result.names()) {
+    if (/^word\/(header|footer)\d*\.xml$/i.test(name) || name === "word/footnotes.xml" || name === "word/endnotes.xml") {
+      outputTrees.set(`/${name}`, parser.parse(result.text(name)));
+    }
+  }
+  const markupTrees = [...outputTrees.values()];
   const revisionSet = new Set(input.receipt.revisionIds);
   const commentSet = new Set([...input.receipt.commentIds, ...input.receipt.noticeIds]);
 
   for (const id of revisionSet) {
     let count = 0;
-    walk(outputTree, (node) => {
-      if (["w:ins", "w:del"].includes(xmlTag(node)) && xmlAttrs(node)["@_w:id"] === id) {
-        assert.equal(xmlAttrs(node)["@_w:author"], "Agmt Proof");
-        count++;
-      }
-    });
+    for (const tree of markupTrees) {
+      walk(tree, (node) => {
+        if (["w:ins", "w:del"].includes(xmlTag(node)) && xmlAttrs(node)["@_w:id"] === id) {
+          assert.equal(xmlAttrs(node)["@_w:author"], "Agmt Proof");
+          count++;
+        }
+      });
+    }
     assert.equal(count, 1, "missing_or_duplicate_revision");
   }
 
@@ -185,21 +198,29 @@ export async function validateOutputReconstruction(input: {
   for (const id of commentSet) {
     for (const tag of ["w:commentRangeStart", "w:commentRangeEnd", "w:commentReference", "w:comment"] as const) {
       let count = 0;
-      walk(tag === "w:comment" ? commentTree : outputTree, (node) => {
-        if (xmlTag(node) === tag && xmlAttrs(node)["@_w:id"] === id) count++;
-      });
+      const trees = tag === "w:comment" ? [commentTree] : markupTrees;
+      for (const tree of trees) {
+        walk(tree, (node) => {
+          if (xmlTag(node) === tag && xmlAttrs(node)["@_w:id"] === id) count++;
+        });
+      }
       assert.equal(count, 1, "missing_or_duplicate_comment_anchor");
     }
   }
 
+  const paragraphs = [...input.analysis.source.paragraphs, ...input.analysis.source.storyParagraphs];
   assert.equal(input.analysis.source.paragraphs.length > 0, true, "missing_source_paragraphs");
-  for (let index = 0; index < input.analysis.source.paragraphs.length; index++) {
-    const paragraph = input.analysis.source.paragraphs[index]!;
-    const sourceNode = nodeAt(sourceTree, paragraph.paragraphPath);
+  for (const paragraph of paragraphs) {
+    const sourceNode = nodeAt(treeFor(input.analysis.source, paragraph.partUri), paragraph.paragraphPath);
+    const outputTree = outputTrees.get(paragraph.partUri);
+    if (!outputTree) continue;
     const outputNode = nodeAt(outputTree, paragraph.paragraphPath);
     const rejected = visibleText(xmlChildren(outputNode), revisionSet, "reject");
     const accepted = visibleText(xmlChildren(outputNode), revisionSet, "accept");
-    const planned = input.receipt.plan.findings.filter((finding) => JSON.stringify(finding.primarySpan.paragraphPath) === JSON.stringify(paragraph.paragraphPath));
+    const planned = input.receipt.plan.findings.filter((finding) =>
+      finding.primarySpan.partUri === paragraph.partUri
+      && JSON.stringify(finding.primarySpan.paragraphPath) === JSON.stringify(paragraph.paragraphPath)
+    );
     assert.equal(rejected, visibleText(xmlChildren(sourceNode), new Set(), "accept"), "rejecting_only_Agmt_must_restore_source");
     assert.equal(accepted, applyCorrections(paragraph.text, planned, (finding) => finding.primarySpan), "accepting_only_Agmt_must_match_plan");
     assert.deepEqual(
@@ -209,8 +230,8 @@ export async function validateOutputReconstruction(input: {
     );
   }
 
-  const sourceRevisions = revisionRecords(sourceTree);
-  const outputRevisions = revisionRecords(outputTree);
+  const sourceRevisions = revisionRecords(input.analysis.source.tree);
+  const outputRevisions = revisionRecords(outputTrees.get("/word/document.xml") ?? []);
   for (const [id, record] of sourceRevisions) {
     assert.ok(!revisionSet.has(id), "existing_revision_reused");
     assert.deepEqual(outputRevisions.get(id), record, "existing_revision_changed");
@@ -252,10 +273,12 @@ export async function validateOutputReconstruction(input: {
     assert.ok(comment);
     const actualText = visibleText(xmlChildren(comment), new Set(), "accept");
     assert.equal(actualText, expected.text, "comment_text_mismatch");
-    const paragraph = nodeAt(outputTree, expected.span.paragraphPath);
+    const commentPartTree = outputTrees.get(expected.span.partUri) ?? outputTrees.get("/word/document.xml");
+    assert.ok(commentPartTree, "missing_comment_part");
+    const paragraph = nodeAt(commentPartTree, expected.span.paragraphPath);
     const range = commentRange(paragraph, id);
-    const startShift = shiftForCorrections(expected.span.textStart, input.receipt.plan.findings, expected.span.paragraphPath);
-    const endShift = shiftForCorrections(expected.span.textEnd, input.receipt.plan.findings, expected.span.paragraphPath);
+    const startShift = shiftForCorrections(expected.span.textStart, input.receipt.plan.findings, expected.span);
+    const endShift = shiftForCorrections(expected.span.textEnd, input.receipt.plan.findings, expected.span);
     assert.equal(range.start, expected.span.textStart + startShift, "comment_start_mismatch");
     assert.equal(range.end, expected.span.textEnd + endShift, "comment_end_mismatch");
   }

@@ -22,6 +22,12 @@ export type SourceParagraph = {
   storyId: string;
   language?: string | null;
 };
+export type ProofPartSource = {
+  partUri: string;
+  xml: string;
+  tree: XmlNode[];
+};
+
 export type ProofSource = {
   xml: string;
   tree: XmlNode[];
@@ -30,7 +36,35 @@ export type ProofSource = {
   gaps: string[];
   digest: string;
   projectionVersion?: string;
+  parts: Readonly<Record<string, ProofPartSource>>;
+  storyParagraphs: SourceParagraph[];
 };
+
+export function treeFor(source: ProofSource, partUri: string): XmlNode[] {
+  if (partUri === "/word/document.xml") return source.tree;
+  const part = source.parts[partUri];
+  if (!part) throw new Error("unknown_source_part");
+  return part.tree;
+}
+
+export function xmlFor(source: ProofSource, partUri: string): string {
+  if (partUri === "/word/document.xml") return source.xml;
+  const part = source.parts[partUri];
+  if (!part) throw new Error("unknown_source_part");
+  return part.xml;
+}
+
+export function findSourceParagraph(
+  source: ProofSource,
+  partUri: string,
+  paragraphPath: readonly number[],
+  extra: readonly SourceParagraph[] = [],
+): SourceParagraph | undefined {
+  const key = JSON.stringify(paragraphPath);
+  return [...source.paragraphs, ...source.storyParagraphs, ...extra].find(
+    (paragraph) => paragraph.partUri === partUri && JSON.stringify(paragraph.paragraphPath) === key,
+  );
+}
 
 export function xmlTag(node: XmlNode): string {
   return Object.keys(node).find((key) => key !== ":@") ?? "";
@@ -89,6 +123,7 @@ export function mapProofSource(xml: string, tree: XmlNode[]): ProofSource {
     storyKind: "body",
     storyId: "body:main",
   });
+  const part = { partUri: "/word/document.xml", xml, tree };
   return deepFreeze({
     xml,
     tree,
@@ -97,6 +132,8 @@ export function mapProofSource(xml: string, tree: XmlNode[]): ProofSource {
     gaps: story.gaps,
     digest: story.digest,
     projectionVersion: PROJECTION_VERSION,
+    parts: { "/word/document.xml": part },
+    storyParagraphs: [],
   });
 }
 
@@ -108,14 +145,20 @@ export function sourceSpan(p: SourceParagraph, start: number, end: number): Sour
   });
 }
 
-export function validateSourceSpan(source: ProofSource, span: SourceSpan, quote: string): SourceParagraph {
+export function validateSourceSpan(
+  source: ProofSource,
+  span: SourceSpan,
+  quote: string,
+  extra: readonly SourceParagraph[] = [],
+): SourceParagraph {
   SourceSpanSchema.parse(span);
-  const p = source.paragraphs.find((p) => p.partUri === span.partUri && JSON.stringify(p.paragraphPath) === JSON.stringify(span.paragraphPath));
+  const p = findSourceParagraph(source, span.partUri, span.paragraphPath, extra);
   if (!p) throw new Error("invalid_source_paragraph");
   const expected = sourceSpan(p, span.textStart, span.textEnd);
   if (JSON.stringify(expected) !== JSON.stringify(span)) throw new Error("source_node_mismatch");
+  const tree = treeFor(source, span.partUri);
   const actual = span.nodeSegments.map((s) => {
-    const node = nodeAt(source.tree, s.nodePath);
+    const node = nodeAt(tree, s.nodePath);
     const tag = xmlTag(node);
     const value = tag === "w:t" ? textValue(node) : tag === "w:tab" ? "\t" : ["w:br", "w:cr"].includes(tag) ? "\n" : null;
     if (value === null) throw new Error("invalid_source_text_node");

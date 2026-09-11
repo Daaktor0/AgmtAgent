@@ -19,6 +19,7 @@ function ProofHelp() {
           <li>Repeated ordinary function words such as “the the”</li>
           <li>Repeated punctuation such as “pay,,”, extra ordinary-prose spaces, a space before a comma or full stop, and a missing space after punctuation, as tracked changes when the span is exact</li>
           <li>Unmatched brackets or quotation marks, as comments, after checking neighbouring paragraphs. Proof does not insert the missing mark merely because one paragraph is missing it</li>
+          <li>Headers: tracked typo and punctuation corrections only. Proof does not place comments in headers in this cohort. Footers, footnotes and endnotes are preserved and not checked</li>
           <li>Unfinished placeholders such as [●] or [TBD]</li>
           <li>Duplicate definitions in an unambiguous scope, schedule re-definitions that change the meaning, and defined terms used with the wrong capitalisation</li>
           <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete</li>
@@ -41,6 +42,8 @@ function ProofHelp() {
         <p>The published file-size limit is {publishedProofCapacityPolicy().label}. {PROOF_LOCAL_LIMITS_NOTE} File-size refusals are distinct from complexity refusals (Word XML or extracted text). Proof does not recommend splitting an agreement into clauses, because that can miss document-wide checks.</p>
         <h2 className="font-display text-2xl">If something goes wrong</h2>
         <p>If a document cannot be processed safely, choose another file. Closing or refreshing this page loses the current run; choose the file again. Proof does not keep a copy on Agmt’s servers to resume later.</p>
+        <h2 className="font-display text-2xl">Invited testing</h2>
+        <p>Public Proof stays available. Invited testers can report an incorrect finding, a missed error, or a formatting or download problem without attaching the document. <Link to="/proof/feedback" className="underline underline-offset-4">Send feedback</Link>.</p>
         <p><Link to="/proof" className="underline underline-offset-4">Back to Proof</Link></p>
       </article>
   );

@@ -23,6 +23,8 @@ const TERMINAL = new Set<RunStatus>(["ready", "rejected", "failed", "deleted"]);
 
 export const COVERAGE_REASON_COPY: Readonly<Record<CoverageReasonCode, string>> = Object.freeze({
   headers_footers_not_checked: "Headers and footers were preserved but not checked",
+  footers_not_checked: "Footers were preserved but not checked",
+  header_comments_unanchorable: "Headers were checked for tracked corrections; comments cannot be placed in headers in this Word version",
   notes_not_checked: "Footnotes and endnotes were preserved but not checked",
   existing_revisions_not_edited: "Some text already marked with tracked changes was not edited",
   existing_comments_preserved: "Existing comments were preserved and not treated as new issues",

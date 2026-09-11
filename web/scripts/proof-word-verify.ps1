@@ -15,7 +15,9 @@ $pairs = @(
   @{ Name = "party_name"; Source = "party_name.docx"; Output = "party_name_Proofread.docx"; Corrections = 0; Comments = 0 },
   @{ Name = "user_report"; Source = "user_report.docx"; Output = "user_report_Proofread.docx"; Corrections = 3; Comments = 3 },
   @{ Name = "repeat_misspelling"; Source = "repeat_misspelling.docx"; Output = "repeat_misspelling_Proofread.docx"; Corrections = 0; Comments = 1 },
-  @{ Name = "clean_traps"; Source = "clean_traps.docx"; Output = "clean_traps_Proofread.docx"; Corrections = 0; Comments = 0 }
+  @{ Name = "clean_traps"; Source = "clean_traps.docx"; Output = "clean_traps_Proofread.docx"; Corrections = 0; Comments = 0 },
+  @{ Name = "header_typo"; Source = "header_typo.docx"; Output = "header_typo_Proofread.docx"; Corrections = 1; Comments = 1 },
+  @{ Name = "header_clean"; Source = "header_clean.docx"; Output = "header_clean_Proofread.docx"; Corrections = 0; Comments = 1 }
 )
 
 $word = New-Object -ComObject Word.Application
@@ -37,6 +39,12 @@ try {
     $doc = $word.Documents.Open($output, $false, $true)
     try {
       $revisions = $doc.Revisions.Count
+      try {
+        $headerStory = $doc.StoryRanges.Item(7)
+        $revisions = $revisions + $headerStory.Revisions.Count
+      } catch {
+        # No primary header story.
+      }
       $comments = $doc.Comments.Count
       $ok = ($revisions -ge $pair.Corrections) -and ($comments -ge $pair.Comments)
       Write-Output "$($pair.Name) revisions=$revisions comments=$comments expected_corrections>=$($pair.Corrections) expected_comments>=$($pair.Comments) $(if ($ok) { 'PASS' } else { 'FAIL' })"

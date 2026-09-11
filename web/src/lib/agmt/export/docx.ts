@@ -156,8 +156,12 @@ export async function exportProofDocx(
     await validateProofExport(bytes, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), receipt, analysis, pkg);
     return { bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), analysis, receipt };
   }
-  const tree = structuredClone(analysis.source.tree);
-  const editedPaths = new Map<string, number[]>();
+  const trees = new Map<string, XmlNode[]>();
+  trees.set("/word/document.xml", structuredClone(analysis.source.tree));
+  for (const [partUri, part] of Object.entries(analysis.source.parts)) {
+    if (!trees.has(partUri)) trees.set(partUri, structuredClone(part.tree));
+  }
+  const editedPaths = new Map<string, { partUri: string; path: number[] }>();
   const used = new Set<string>();
   for (const name of pkg.names().filter((entry) => isXmlPackagePart(entry))) {
     const xml = pkg.text(name);
@@ -191,28 +195,50 @@ export async function exportProofDocx(
     commentMap.set(finding.id, id);
     comments.push({ id, text: finding.comment });
   }
-  for (const paragraph of analysis.source.paragraphs) {
-    const findings = plan.findings.filter((finding) => JSON.stringify(finding.primarySpan.paragraphPath) === JSON.stringify(paragraph.paragraphPath));
+  const allParagraphs = [...analysis.source.paragraphs, ...analysis.source.storyParagraphs];
+  for (const paragraph of allParagraphs) {
+    const findings = plan.findings.filter((finding) =>
+      finding.primarySpan.partUri === paragraph.partUri
+      && JSON.stringify(finding.primarySpan.paragraphPath) === JSON.stringify(paragraph.paragraphPath)
+    );
     if (findings.length) {
+      const tree = trees.get(paragraph.partUri);
+      if (!tree) throw new Error("missing_export_part");
       rewriteParagraph(nodeAt(tree, paragraph.paragraphPath), paragraph, findings, commentMap, nextRevision, date);
-      editedPaths.set(JSON.stringify(paragraph.paragraphPath), paragraph.paragraphPath);
+      editedPaths.set(`${paragraph.partUri}:${JSON.stringify(paragraph.paragraphPath)}`, { partUri: paragraph.partUri, path: paragraph.paragraphPath });
     }
   }
   for (const notice of plan.notices) {
+    const tree = trees.get("/word/document.xml") ?? trees.get(notice.presentationSpan.partUri);
+    if (!tree) throw new Error("missing_export_part");
     const paragraph = nodeAt(tree, notice.presentationSpan.paragraphPath);
     const id = allocate();
     noticeIds.push(id);
     comments.push({ id, text: notice.comment });
-    editedPaths.set(JSON.stringify(notice.presentationSpan.paragraphPath), notice.presentationSpan.paragraphPath);
+    editedPaths.set(`${notice.presentationSpan.partUri}:${JSON.stringify(notice.presentationSpan.paragraphPath)}`, { partUri: notice.presentationSpan.partUri, path: notice.presentationSpan.paragraphPath });
     const children = xmlChildren(paragraph);
     const at = xmlTag(children[0] ?? {}) === "w:pPr" ? 1 : 0;
     children.splice(at, 0, element("w:commentRangeStart", [], { "@_w:id": id }));
     children.push(element("w:commentRangeEnd", [], { "@_w:id": id }), element("w:r", [element("w:commentReference", [], { "@_w:id": id })]));
   }
-  const modifiedParts = ["word/document.xml"];
   const encoder = new TextEncoder();
   const rewritten = new Map<string, Uint8Array>();
-  rewritten.set("word/document.xml", encoder.encode(replaceParagraphXml(analysis.source.xml, analysis.source.tree, tree, [...editedPaths.values()])));
+  const modifiedParts: string[] = [];
+  const pathsByPart = new Map<string, number[][]>();
+  for (const entry of editedPaths.values()) {
+    const list = pathsByPart.get(entry.partUri) ?? [];
+    if (!list.some((path) => JSON.stringify(path) === JSON.stringify(entry.path))) list.push(entry.path);
+    pathsByPart.set(entry.partUri, list);
+  }
+  for (const [partUri, paths] of pathsByPart) {
+    const originalXml = partUri === "/word/document.xml" ? analysis.source.xml : analysis.source.parts[partUri]?.xml;
+    const originalTree = partUri === "/word/document.xml" ? analysis.source.tree : analysis.source.parts[partUri]?.tree;
+    const modifiedTree = trees.get(partUri);
+    if (!originalXml || !originalTree || !modifiedTree) throw new Error("missing_export_part");
+    const name = partUri.replace(/^\//, "");
+    rewritten.set(name, encoder.encode(replaceParagraphXml(originalXml, originalTree, modifiedTree, paths)));
+    modifiedParts.push(name);
+  }
   if (comments.length) {
     const name = "word/comments.xml";
     const existing = pkg.has(name) ? pkg.text(name) : undefined;

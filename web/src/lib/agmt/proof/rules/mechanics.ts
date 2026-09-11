@@ -4,7 +4,7 @@
  * Pairs are evaluated across consecutive same-story paragraphs; a missing
  * close in one paragraph is not inferred when the neighbour completes it.
  */
-import { candidateFinding, ordinaryProse, quoteKind, spanHasProtectedMarkup, type LaunchContext } from "../launch-context.ts";
+import { candidateFinding, lexicalParagraphs, ordinaryProse, quoteKind, spanHasProtectedMarkup, type LaunchContext } from "../launch-context.ts";
 import type { LaunchRuleId, ProofFinding } from "../contracts.ts";
 import type { SourceParagraph } from "../../source-map.ts";
 
@@ -53,7 +53,7 @@ function spacedEllipsis(text: string, index: number): boolean {
 
 function duplicateMarkFindings(ctx: LaunchContext): ProofFinding[] {
   const out: ProofFinding[] = [];
-  for (const paragraph of ctx.source.paragraphs) {
+  for (const paragraph of lexicalParagraphs(ctx)) {
     for (const match of paragraph.text.matchAll(/([,.;:])\1+/g)) {
       const mark = match[1]!;
       const run = match[0];
@@ -69,7 +69,7 @@ function duplicateMarkFindings(ctx: LaunchContext): ProofFinding[] {
 
 function accidentalSpacingFindings(ctx: LaunchContext): ProofFinding[] {
   const out: ProofFinding[] = [];
-  for (const paragraph of ctx.source.paragraphs) {
+  for (const paragraph of lexicalParagraphs(ctx)) {
     if (paragraph.isTable) continue;
     for (const match of paragraph.text.matchAll(/(?<![.?!])(?<=\S) {2,}(?=\S)/g)) {
       const start = match.index;
@@ -83,7 +83,7 @@ function accidentalSpacingFindings(ctx: LaunchContext): ProofFinding[] {
 
 function spaceBeforeFindings(ctx: LaunchContext): ProofFinding[] {
   const out: ProofFinding[] = [];
-  for (const paragraph of ctx.source.paragraphs) {
+  for (const paragraph of lexicalParagraphs(ctx)) {
     for (const match of paragraph.text.matchAll(/ +([,.;:)])/g)) {
       const start = match.index;
       const end = start + match[0].length;
@@ -103,7 +103,7 @@ function wordBefore(text: string, punctIndex: number): string {
 
 function missingSpaceAfterFindings(ctx: LaunchContext): ProofFinding[] {
   const out: ProofFinding[] = [];
-  for (const paragraph of ctx.source.paragraphs) {
+  for (const paragraph of lexicalParagraphs(ctx)) {
     for (const match of paragraph.text.matchAll(/([A-Za-z][,;:])(?=[A-Za-z])/g)) {
       const punctAt = match.index + match[0].length - 1;
       const start = punctAt;
@@ -142,7 +142,7 @@ function pairingUnits(ctx: LaunchContext): SourceParagraph[][] {
   const units: SourceParagraph[][] = [];
   let current: SourceParagraph[] = [];
   let previous: SourceParagraph | undefined;
-  for (const paragraph of ctx.source.paragraphs) {
+  for (const paragraph of lexicalParagraphs(ctx)) {
     if (pairingBarrier(paragraph)) {
       if (current.length) units.push(current);
       current = [];

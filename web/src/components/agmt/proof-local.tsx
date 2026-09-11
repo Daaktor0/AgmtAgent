@@ -151,7 +151,7 @@ export function ProofLocalExperience() {
           {!file ? <p className="text-sm text-stone">{PROOF_LOCAL_NO_ACCOUNT}</p> : null}
           <details className="text-sm leading-6 text-stone">
             <summary className="min-h-11 cursor-pointer text-ink">Supported files</summary>
-            <p className="mt-2">Native unencrypted transitional .docx up to {publishedProofCapacityPolicy().label} on this device. Macros, encryption, IRM, Strict OOXML, .doc, .docm, .dotx and PDF are refused. Headers, footnotes and fields are preserved but not fully checked in this beta. Proof also refuses packages that exceed its ZIP expansion, XML complexity or processing-time limits; text-heavy documents may stop earlier than the source-size ceiling. Open XML SDK and Microsoft Word checks are release tests, not a per-document production scan.</p>
+            <p className="mt-2">Native unencrypted transitional .docx up to {publishedProofCapacityPolicy().label} on this device. Macros, encryption, IRM, Strict OOXML, .doc, .docm, .dotx and PDF are refused. Headers are checked for tracked typo and punctuation corrections; comments cannot be placed in headers. Footers, footnotes, endnotes and fields are preserved but not fully checked. Proof also refuses packages that exceed its ZIP expansion, XML complexity or processing-time limits; text-heavy documents may stop earlier than the source-size ceiling. Open XML SDK and Microsoft Word checks are release tests, not a per-document production scan.</p>
           </details>
         </div>
       ) : null}
@@ -207,6 +207,8 @@ export function ProofLocalExperience() {
       <p className="text-sm leading-6 text-stone">
         {PROOF_LOCAL_SCOPE} It doesn’t provide a comprehensive legal review. You accept or reject proposed corrections in Word. Refreshing this page discards the current run. {PROOF_LOCAL_SESSION_LOST}{" "}
         <Link to="/proof/help" className="underline underline-offset-4">Help</Link>
+        {" · "}
+        <Link to="/proof/feedback" className="underline underline-offset-4">Send feedback</Link>
         {import.meta.env.DEV ? <> · <Link to="/proof/dev" className="underline underline-offset-4">Development fixtures</Link></> : null}
       </p>
     </div>

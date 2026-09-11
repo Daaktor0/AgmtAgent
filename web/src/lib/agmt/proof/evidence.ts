@@ -22,6 +22,7 @@ import {
   graphemeBoundary,
   nodeAt,
   sourceSpan,
+  treeFor,
   validateSourceSpan,
   xmlTag,
   xmlChildren,
@@ -76,7 +77,7 @@ function textValue(node: ReturnType<typeof nodeAt>): string {
 
 function replayNodeText(source: ProofSource, span: SourceSpan | SpanV2): string {
   return span.nodeSegments.map((segment) => {
-    const node = nodeAt(source.tree, segment.nodePath);
+    const node = nodeAt(treeFor(source, span.partUri), segment.nodePath);
     const tag = xmlTag(node);
     const value = tag === "w:t" ? textValue(node) : tag === "w:tab" ? "\t" : ["w:br", "w:cr"].includes(tag) ? "\n" : null;
     if (value === null) fail("mapping_corruption", "projection_tree_desync");
@@ -89,13 +90,13 @@ function paragraphStoryId(paragraph: SourceParagraph): string {
 }
 
 export function locateParagraph(ctx: EvidenceContext, span: Pick<SpanV2, "storyId" | "partUri" | "paragraphPath">): SourceParagraph | undefined {
-  if (span.storyId === "body:main") {
-    return ctx.source.paragraphs.find((paragraph) =>
-      paragraph.partUri === span.partUri &&
-      JSON.stringify(paragraph.paragraphPath) === JSON.stringify(span.paragraphPath)
-    );
-  }
-  const story = ctx.stories.find((candidate) => candidate.storyId === span.storyId && candidate.partUri === span.partUri);
+  const fromSource = [...ctx.source.paragraphs, ...ctx.source.storyParagraphs].find((paragraph) =>
+    paragraph.partUri === span.partUri &&
+    JSON.stringify(paragraph.paragraphPath) === JSON.stringify(span.paragraphPath)
+  );
+  if (fromSource) return fromSource;
+  const story = ctx.stories.find((candidate) => candidate.storyId === span.storyId && candidate.partUri === span.partUri)
+    ?? ctx.stories.find((candidate) => candidate.partUri === span.partUri);
   return story?.paragraphs.find((paragraph) => JSON.stringify(paragraph.paragraphPath) === JSON.stringify(span.paragraphPath));
 }
 
@@ -118,6 +119,8 @@ export function excludedAbsenceRegions(receipt: PackageCapabilityReceipt): strin
   for (const reason of receipt.coverageReasons) {
     if (
       reason === "headers_footers_not_checked" ||
+      reason === "footers_not_checked" ||
+      reason === "header_comments_unanchorable" ||
       reason === "notes_not_checked" ||
       reason === "media_not_checked" ||
       reason === "existing_comments_preserved" ||
@@ -182,7 +185,7 @@ export function toFindingV2(ctx: EvidenceContext, finding: ProofFinding): Findin
   if (!primaryParagraph) fail("invalid_evidence", "primary_paragraph_missing");
   const related = finding.relatedSpans.map((span) => {
     const paragraph = locateParagraph(ctx, {
-      storyId: "body:main",
+      storyId: paragraphStoryId(primaryParagraph),
       partUri: span.partUri,
       paragraphPath: span.paragraphPath,
     });

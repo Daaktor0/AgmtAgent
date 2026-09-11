@@ -12,7 +12,7 @@
 import nspell from "nspell";
 import { hunspellFiles } from "./dictionaries/load.ts";
 import { LEGAL_ALLOWLIST } from "./legal-allowlist.ts";
-import { candidateFinding, knownTermTokens, ordinaryProse, type LaunchContext } from "./launch-context.ts";
+import { candidateFinding, knownTermTokens, lexicalParagraphs, ordinaryProse, type LaunchContext } from "./launch-context.ts";
 import { TYPO_ALLOWLIST } from "./typo-allowlist.ts";
 import { ProofFindingSchema, type ProofFinding } from "./contracts.ts";
 
@@ -88,7 +88,7 @@ function unknownTitleRun(text: string, start: number, spell: ReturnType<typeof n
 }
 
 function spanInRevision(ctx: LaunchContext, finding: ProofFinding): boolean {
-  const paragraph = ctx.source.paragraphs.find((item) =>
+  const paragraph = lexicalParagraphs(ctx).find((item) =>
     item.partUri === finding.primarySpan.partUri
     && JSON.stringify(item.paragraphPath) === JSON.stringify(finding.primarySpan.paragraphPath)
   );
@@ -130,7 +130,7 @@ export function spellingRuleFindings(ctx: LaunchContext): ProofFinding[] {
   const spell = checker(language);
   const names = knownTermTokens(ctx);
   const detected: ProofFinding[] = [];
-  for (const paragraph of ctx.source.paragraphs) {
+  for (const paragraph of lexicalParagraphs(ctx)) {
     for (const match of paragraph.text.matchAll(new RegExp(TOKEN.source, "g"))) {
       const word = match[1]!;
       const start = match.index;

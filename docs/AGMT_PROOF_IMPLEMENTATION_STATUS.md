@@ -1414,6 +1414,20 @@ User report: a small Word document with deliberately inserted proofreading error
 
 **Must-not-change held:** anonymous local Proof; zero LLM; uploads unset; no Hostinger; no Cloudflare Containers; no automatic R2 fallback; no fake sessions; no document-derived personal dictionary.
 
+### Deploy receipt — PEE-20 empty-result fix (2026-09-11)
+
+| Item | Value |
+|---|---|
+| Source commit serving | `9ffcdff361b7605cd8da200d129642f1e51951f9` (spelling `a260fe9` + Worker dictionary stub) |
+| Worker `agmt` 100% | `e8f02aaa-3455-42e1-a469-9fad80c95655` (wrangler deploy, startup 62 ms) |
+| First `a260fe9` Workers Build | Failed: Node `fileURLToPath(import.meta.url)` in the host Worker. Not 100% traffic. |
+| Live `/proof` | Signed-out. Copy includes ordinary-prose spelling. |
+| Production user-report journey | `userReport.ok=true`, state ready. Word COM alerts on: **4 revisions / 3 comments**. Open XML SDK ok. |
+| Word evidence | Tracked corrections for `recieve` and `teh`. Comments for `goverment` and `mispelled`. `Confidential Information` (undefined-use comment; not a tracked change). Grammar/`pay,,` still unmarked. Clean `party_name` 0/0. |
+| Network/storage | No document leaks; empty persistent browser storage. Protected routes still 401. |
+
+**Auth remaining (separate, not fixed):** verification delivery 422; first-request sign-in timeout untraced. Not blocking local Proof.
+
 ### Browser-side processing feasibility (synthetic prototype, retained)
 
 Bounded prototype only. Production architecture was **not** rewritten. Prototype is **not** launch-ready and is **not** wired to `/proof`. Hostinger remains excluded. Cloudflare Containers remain unprovisioned. Uploads remain disabled.

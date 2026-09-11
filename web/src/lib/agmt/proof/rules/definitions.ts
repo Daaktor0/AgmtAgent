@@ -38,6 +38,7 @@ const GEO_STARTERS = new Set([
   "saint", "san", "santa", "los", "las", "mount", "port", "fort", "lake", "cape",
 ]);
 const TITLE_CASE = /\b([A-Z][A-Za-z0-9'&/-]*(?:\s+[A-Z][A-Za-z0-9'&/-]*)+)\b/g;
+const LOCATION_QUALIFIER = /^\s+(?:stated|set out|listed|described|specified|identified)\s+in\s+(?:this\s+)?(?:Schedule|Annexure|Annex|Appendix|Exhibit|Clause|Section|the Original)\b/i;
 const HEADER_DEFINITION = /[“"][^”"]+[”"]\s+(?:means and includes|shall have the meaning|has the meaning|shall mean|means|includes|as defined in)\b|[“"][^”"]+[”"]\s*:/;
 const LOCAL_PURPOSE = /\bfor the purposes of this (?:schedule|annexure|annex|appendix|exhibit|part)\b/i;
 const EXPRESS_OVERRIDE = /\b(?:notwithstanding|unless otherwise (?:defined|provided|specified)|except as otherwise (?:defined|provided|specified)|only for (?:the purposes of )?this (?:schedule|annexure|annex|appendix|exhibit|part)|in this (?:schedule|annexure|annex|appendix|exhibit|part) only)\b/i;
@@ -232,6 +233,7 @@ export function definitionRuleFindings(ctx: LaunchContext, rule: LaunchRuleId): 
         if (sentenceStart(paragraph.text, start)) continue;
         if (inRevision(paragraph, start, end)) continue;
         if (!definedTermDeterminer(paragraph.text, start)) continue;
+        if (LOCATION_QUALIFIER.test(paragraph.text.slice(end))) continue;
         if (properNounPhrase(phrase)) continue;
         const words = phrase.split(/\s+/);
         if (words.some((word) => CAP_STOPWORDS.has(word))) continue;

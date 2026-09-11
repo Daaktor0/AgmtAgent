@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import { DocxPackage } from "./docx-package.ts";
 import { extractDocx } from "./docx-v2.ts";
 import { exportProofDocx } from "./export/docx.ts";
+import { buildDocx } from "./docx.ts";
 import { analyzeProof } from "./proof/launch.ts";
 import { processProofLocal } from "../proof-local/pipeline.ts";
 import {
@@ -109,4 +110,20 @@ test("PWC-38 header comments remain unanchorable until Word validates them", () 
   assert.equal(STORY_EXPORT_POLICY.header.correction, true);
   assert.equal(STORY_EXPORT_POLICY.footer.lexical, false);
   assert.equal(STORY_EXPORT_POLICY.footnote.lexical, false);
+});
+
+test("PWC-38 unsupported header comments are disclosed and never moved into the body", async () => {
+  const bytes = await buildDocx([BODY_CLEAN], { header: "Please appoint a liason officer for the completion file." });
+  const analysis = await analyzeProof(bytes);
+  assert.equal(analysis.plan.findings.some((finding) => finding.exactQuote === "liason"), false);
+  assert.ok(analysis.gaps.includes("header_comments_unanchorable"));
+  const exported = await exportProofDocx(bytes, new Date("2026-09-11T00:00:00Z"), { analysis });
+  const zip = await JSZip.loadAsync(exported.bytes);
+  const headerXml = await zip.file("word/header1.xml")!.async("string");
+  const documentXml = await zip.file("word/document.xml")!.async("string");
+  assert.match(headerXml, /liason/);
+  assert.doesNotMatch(headerXml, /<w:commentRangeStart\b/);
+  assert.doesNotMatch(documentXml, /liason/);
+  const comments = await zip.file("word/comments.xml")!.async("string");
+  assert.match(comments, /header_comments_unanchorable/);
 });

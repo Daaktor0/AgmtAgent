@@ -1,18 +1,18 @@
 /**
- * Invited-cohort Proof feedback. Explicit user send only. No document bytes,
- * filenames, excerpts or findings are attached. Does not use authentication
- * email. Stores a structured log line on the existing Workers observability
- * channel.
+ * Invited-cohort Proof feedback. Explicit user send only.
+ * Observability stores bounded structured fields: category, optional closed
+ * reason code, and explicitly consented technical metadata. No free text,
+ * filenames, excerpts, findings or document content.
  */
 import { createHash } from "node:crypto";
 import {
-  PROOF_BETA_FEEDBACK_MAX_NOTE,
   PROOF_BETA_FEEDBACK_VERSION,
   ProofBetaFeedbackRequestSchema,
   type ProofBetaFeedbackRequest,
 } from "../proof-local/beta-feedback.ts";
 
 export const PROOF_BETA_FEEDBACK_MAX_PER_IP_DAY = 20;
+export const PROOF_BETA_FEEDBACK_MAX_BYTES = 1024;
 const TRUSTED_ORIGINS = ["https://app.agmt.legal", "http://localhost:8080", "http://127.0.0.1:8080"];
 
 export class ProofBetaFeedbackError extends Error {
@@ -49,6 +49,19 @@ function ipKey(request: Request, now: number): string {
   return `${utcDay(now)}:${createHash("sha256").update(ip).digest("hex").slice(0, 16)}`;
 }
 
+export function proofBetaFeedbackLogLine(body: ProofBetaFeedbackRequest, now: number): string {
+  return JSON.stringify({
+    type: "PROOF_BETA_FEEDBACK",
+    version: PROOF_BETA_FEEDBACK_VERSION,
+    category: body.category,
+    reasonCode: body.reasonCode,
+    includeTechnical: body.includeTechnical,
+    appVersion: body.appVersion,
+    browser: body.browser,
+    at: new Date(now).toISOString(),
+  });
+}
+
 export async function handleProofBetaFeedback(request: Request, now = Date.now()): Promise<Response> {
   const headers = { "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
   if (request.method !== "POST") {
@@ -58,7 +71,7 @@ export async function handleProofBetaFeedback(request: Request, now = Date.now()
     return Response.json({ error: "invalid_origin" }, { status: 403, headers });
   }
   const raw = await request.text();
-  if (raw.length > PROOF_BETA_FEEDBACK_MAX_NOTE + 1024) {
+  if (raw.length > PROOF_BETA_FEEDBACK_MAX_BYTES) {
     throw new ProofBetaFeedbackError("payload_too_large", 400, "Feedback is too long");
   }
   let parsed: unknown;
@@ -76,15 +89,6 @@ export async function handleProofBetaFeedback(request: Request, now = Date.now()
     throw new ProofBetaFeedbackError("quota_exceeded", 429, "Today’s feedback limit is reached");
   }
   counts.set(key, used + 1);
-  console.info(JSON.stringify({
-    type: "PROOF_BETA_FEEDBACK",
-    version: PROOF_BETA_FEEDBACK_VERSION,
-    category: body.category,
-    note: body.note,
-    includeTechnical: body.includeTechnical,
-    appVersion: body.appVersion,
-    browser: body.browser,
-    at: new Date(now).toISOString(),
-  }));
+  console.info(proofBetaFeedbackLogLine(body, now));
   return Response.json({ ok: true, version: PROOF_BETA_FEEDBACK_VERSION }, { headers });
 }

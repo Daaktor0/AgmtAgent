@@ -16,6 +16,14 @@ const LITERAL_NUMBER = /^\s*(?:(?:Clause|Section|Article)\s+)?(\d+(?:\.\d+)*)(?:
 const HEADING = /^\s*(SCHEDULE|ANNEX(?:URE)?|EXHIBIT|APPENDIX|PART)\s+([A-Za-z0-9]+)\s*(?:$|[—–:-])/i;
 const LIMB = /^\s*\(([a-zA-Z]{1,4}|[ivxlcdm]{1,6})\)\s+/;
 
+/** Paragraph-start numbering label. “Clause 4.1 of the Original Agreement…” is a citation, not a number. */
+export function literalNumberingMatch(text: string): { label: string; match: RegExpMatchArray } | null {
+  const match = text.match(LITERAL_NUMBER);
+  if (!match) return null;
+  if (/^of\b/i.test(text.slice(match[0].length))) return null;
+  return { label: match[1]!, match };
+}
+
 function stripNumberingPunctuation(label: string): string {
   return label.replace(/[.)]+$/, "");
 }
@@ -32,12 +40,12 @@ function headingEntry(paragraph: SourceParagraph): NumberingEntry | null {
 }
 
 function literalEntry(paragraph: SourceParagraph): NumberingEntry | null {
-  const match = paragraph.text.match(LITERAL_NUMBER);
-  if (!match) return null;
-  const start = match[0].indexOf(match[1]!);
-  const span = indexSpan(paragraph, start, start + match[1]!.length);
+  const found = literalNumberingMatch(paragraph.text);
+  if (!found) return null;
+  const start = found.match[0].indexOf(found.label);
+  const span = indexSpan(paragraph, start, start + found.label.length);
   if (!span) return null;
-  return { scope: paragraph.scope, namespace: "clause", label: match[1]!, source: "literal", span };
+  return { scope: paragraph.scope, namespace: "clause", label: found.label, source: "literal", span };
 }
 
 function limbEntry(paragraph: SourceParagraph): NumberingEntry | null {

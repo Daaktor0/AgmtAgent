@@ -1548,7 +1548,15 @@ The stub does **not** replace the live checker. Live `/assets/proof.worker-BjpnD
 
 **Beta evaluation (labelled before execution, 20 independent synthetic documents, not packed PEE cases)**
 
-11 clean / 9 dirty. First run flagged extra structural comments on three documents I had called clean (undefined title-case labels and missing schedule/clause targets). Those were advertised-rule hits, not unsafe corrections. The clean fixtures were rewritten so those traps sit outside advertised structural rules, then re-run.
+First-run population restored. Three documents rewritten after observing results are development/regression only (`rewritten-regression.ts`). Adjudication: `docs/proof/beta-eval-adjudication.md`. Frozen first-run: `first-run-results.json`.
+
+First-run extra comments against original clean/dirty labels: `Reference Amount`, `Schedule 1`, `Schedule 2`, duplicate `4.1`, `Payment Date`, `Clause 8`.
+
+Engine fixes evaluated on **fresh** cases, not by rewriting held-out labels:
+- Citation “Clause N of …” is not a numbering label (fixes amendment restatement `4.1`).
+- Title-case phrase immediately located in a schedule/annex is not an undefined term (fixes `Reference Amount stated in Schedule 1`).
+
+Held-out re-run after those fixes, original labels preserved:
 
 | Rule | TP | FP | FN |
 |---|---|---|---|
@@ -1556,17 +1564,21 @@ The stub does **not** replace the live checker. Live `/assets/proof.worker-BjpnD
 | `language.typo_allowlist` | 1 | 0 | 0 |
 | `punctuation.duplicate_mark` | 1 | 0 | 0 |
 | `language.duplicate_word` | 1 | 0 | 0 |
-| `definitions.undefined_use` | 1 | 0 | 0 |
+| `definitions.undefined_use` | 1 | 1 | 0 |
 | `completion.placeholder` | 1 | 0 | 0 |
 | `figures.words_figures_mismatch` | 1 | 0 | 0 |
+| `references.missing_target` | 0 | 3 | 0 |
+| `references.duplicate_number` | 0 | 0 | 0 |
 
-No unsafe correction, misplaced body relocation, or document corruption. Sample 9/9 dirty documents is not statistical confidence about real-world precision. Independent families in this set: `liason`, `seperate`, `,,`, `the the`, `Service Levels`, `[TBD]`, quoted `concensus`, repeated `guage`, `USD 10,000 (fifteen thousand)`.
+Remaining FPs against original labels: `Schedule 1` / `Schedule 2` (extract vs complete-agreement ambiguity), `Payment Date` in an amendment (lawyer judgment; title case + determiner is not enough), `Clause 8` on a two-paragraph placeholder fragment. `references.missing_target` and `definitions.undefined_use` stay enabled. Testers should treat those comments as review questions. No unsafe correction or document corruption. Sample 9/9 dirty documents is not statistical confidence about real-world precision.
 
-**Feedback route:** `/proof/feedback` (public). Categories: incorrect finding, missed error, formatting/download. Optional app version/browser only with disclosure. Free text is sent only when the tester presses Send. No filename, excerpt, finding or document is attached. Stored as a structured Workers observability log (`PROOF_BETA_FEEDBACK`); does not use authentication email or a paid service.
+**Feedback route:** `/proof/feedback` (public). Stores only category, optional closed reason code, and explicitly consented app version/browser. **No free text.** Observability log `PROOF_BETA_FEEDBACK` v2; Workers Logs retention 7 days; `head_sampling_rate` 1 (100%). Origin allowlist; 20/IP-hash/UTC day; 1 KiB payload; extra keys rejected. Does not use authentication email or a paid service. Written descriptions are not a support mailbox.
 
 **Tester brief:** `docs/proof/BETA_TESTER_BRIEF.md`. Invitations were not sent.
 
-**Tests:** `npm run test:proof` **203/203**. `npm run typecheck` exit 0.
+**Production header Word evidence (live download):** `production_header_typo_Proofread.docx`. Header XML `w:del`+`w:ins`; no header comments; `recieve` not copied into the body; coverage comment `header_comments_unanchorable`. Word `StoryRanges.Item(7)` revisions=2; document-level `Revisions.Count`=0; Accept → `receive`; Reject → `recieve`.
+
+**Tests:** `npm run test:proof` **210/210**. `npm run typecheck` exit 0.
 
 **Still excluded / withheld**
 

@@ -23,7 +23,7 @@ function ProofHelp() {
           <li>Unfinished placeholders such as [●] or [TBD]</li>
           <li>Duplicate definitions in an unambiguous scope, schedule re-definitions that change the meaning, and defined terms used with the wrong capitalisation</li>
           <li>Duplicate clause numbers, missing or ambiguous internal references, and references that only exist in another schedule, when numbering scope is complete</li>
-          <li>Title-case phrases that look like defined terms but have no matching definition</li>
+          <li>Title-case phrases that look like defined terms but have no matching definition, as review questions only. Title case alone does not prove a term is undefined</li>
           <li>A party role used with a different legal name from the one declared for that role, when the names are not merely Ltd/Limited or a different group company</li>
           <li>Calendar-invalid dates such as 31 April, and bound words-and-figures pairs that do not match, such as USD 10,000 (fifteen thousand)</li>
         </ul>
@@ -43,7 +43,7 @@ function ProofHelp() {
         <h2 className="font-display text-2xl">If something goes wrong</h2>
         <p>If a document cannot be processed safely, choose another file. Closing or refreshing this page loses the current run; choose the file again. Proof does not keep a copy on Agmt’s servers to resume later.</p>
         <h2 className="font-display text-2xl">Invited testing</h2>
-        <p>Public Proof stays available. Invited testers can report an incorrect finding, a missed error, or a formatting or download problem without attaching the document. <Link to="/proof/feedback" className="underline underline-offset-4">Send feedback</Link>.</p>
+        <p>Public Proof stays available. Invited testers can record an incorrect finding, a missed error, or a formatting or download problem as a category only. The form does not collect written notes or the document. <Link to="/proof/feedback" className="underline underline-offset-4">Send category</Link>.</p>
         <p><Link to="/proof" className="underline underline-offset-4">Back to Proof</Link></p>
       </article>
   );

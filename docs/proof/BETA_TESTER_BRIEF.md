@@ -11,6 +11,7 @@ Proof is not a comprehensive proofreader, grammar checker or legal review. It do
 3. Wait for processing, then download the marked copy.
 4. Open the download in Microsoft Word. Turn on **All Markup**.
 5. Accept or reject Agmt Proof tracked changes. Read the comments. Existing comments and revisions should remain.
+6. Header tracked changes live in the header story. Turn on the header, then use Accept/Reject there. Document-level revision counts in Word may omit header stories.
 
 ## What Proof checks
 
@@ -21,6 +22,7 @@ Proof is not a comprehensive proofreader, grammar checker or legal review. It do
 - Unmatched brackets or quotation marks, as comments, after looking at neighbouring paragraphs. Proof does not insert a missing mark merely because one paragraph is incomplete.
 - Unfinished placeholders such as `[●]` or `[TBD]`.
 - Duplicate or inconsistent definitions, defined-term capitalisation, missing or ambiguous internal references, duplicate clause numbers, party-name consistency, invalid calendar dates, and bound words-and-figures mismatches, when the document’s indexes are complete.
+- Title-case phrases after “the/this/such” with no matching definition are **review questions**, not confirmed errors. Title case alone does not prove a term is undefined.
 - Headers: tracked typo and punctuation corrections only.
 
 ## Material exclusions
@@ -29,21 +31,26 @@ Proof is not a comprehensive proofreader, grammar checker or legal review. It do
 - Quoted defined names and short quoted examples.
 - Title-case name runs without a close dictionary suggestion.
 - Text inside existing tracked changes (not relocated).
-- Comments in headers. Footers, footnotes, endnotes, fields, text boxes and modern review markup.
+- Comments in headers. Footers, footnotes and endnotes are preserved and not checked. Fields, text boxes and modern review markup.
+- Short extracts and documents that cite another instrument (including amendments) may receive missing-reference comments for clauses or schedules that are not in the file. A reference may legitimately point outside the document.
 - Macros, encryption, IRM, Strict OOXML, `.doc`, `.docm`, `.dotx` and PDF.
 
 A result that says checks found nothing to mark does not mean the document is error-free. Limited coverage is not a clean result.
 
 ## How to report a problem
 
-Use https://app.agmt.legal/proof/feedback to report:
+Use https://app.agmt.legal/proof/feedback to record:
 
 - an incorrect finding;
 - a missed error;
 - a formatting or download problem.
 
-Do not paste confidential clauses, party names, filenames or the document. App version and browser details are included only if you tick the disclosure box. Send is explicit: nothing is reported until you press **Send feedback**.
+The form stores only the category, an optional closed reason, and (if you tick the box) app version and browser. It does not collect written notes, filenames, excerpts or documents. Send is explicit: nothing is recorded until you press **Send category**.
+
+Written descriptions are not stored on this form. If you were given a contact when invited, use that channel and do not paste confidential clauses.
+
+Workers observability retains these structured events for up to 7 days, sampled at 100% on the current Worker. They are not a support mailbox.
 
 ## Original live example
 
-If you still have the small Word document or the exact planted sentences from the first live failure report, send a non-confidential copy or the sentences through the same feedback form. Substitute fixtures used in development are not that document.
+The first live failure document has not been reproduced. If you still have that small Word file or the exact planted sentences, send a non-confidential copy through the contact you were given when invited — not through the category form. Substitute fixtures used in development are not that document.

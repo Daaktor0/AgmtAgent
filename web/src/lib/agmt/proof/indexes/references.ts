@@ -1,5 +1,5 @@
 import type { ProofSource, SourceParagraph } from "../../source-map.ts";
-import { resolveNumber } from "./scopes.ts";
+import { literalNumberingMatch, resolveNumber } from "./scopes.ts";
 import {
   REFERENCES_INDEX_VERSION,
   indexSpan,
@@ -19,8 +19,6 @@ const COORD = /^(?:\s*,\s*|\s+and\s+)(\d+(?:\.\d+)*|[IVXLCDM]{1,6}|[A-Z])\b/;
 const RELATIVE = /\b((?:this|the (?:preceding|following|next|previous))\s+(Clause|Section|Article)s?)\b/gi;
 const STATUTE = /\b(?:[A-Z][A-Za-z]+ Act|the Act|this Act|Rules|Regulations|statute|[A-Z][A-Za-z]+ Code|other agreement)\b/;
 const OTHER_INSTRUMENT = /\bof\s+(?:the|a|an)\s+[^.;]{0,100}(?:Agreement|Deed|Document)\b/i;
-const DECLARATION = /^\s*(?:(?:Clause|Section|Article)\s+)?(\d+(?:\.\d+)*)(?:[.)](?=\s)|(?=\s))\s+/i;
-
 function sentenceAround(text: string, index: number): string {
   return text.slice(Math.max(text.lastIndexOf(";", index) + 1, 0));
 }
@@ -31,9 +29,9 @@ function isExternal(paragraph: SourceParagraph, index: number, _namespace: Numbe
 }
 
 function isNumberingDeclaration(paragraph: SourceParagraph, start: number, label: string): boolean {
-  const match = paragraph.text.match(DECLARATION);
-  if (!match || match[1] !== label) return false;
-  const labelStart = match[0].indexOf(match[1]);
+  const found = literalNumberingMatch(paragraph.text);
+  if (!found || found.label !== label) return false;
+  const labelStart = found.match[0].indexOf(found.label);
   return start <= labelStart;
 }
 

@@ -150,6 +150,29 @@ test("PWC-10 findings inside existing revisions are suppressed with coverage, ne
   await validateProofExport(source, exported.bytes, exported.receipt);
 });
 
+test("nested_paragraph_edits: a coverage notice and a body correction in one paragraph keep original formatting", async () => {
+  const zip = await JSZip.loadAsync(await buildDocx(["The Company shall recieve the notice in writing today."], { header: " " }));
+  const originalXml = await zip.file("word/document.xml")!.async("string");
+  zip.file(
+    "word/document.xml",
+    originalXml.replace("<w:r>", "<w:r><w:rPr><w:i/></w:rPr>"),
+  );
+  const source = await zip.generateAsync({ type: "nodebuffer" });
+  const exported = await exportProofDocx(source, new Date("2026-09-11T00:00:00Z"));
+  assert.ok(exported.analysis.gaps.includes("header_comments_unanchorable") || exported.analysis.coverage === "limited");
+  assert.ok(exported.receipt.plan.notices.length >= 1);
+  assert.ok(exported.receipt.plan.findings.some((finding) => finding.exactQuote === "recieve" && finding.kind === "correction"));
+  const xml = await (await JSZip.loadAsync(exported.bytes)).file("word/document.xml")!.async("string");
+  assert.match(xml, /<w:del\b/);
+  assert.match(xml, /<w:ins\b/);
+  assert.match(xml, /<w:commentRangeStart\b/);
+  assert.match(xml, /<w:i\/>/);
+  assert.match(xml, /xml:space="preserve"/);
+  assert.match(xml, /recieve/);
+  assert.match(xml, /receive/);
+  await validateProofExport(source, exported.bytes, exported.receipt);
+});
+
 test("PWC-10 duplicate and overlap decisions survive export without duplicated markup", async () => {
   const source = await launchFixture("body");
   const exported = await exportProofDocx(source);

@@ -3,9 +3,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   PROOF_BETA_FEEDBACK_COPY,
+  PROOF_BETA_FEEDBACK_REASONS,
   PROOF_CLIENT_VERSION,
   proofBetaFeedbackBody,
   type ProofBetaFeedbackCategory,
+  type ProofBetaFeedbackReason,
 } from "@/lib/proof-local/beta-feedback";
 
 export const Route = createFileRoute("/proof/feedback")({ component: ProofFeedbackPage });
@@ -18,7 +20,7 @@ const CATEGORIES: { id: ProofBetaFeedbackCategory; label: string }[] = [
 
 function ProofFeedbackPage() {
   const [category, setCategory] = useState<ProofBetaFeedbackCategory>("incorrect_finding");
-  const [note, setNote] = useState("");
+  const [reasonCode, setReasonCode] = useState<ProofBetaFeedbackReason | "">("");
   const [includeTechnical, setIncludeTechnical] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ function ProofFeedbackPage() {
     try {
       const body = proofBetaFeedbackBody({
         category,
-        note,
+        reasonCode: reasonCode || null,
         includeTechnical,
         appVersion: PROOF_CLIENT_VERSION,
         browser: typeof navigator === "undefined" ? "" : navigator.userAgent,
@@ -70,14 +72,17 @@ function ProofFeedbackPage() {
           ))}
         </fieldset>
         <label className="block">
-          Optional details
-          <textarea
-            className="mt-1 min-h-32 w-full border border-ink bg-paper p-3"
-            maxLength={4000}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="Describe the problem without pasting the document."
-          />
+          Optional closed reason
+          <select
+            className="mt-1 min-h-11 w-full border border-ink bg-paper p-3"
+            value={reasonCode}
+            onChange={(event) => setReasonCode(event.target.value as ProofBetaFeedbackReason | "")}
+          >
+            <option value="">No extra reason</option>
+            {PROOF_BETA_FEEDBACK_REASONS.map((item) => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </select>
         </label>
         <label className="flex min-h-11 items-start gap-2">
           <input type="checkbox" checked={includeTechnical} onChange={(event) => setIncludeTechnical(event.target.checked)} />

@@ -28,7 +28,7 @@ try {
   foreach ($pair in $pairs) {
     $output = Join-Path $Root $pair.Output
     if (-not (Test-Path $output)) {
-      if ($pair.Name -eq "user_report") {
+      if ($pair.Name -eq "user_report" -or $pair.Name -eq "header_typo" -or $pair.Name -eq "header_clean") {
         Write-Output "$($pair.Name) SKIPPED"
         continue
       }

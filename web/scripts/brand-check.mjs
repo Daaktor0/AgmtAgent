@@ -15,7 +15,7 @@
  * workspaces are judged the same way.
  *
  * Also runnable, so the background brand task can check its own work before it
- * reports (the parent answers without waiting for it):
+ * reports; unrelated work can proceed while optional assets are generated:
  *
  *   node scripts/brand-check.mjs [--game] [--placeholder-ok] [--root <dir>]
  *

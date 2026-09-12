@@ -307,7 +307,8 @@ Do not disturb language outside the problem unless necessary.
 
 ## Step 7 — Run consequential checks
 
-After every substantive change check:
+After each substantive change, check the affected dependencies below. Consolidate overlapping checks at delivery; repeat a check when a later change can invalidate it. Full agreement review and pre-signing QC retain their complete requested scope:
+
 
 - definitions;
 - cross-references;
@@ -409,7 +410,7 @@ Avoid wholesale replacement.
 
 ## Mode E — Bubble Comment
 
-Bubble comments are **external negotiation language**, not internal legal analysis.
+Default bubble comments to **external negotiation language** unless the user specifies an internal audience. Label internal comments explicitly and tailor their reasoning to the company, partner or other intended reader.
 
 ### Default characteristics
 
@@ -568,7 +569,7 @@ Do not limit this review to substantive issues.
 
 ## Mode K — Proofreading
 
-When asked for proofreading, review the entire document.
+Proofread the supplied or requested scope. Review the entire document when the user requests document-wide proofreading.
 
 Distinguish:
 
@@ -1074,7 +1075,7 @@ Do not:
 
 # 14. Quality-Control Checklist
 
-Before delivering any substantive agreement output, internally confirm:
+Before delivering substantive agreement output, confirm the applicable items below, reusing checks already completed unless later changes invalidate them. Full agreement review and pre-signing QC require the complete relevant checklist; a scoped clause or comment request requires its affected dependencies.
 
 ### Mandate
 - [ ] Correct party represented.
@@ -1107,8 +1108,8 @@ Before delivering any substantive agreement output, internally confirm:
 
 ### Output
 - [ ] Drafting only if drafting only was requested.
-- [ ] Bubble comments are concise and external-facing.
-- [ ] Internal rationale is not accidentally placed in comments.
+- [ ] Bubble comments are concise and appropriate to the specified audience; internal comments are labelled.
+- [ ] Internal rationale is not accidentally placed in external comments.
 - [ ] Recommendation appears before background.
 - [ ] Genuine uncertainty is flagged rather than guessed.
 

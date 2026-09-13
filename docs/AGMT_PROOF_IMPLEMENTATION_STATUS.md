@@ -1,5 +1,18 @@
 # Agmt Proof implementation status
 
+
+## Proof usefulness recovery — 13 September 2026
+
+Status: **Implemented and Tested on a review branch; not browser-verified, Word-verified, merged or deployed.** This entry does not change the production release or waive the gates below.
+
+- Reproduced the reported zero-tracked-change result using the user-supplied output locally. The file and its text remain outside Git, CI, logs and analytics. Permanent regressions use independently generated synthetic DOCX packages.
+- Dictionary spelling now permits a tracked replacement only when the repair is uniquely determined under a bounded edit-distance, word-shape, legal-alternative and context policy. Ambiguous forms, legal near-neighbours, quoted prose, names, defined terms and unsafe OOXML spans remain comments or are withheld. Repeated safe misspellings are corrected at every exact span.
+- Agreement-labelled correspondence is deterministically checked with the general-document rule profile. This keeps spelling, punctuation and placeholder checks while suppressing agreement-structure noise that cannot be justified from a cover email. The result carries requested/applied profile and policy-version receipts.
+- The result screen previews each new exact finding on-device, distinguishes tracked corrections from Word comments, explains an automatic correspondence profile adjustment, and presents readable coverage instead of raw rule identifiers. No document content is persisted or transmitted by this change.
+- Focused engine, worker and user-report tests: 27/27 pass. Full `npm run test:proof`: 232/232 pass. `npm run build:cloudflare` and the post-build `npm run typecheck` pass. The generated browser worker retains the no-server-module guard. A locally generated recovery DOCX passes ZIP/package reconstruction checks and contains one genuine deletion/insertion pair plus the expected new anchored comment; a pre-existing historical comment remains preserved.
+- Remaining release gates: a real browser choose/process/preview/download journey against the exact built artifact, Microsoft Word open/no-repair plus accept/reject inspection of the new cross-run correction, and review/CI of the branch. A loopback-only development URL is not reachable from the controlled cloud browser, so no browser or Word claim is made here.
+- Constraints unchanged: browser-only, zero LLM, no Hostinger, no Cloudflare Containers, no automatic R2 fallback. The host-agnostic `processProofLocal` seam remains available for a future explicitly enabled authenticated R2 mode; server upload routes remain fail-closed.
+
 ## Proof World Class (PWC) ledger
 
 This section is the controlling implementation ledger for the Proof World Class initiative defined in [AGMT_PROOF_WORLD_CLASS_PLAN.md](AGMT_PROOF_WORLD_CLASS_PLAN.md). Historical T00–T16 and hardening receipts below remain evidence. They are not PWC completion. Do not restart those sequences blindly.

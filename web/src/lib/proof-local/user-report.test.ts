@@ -43,7 +43,7 @@ test("substitute fixture: ordinary sentences with planted typos and spelling err
   const quotes = result.findings.map((finding) => `${finding.ruleId}:${finding.kind}:${finding.quote}`);
   assert.ok(quotes.includes("language.typo_allowlist:correction:recieve"), quotes.join(" | "));
   assert.ok(quotes.includes("language.typo_allowlist:correction:teh"), quotes.join(" | "));
-  assert.ok(quotes.includes("spelling.dictionary:comment:goverment"), quotes.join(" | "));
+  assert.ok(quotes.includes("spelling.dictionary:correction:goverment"), quotes.join(" | "));
   assert.ok(quotes.includes("spelling.dictionary:comment:mispelled"), quotes.join(" | "));
   assert.ok(quotes.includes("punctuation.duplicate_mark:correction:,,"), quotes.join(" | "));
   assert.equal(result.findings.some((finding) => /have an obligation/.test(finding.quote)), false);
@@ -56,17 +56,40 @@ test("substitute fixture: ordinary sentences with planted typos and spelling err
   assert.match(xml, /<w:commentRangeStart\b/);
 });
 
-test("browser entry: a repeated misspelling is not dropped and comments are combined", async () => {
+test("an agreement-labelled cover email is checked as correspondence without structural comment noise", async () => {
+  const source = await buildDocx([
+    "Dear [-] team,",
+    "Please see attached the draft agreement for your review and confirmation.",
+    "Security Deposit: Please confirm the amount stated in the attached draft.",
+    "Escalation: Plaaase confirm the applicable mechanism before circulation.",
+    "Regards,",
+  ]);
+  const analysis = await analyzeProof(source, { profile: "agreement" });
+  assert.equal(analysis.requestedProfile, "agreement");
+  assert.equal(analysis.effectiveProfile, "general");
+  assert.equal(analysis.profileReason, "correspondence");
+  assert.equal(analysis.plan.findings.some((finding) => finding.ruleId.startsWith("definitions.") || finding.ruleId.startsWith("references.")), false);
+  assert.ok(analysis.plan.findings.some((finding) => finding.exactQuote === "Plaaase" && finding.kind === "correction"));
+  assert.ok(analysis.plan.findings.some((finding) => finding.exactQuote === "[-]" && finding.kind === "comment"));
+
+  const local = await processProofLocal(new Uint8Array(source), { profile: "agreement" });
+  assert.equal(local.coverage, "complete");
+  assert.equal(local.requestedProfile, "agreement");
+  assert.equal(local.appliedProfile, "general");
+  assert.equal(local.profileReason, "correspondence");
+  assert.ok(local.coverageLines.some((line) => line.kind === "not_applicable" && line.text.includes("appears to be correspondence")));
+});
+
+test("browser entry: a repeated high-confidence misspelling is corrected at every occurrence", async () => {
   const source = await buildDocx(Array.from({ length: 10 }, (_, index) => `Please send the enviroment notice in writing ${index}.`));
   const result = await processProofLocal(new Uint8Array(source));
   const hits = result.findings.filter((finding) => finding.ruleId === "spelling.dictionary" && finding.quote === "enviroment");
-  assert.equal(hits.length, 1);
-  assert.equal(hits[0]?.kind, "comment");
+  assert.equal(hits.length, 10);
+  assert.ok(hits.every((finding) => finding.kind === "correction"));
   const xml = await (await JSZip.loadAsync(result.output)).file("word/document.xml")!.async("string");
-  const comments = await (await JSZip.loadAsync(result.output)).file("word/comments.xml")!.async("string");
-  assert.equal((xml.match(/<w:commentRangeStart\b/g) ?? []).length, 1);
-  assert.match(comments, /enviroment/);
-  assert.match(comments, /also appears 9 more/);
+  assert.equal((xml.match(/<w:del\b/g) ?? []).length, 10);
+  assert.equal((xml.match(/<w:ins\b/g) ?? []).length, 10);
+  assert.equal((xml.match(/<w:commentRangeStart\b/g) ?? []).length, 0);
 });
 
 test("browser entry: clean contextual traps stay unmarked", async () => {
@@ -109,5 +132,5 @@ test("errors inside existing insertions are not relocated; coverage records the 
   assert.equal(analysis.coverage, "limited");
   assert.ok(local.findings.some((finding) => finding.ruleId === "language.typo_allowlist" && finding.quote === "seperate"));
   assert.ok(local.coverageLines.some((line) => line.text.includes("existing tracked changes")));
-  assert.ok(local.coverageLines.some((line) => line.kind === "skipped" && line.text.includes("prior revision")));
+  assert.ok(local.coverageLines.some((line) => line.kind === "skipped" && line.text.includes("existing tracked changes")));
 });

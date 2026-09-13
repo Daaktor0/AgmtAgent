@@ -1,6 +1,7 @@
 /**
  * Independently labelled PEE-20 dictionary-spelling cases.
- * Comment-only. Allowlist typos are excluded; those belong to language.typo_allowlist.
+ * The original detection labels remain frozen. The reviewed correction/comment
+ * action contract is asserted separately in pee20-cases.test.ts.
  */
 import type { LaunchRuleId } from "../../proof/contracts.ts";
 import type { BetaRuleCase } from "./beta-rule-cases.ts";

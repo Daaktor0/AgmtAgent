@@ -15,7 +15,7 @@ test("pinned dictionaries load and distinguish an ordinary misspelling from a co
   assert.equal(us.correct("goverment"), false);
 });
 
-test("dictionary spelling comments on lowercase misses and does not autocorrect", async () => {
+test("dictionary spelling tracks only uniquely determined lowercase repairs", async () => {
   const result = await analyzeProof(await buildDocx([
     "The Company shall goverment the process in writing.",
     "The Company shall have mispelled the defined term in this clause.",
@@ -23,15 +23,17 @@ test("dictionary spelling comments on lowercase misses and does not autocorrect"
   const government = result.plan.findings.find((finding) => finding.exactQuote === "goverment");
   const misspelled = result.plan.findings.find((finding) => finding.exactQuote === "mispelled");
   assert.equal(government?.ruleId, "spelling.dictionary");
-  assert.equal(government?.kind, "comment");
-  assert.equal(government?.replacement, null);
+  assert.equal(government?.kind, "correction");
+  assert.equal(government?.replacement, "government");
   assert.equal(misspelled?.ruleId, "spelling.dictionary");
   assert.equal(misspelled?.kind, "comment");
+  assert.equal(misspelled?.replacement, null);
+  assert.match(misspelled?.comment ?? "", /Suggested spelling: misspelled/);
 });
 
-test("sentence-initial misspellings are commented; name sequences and language variants are not", async () => {
+test("reviewed sentence-initial misspellings may track; name sequences and language variants are not changed", async () => {
   const initial = await analyzeProof(await buildDocx(["Goverment shall deliver the notice in writing."]));
-  assert.equal(initial.plan.findings.some((finding) => finding.exactQuote === "Goverment" && finding.kind === "comment"), true);
+  assert.equal(initial.plan.findings.some((finding) => finding.exactQuote === "Goverment" && finding.kind === "correction" && finding.replacement === "Government"), true);
 
   const names = await analyzeProof(await buildDocx(["Northwind Traders Limited shall keep the Confidential Information."]));
   assert.equal(names.plan.findings.some((finding) => finding.ruleId === "spelling.dictionary" && /Northwind|Traders/.test(finding.exactQuote)), false);
@@ -54,20 +56,15 @@ test("a defined term repeated ten times is still excluded by the definition inde
   assert.equal(result.plan.findings.some((finding) => finding.ruleId === "spelling.dictionary" && /Zyxxco/i.test(finding.exactQuote)), false);
 });
 
-test("a misspelling is still detected at one, two, three and ten occurrences", async () => {
+test("a repeated high-confidence misspelling is corrected at every exact occurrence", async () => {
   const word = "enviroment";
   for (const count of [1, 2, 3, 10]) {
     const paragraphs = Array.from({ length: count }, (_, index) => `Please send the ${word} notice in writing ${index}.`);
     const result = await analyzeProof(await buildDocx(paragraphs));
     const hits = result.plan.findings.filter((finding) => finding.ruleId === "spelling.dictionary" && finding.exactQuote === word);
-    assert.equal(hits.length, 1, `count=${count}`);
-    assert.equal(hits[0]?.kind, "comment");
-    assert.equal(hits[0]?.relatedSpans.length, count - 1);
-    if (count === 1) {
-      assert.equal(/also appears/.test(hits[0]?.comment ?? ""), false);
-    } else {
-      assert.match(hits[0]?.comment ?? "", new RegExp(`also appears ${count - 1} more`));
-    }
+    assert.equal(hits.length, count, `count=${count}`);
+    assert.ok(hits.every((finding) => finding.kind === "correction" && finding.replacement === "environment"));
+    assert.ok(hits.every((finding) => finding.relatedSpans.length === 0));
   }
 });
 

@@ -34,7 +34,10 @@ test("held-out documents generalise spelling and punctuation without allowlist s
     );
     for (const expected of doc.expected) {
       const hit = language.find((finding) => finding.ruleId === expected.ruleId && finding.exactQuote === expected.quote);
-      if (!hit || hit.kind !== expected.kind) {
+      const spellingActionAccepted = expected.ruleId === "spelling.dictionary"
+        && hit?.kind === "correction"
+        && hit.replacement !== null;
+      if (!hit || (hit.kind !== expected.kind && !spellingActionAccepted)) {
         bucket(expected.ruleId).falseNegative += 1;
       } else {
         bucket(expected.ruleId).truePositive += 1;
@@ -66,7 +69,8 @@ test("held-out documents generalise spelling and punctuation without allowlist s
   const split = await analyzeProof(await splitRunSpellingDocument());
   const calender = split.plan.findings.find((finding) => finding.exactQuote === "calender");
   assert.equal(calender?.ruleId, "spelling.dictionary");
-  assert.equal(calender?.kind, "comment");
+  assert.equal(calender?.kind, "correction");
+  assert.equal(calender?.replacement, "calendar");
 
   const revision = await analyzeProof(await revisionHeldOutDocument());
   assert.equal(revision.plan.findings.some((finding) => finding.exactQuote === "occured"), false);
@@ -75,10 +79,9 @@ test("held-out documents generalise spelling and punctuation without allowlist s
   assert.ok(revision.plan.findings.some((finding) => finding.exactQuote === "seperate"));
 
   const repeat = await analyzeProof(await heldOutBytes(HELD_OUT_DOCUMENTS.find((doc) => doc.id === "repeat_misspelling")!));
-  const enviroment = repeat.plan.findings.find((finding) => finding.exactQuote === "enviroment");
-  assert.equal(enviroment?.ruleId, "spelling.dictionary");
-  assert.equal(enviroment?.relatedSpans.length, 9);
-  assert.match(enviroment?.comment ?? "", /also appears 9 more/);
+  const enviroment = repeat.plan.findings.filter((finding) => finding.exactQuote === "enviroment");
+  assert.equal(enviroment.length, 10);
+  assert.ok(enviroment.every((finding) => finding.ruleId === "spelling.dictionary" && finding.kind === "correction" && finding.replacement === "environment"));
 
   const report = [...byRule.entries()].map(([ruleId, counts]) => {
     const metric = ruleMetric({ ruleId, ...counts });

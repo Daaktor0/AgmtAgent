@@ -5,6 +5,8 @@ import type { ProofLanguage, ProofProfile } from "../products/capabilities.ts";
 import { zipBytesView, ZipSafetyError } from "../agmt/zip-safety.ts";
 import { admitLocalDocument, scanAdmittedPart, type LocalAdmitReceipt } from "./admit.ts";
 import { publishedProofCapacityPolicy, type ProofCapacityPolicy } from "./policy.ts";
+import { LAUNCH_RULE_SET_VERSION } from "../agmt/proof/registry.ts";
+import { SPELLING_ACTION_POLICY_VERSION } from "../agmt/proof/spelling.ts";
 
 export type LocalProofStage = "admitting" | "analyzing" | "exporting" | "validating";
 
@@ -30,6 +32,11 @@ export type LocalProofResult = {
   coverage: "complete" | "limited";
   coverageLines: LocalProofCoverageLine[];
   findings: LocalProofFinding[];
+  requestedProfile: ProofProfile;
+  appliedProfile: ProofProfile;
+  profileReason: "correspondence" | null;
+  ruleSetVersion: typeof LAUNCH_RULE_SET_VERSION;
+  spellingActionPolicyVersion: typeof SPELLING_ACTION_POLICY_VERSION;
   admit: LocalAdmitReceipt;
   sdkInBrowser: false;
   wordInBrowser: false;
@@ -53,8 +60,57 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+const RULE_COVERAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  "language.typo_allowlist": "High-confidence spelling corrections",
+  "spelling.dictionary": "Dictionary spelling",
+  "language.duplicate_word": "Repeated words",
+  "punctuation.duplicate_mark": "Repeated punctuation",
+  "spacing.accidental": "Accidental extra spaces",
+  "punctuation.space_before": "Spacing before punctuation",
+  "punctuation.missing_space_after": "Spacing after punctuation",
+  "punctuation.unbalanced_pair": "Unmatched brackets and quotation marks",
+  "completion.placeholder": "Unfinished placeholders",
+  "references.missing_target": "Missing internal references",
+  "references.duplicate_number": "Duplicate clause numbers",
+  "references.scope_confusion": "References to another document section",
+  "references.ambiguous_target": "Ambiguous internal references",
+  "definitions.duplicate": "Duplicate definitions",
+  "definitions.scope_redefinition": "Definitions that change by section",
+  "definitions.case_variant": "Defined-term capitalisation",
+  "definitions.unused": "Unused definitions",
+  "definitions.undefined_use": "Terms that may be undefined",
+  "parties.consistency": "Party-name consistency",
+  "figures.date_invalid": "Invalid calendar dates",
+  "figures.words_figures_mismatch": "Words-and-figures mismatches",
+});
+
+const GAP_COVERAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  prior_revision: "Text inside existing tracked changes",
+  header_comments_unanchorable: "Issues in headers that would require comments",
+  footers_not_checked: "Footers",
+  notes_not_checked: "Footnotes and endnotes",
+  fields_not_checked: "Word fields",
+  protected_text_language_checks: "Protected or non-editable text",
+  incomplete_checks: "One or more checks did not complete",
+  rule_budget: "A check exceeded its safety budget",
+  incomplete_scope: "A check could not establish complete evidence",
+  missing_capability: "A required Word-document capability",
+  rule_failed: "A proofreading check",
+  unknown_rule_version: "A proofreading check with an unsupported version",
+});
+
+function readableGap(gap: string): string {
+  return GAP_COVERAGE_LABELS[gap] ?? gap.replaceAll("_", " ");
+}
+
 function coverageLines(analysis: Awaited<ReturnType<typeof exportProofDocx>>["analysis"]): LocalProofCoverageLine[] {
   const lines: LocalProofCoverageLine[] = [];
+  if (analysis.profileReason === "correspondence") {
+    lines.push({
+      kind: "not_applicable",
+      text: "agreement-structure checks were not applied because this document appears to be correspondence",
+    });
+  }
   if (analysis.source.paragraphs.some((paragraph) => paragraph.nodes.some((node) => node.revision))) {
     lines.push({
       kind: "checked",
@@ -62,18 +118,22 @@ function coverageLines(analysis: Awaited<ReturnType<typeof exportProofDocx>>["an
     });
   }
   for (const execution of analysis.executions) {
+    // A deliberately disabled rule is not part of the completed-check claim.
+    if (execution.code === "default_off") continue;
+    const text = RULE_COVERAGE_LABELS[execution.ruleId] ?? execution.ruleId.replaceAll(".", " ");
     if (execution.outcome === "not_applicable") {
-      lines.push({ kind: "not_applicable", text: execution.ruleId.replaceAll(".", " ") });
+      // Profile-mismatched rules are summarized by the applied-profile receipt.
+      if (execution.code !== "profile_mismatch") lines.push({ kind: "not_applicable", text });
     } else if (execution.outcome === "suppressed" || execution.outcome === "failed") {
-      lines.push({ kind: "skipped", text: execution.ruleId.replaceAll(".", " ") });
+      lines.push({ kind: "skipped", text });
     } else {
-      lines.push({ kind: "checked", text: execution.ruleId.replaceAll(".", " ") });
+      lines.push({ kind: "checked", text });
     }
   }
   for (const gap of [...new Set(analysis.gaps)]) {
-    lines.push({ kind: "skipped", text: gap.replaceAll("_", " ") });
+    lines.push({ kind: "skipped", text: readableGap(gap) });
   }
-  return lines;
+  return lines.filter((line, index) => lines.findIndex((candidate) => candidate.kind === line.kind && candidate.text === line.text) === index);
 }
 
 /**
@@ -161,6 +221,11 @@ export async function processProofLocal(bytes: Uint8Array, options: LocalProofOp
       quote: finding.exactQuote,
       replacement: finding.replacement ?? null,
     })),
+    requestedProfile: exported.analysis.requestedProfile,
+    appliedProfile: exported.analysis.effectiveProfile,
+    profileReason: exported.analysis.profileReason,
+    ruleSetVersion: LAUNCH_RULE_SET_VERSION,
+    spellingActionPolicyVersion: SPELLING_ACTION_POLICY_VERSION,
     admit,
     sdkInBrowser: false,
     wordInBrowser: false,

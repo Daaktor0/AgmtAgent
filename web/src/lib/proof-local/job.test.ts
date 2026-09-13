@@ -51,6 +51,11 @@ function doneResponse(id: string): ProofWorkerResponse {
       coverage: "complete",
       coverageLines: [],
       findings: [{ ruleId: "language.typo_allowlist", kind: "correction", quote: "teh", replacement: "the" }],
+      requestedProfile: "agreement",
+      appliedProfile: "agreement",
+      profileReason: null,
+      ruleSetVersion: "proof-launch-v1",
+      spellingActionPolicyVersion: "proof-spelling-action-v1",
       admit: {
         model: "proof-browser-local-v1",
         version: PROOF_LOCAL_POLICY_VERSION,

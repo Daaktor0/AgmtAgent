@@ -46,6 +46,19 @@ function availableCapabilities(extracted: ExtractedDocument): Set<string> {
   return set;
 }
 
+function correspondenceProfile(source: ProofSource): boolean {
+  const paragraphs = source.paragraphs.map((paragraph) => paragraph.text.trim()).filter(Boolean);
+  if (paragraphs.length < 2) return false;
+  const opening = paragraphs.slice(0, 3).join("\n");
+  const closing = paragraphs.slice(-4).join("\n");
+  const all = paragraphs.join("\n");
+  const salutation = /^(?:dear|hello|hi|to|attention|attn\.?|fao)\b/im.test(opening);
+  const signoff = /^(?:kind regards|regards|yours (?:faithfully|sincerely)|sincerely|best regards)\b/im.test(closing);
+  const coverLanguage = /\b(?:please (?:see|find) attached|attached (?:draft|agreement|document)|for your (?:review|input|confirmation)|covering email)\b/i.test(all);
+  const agreementBody = /\b(?:this agreement is made|the parties agree as follows|now it is agreed|in witness whereof|whereas)\b/i.test(all);
+  return !agreementBody && ((salutation && signoff) || (coverLanguage && (salutation || signoff)));
+}
+
 export async function analyzeProof(bytes: Buffer, options: {
   profile?: "agreement" | "general";
   language?: "en-GB" | "en-US";
@@ -71,8 +84,11 @@ export async function analyzeProof(bytes: Buffer, options: {
   const sourceSha256 = createHash("sha256").update(bytes).digest("hex");
   const indexes = buildProofIndexes(source, extracted);
   const ctx = { source, extracted, sourceSha256, indexes, storyMap };
+  const requestedProfile = options.profile ?? "agreement";
+  const adjustedForCorrespondence = requestedProfile === "agreement" && correspondenceProfile(source);
+  const effectiveProfile = adjustedForCorrespondence ? "general" : requestedProfile;
   const runtime = executeLaunchRules(ctx, {
-    profile: options.profile ?? "agreement",
+    profile: effectiveProfile,
     language: options.language ?? "en-GB",
     capabilities: availableCapabilities(extracted),
   });
@@ -134,6 +150,9 @@ export async function analyzeProof(bytes: Buffer, options: {
     sourceSha256,
     indexes,
     storyMap,
+    requestedProfile,
+    effectiveProfile,
+    profileReason: adjustedForCorrespondence ? "correspondence" as const : null,
     llmCalls: 0 as const,
   };
 }

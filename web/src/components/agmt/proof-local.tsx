@@ -30,6 +30,34 @@ const STAGE_COPY: Record<LocalProofStage, string> = {
   validating: "Checking the finished document…",
 };
 
+const FINDING_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  "language.typo_allowlist": "Spelling",
+  "spelling.dictionary": "Spelling",
+  "language.duplicate_word": "Repeated word",
+  "punctuation.duplicate_mark": "Punctuation",
+  "spacing.accidental": "Spacing",
+  "punctuation.space_before": "Spacing",
+  "punctuation.missing_space_after": "Spacing",
+  "punctuation.unbalanced_pair": "Punctuation",
+  "completion.placeholder": "Unfinished drafting",
+  "references.missing_target": "Internal reference",
+  "references.duplicate_number": "Clause numbering",
+  "references.scope_confusion": "Internal reference",
+  "references.ambiguous_target": "Internal reference",
+  "definitions.duplicate": "Defined term",
+  "definitions.scope_redefinition": "Defined term",
+  "definitions.case_variant": "Defined term",
+  "definitions.unused": "Defined term",
+  "definitions.undefined_use": "Defined term",
+  "parties.consistency": "Party name",
+  "figures.date_invalid": "Date",
+  "figures.words_figures_mismatch": "Amount",
+});
+
+function findingLabel(ruleId: string): string {
+  return FINDING_LABELS[ruleId] ?? "Proofreading issue";
+}
+
 export function ProofLocalExperience() {
   const [file, setFile] = useState<File | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -182,12 +210,48 @@ export function ProofLocalExperience() {
           ) : (
             <p className="text-sm leading-6">{PROOF_LOCAL_ZERO_DETAIL}</p>
           )}
+          {result.profileReason === "correspondence" ? (
+            <p className="border-l-2 border-rule pl-4 text-sm leading-6">
+              Checked as a general document because this file appears to be correspondence. Agreement-structure checks were not applied.
+            </p>
+          ) : (
+            <p className="text-sm leading-6 text-stone">
+              Checked as {result.appliedProfile === "agreement" ? "an agreement" : "a general document"}.
+            </p>
+          )}
+          {result.findings.length ? (
+            <div className="space-y-3">
+              <h2 className="font-display text-2xl">What Proof marked</h2>
+              <ul className="divide-y divide-rule border-y border-rule">
+                {result.findings.slice(0, 20).map((finding, index) => (
+                  <li key={`${finding.ruleId}:${finding.quote}:${index}`} className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr] sm:gap-4">
+                    <span className="text-xs font-medium uppercase tracking-[0.12em] text-stone">
+                      {finding.kind === "correction" ? "Tracked correction" : "Word comment"}
+                    </span>
+                    <span className="min-w-0 text-sm leading-6">
+                      <span className="text-stone">{findingLabel(finding.ruleId)}:</span>{" "}
+                      <q className="break-words text-ink">{finding.quote}</q>
+                      {finding.replacement ? <> → <q className="break-words text-ink">{finding.replacement}</q></> : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {result.findings.length > 20 ? (
+                <p className="text-sm text-stone">And {result.findings.length - 20} more mark{result.findings.length - 20 === 1 ? "" : "s"} in the Word document.</p>
+              ) : null}
+            </div>
+          ) : null}
           {result.coverageLines.length ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
-              {result.coverageLines.map((line) => (
-                <li key={`${line.kind}:${line.text}`}>{line.kind.replaceAll("_", " ")}: {line.text}</li>
-              ))}
-            </ul>
+            <details className="text-sm leading-6">
+              <summary className="min-h-11 cursor-pointer py-2 text-ink">What Proof checked</summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-stone">
+                {result.coverageLines.map((line) => (
+                  <li key={`${line.kind}:${line.text}`}>
+                    {line.kind === "checked" ? "Checked" : line.kind === "skipped" ? "Not checked" : "Not applicable"}: {line.text}
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
           <p className="text-sm leading-6 text-stone">Review Agmt’s changes and comments in Word. {PROOF_LOCAL_DEVICE}</p>
           <div className="flex flex-col gap-3 sm:flex-row">

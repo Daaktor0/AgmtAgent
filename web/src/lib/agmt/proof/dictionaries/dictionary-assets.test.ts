@@ -72,5 +72,16 @@ test("browser entry looks up held-out misspellings outside the typo allowlist", 
   for (const word of heldOut) {
     assert.ok(quotes.includes(word), `${word} missing from ${quotes.join("|")}`);
   }
-  assert.equal(result.findings.some((finding) => finding.ruleId === "spelling.dictionary" && finding.kind !== "comment"), false);
+  const expected: Readonly<Record<string, string | null>> = {
+    calender: "calendar",
+    yeild: null,
+    questionaire: "questionnaire",
+    oppurtunity: "opportunity",
+    harrassment: "harassment",
+  };
+  for (const finding of result.findings.filter((item) => item.ruleId === "spelling.dictionary")) {
+    const replacement = expected[finding.quote];
+    assert.equal(finding.kind, replacement ? "correction" : "comment", finding.quote);
+    assert.equal(finding.replacement, replacement, finding.quote);
+  }
 });

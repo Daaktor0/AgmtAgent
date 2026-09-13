@@ -20,16 +20,23 @@ export function ProofOptions({
         <div className="space-y-2">
           <p className="text-sm">Profile</p>
           {PROOF_PROFILES.map((value) => (
-            <label key={value} className="flex min-h-11 items-center gap-3 text-sm">
+            <label key={value} className="flex min-h-11 items-start gap-3 text-sm">
               <input
                 type="radio"
                 name="proof-profile"
                 value={value}
                 checked={profile === value}
                 onChange={() => onProfile(value)}
-                className="size-4 accent-oxblood"
+                className="mt-1 size-4 shrink-0 accent-oxblood"
               />
-              {value === "agreement" ? "Agreement" : "General document"}
+              <span>
+                <span className="block text-ink">{value === "agreement" ? "Agreement" : "General document"}</span>
+                <span className="mt-0.5 block leading-5 text-stone">
+                  {value === "agreement"
+                    ? "Spelling, punctuation and agreement-structure checks"
+                    : "Spelling, punctuation and unfinished drafting checks"}
+                </span>
+              </span>
             </label>
           ))}
         </div>

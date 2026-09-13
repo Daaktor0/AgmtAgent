@@ -113,17 +113,17 @@ test("PWC-38 header comments remain unanchorable until Word validates them", () 
 });
 
 test("PWC-38 unsupported header comments are disclosed and never moved into the body", async () => {
-  const bytes = await buildDocx([BODY_CLEAN], { header: "Please appoint a liason officer for the completion file." });
+  const bytes = await buildDocx([BODY_CLEAN], { header: "Please review the mispelled notice before completion." });
   const analysis = await analyzeProof(bytes);
-  assert.equal(analysis.plan.findings.some((finding) => finding.exactQuote === "liason"), false);
+  assert.equal(analysis.plan.findings.some((finding) => finding.exactQuote === "mispelled"), false);
   assert.ok(analysis.gaps.includes("header_comments_unanchorable"));
   const exported = await exportProofDocx(bytes, new Date("2026-09-11T00:00:00Z"), { analysis });
   const zip = await JSZip.loadAsync(exported.bytes);
   const headerXml = await zip.file("word/header1.xml")!.async("string");
   const documentXml = await zip.file("word/document.xml")!.async("string");
-  assert.match(headerXml, /liason/);
+  assert.match(headerXml, /mispelled/);
   assert.doesNotMatch(headerXml, /<w:commentRangeStart\b/);
-  assert.doesNotMatch(documentXml, /liason/);
+  assert.doesNotMatch(documentXml, /mispelled/);
   const comments = await zip.file("word/comments.xml")!.async("string");
   assert.match(comments, /header_comments_unanchorable/);
 });

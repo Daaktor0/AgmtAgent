@@ -13,7 +13,26 @@ function pack(cases: readonly BetaRuleCase[], size: number): BetaRuleCase[][] {
   return groups;
 }
 
-test("PEE-20 dictionary spelling meets the comment promotion gate", async () => {
+const SAFE_REPLACEMENTS: Readonly<Record<string, string>> = Object.freeze({
+  goverment: "government",
+  enviroment: "environment",
+  langauge: "language",
+  docuement: "document",
+  agreemnet: "agreement",
+  commerical: "commercial",
+  obilgation: "obligation",
+  certifcate: "certificate",
+  apendix: "appendix",
+  paymnet: "payment",
+  reciept: "receipt",
+  tommorrow: "tomorrow",
+  truely: "truly",
+  prefered: "preferred",
+  transfered: "transferred",
+  languge: "language",
+});
+
+test("PEE-20 dictionary spelling preserves detection and applies the reviewed action contract", async () => {
   const positives = pee20Positives();
   const traps = pee20Traps();
   assert.ok(positives.length >= PEE20_MIN_SAMPLES / 2);
@@ -32,7 +51,12 @@ test("PEE-20 dictionary spelling meets the comment promotion gate", async () => 
       continue;
     }
     truePositive += 1;
-    if (detected.kind !== "comment" || detected.replacement !== null) actionMisses.push(item.id);
+    const expectedReplacement = SAFE_REPLACEMENTS[item.quote ?? ""];
+    if (expectedReplacement) {
+      if (detected.kind !== "correction" || detected.replacement !== expectedReplacement) actionMisses.push(item.id);
+    } else if (detected.kind !== "comment" || detected.replacement !== null) {
+      actionMisses.push(item.id);
+    }
     validateLaunchFinding(analysis, detected);
   }
   for (const group of pack(traps, 1)) {
@@ -53,5 +77,5 @@ test("PEE-20 dictionary spelling meets the comment promotion gate", async () => 
     `p=${metric.precision} r=${metric.recall} tp=${truePositive} fp=${falsePositive} fn=${falseNegative} misses=${detectionMisses.slice(0, 12).join(",")}`,
   );
   assert.equal(LAUNCH_RULE_BY_ID["spelling.dictionary"].defaultEnabled, true);
-  assert.equal(LAUNCH_RULE_BY_ID["spelling.dictionary"].actionPolicy, "comment");
+  assert.equal(LAUNCH_RULE_BY_ID["spelling.dictionary"].actionPolicy, "correction");
 });

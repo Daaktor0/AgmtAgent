@@ -65,7 +65,7 @@ test("en-IN is English and falls back to the bundled en-GB dictionary", () => {
   assert.equal(noisy, "en-IN");
 });
 
-test("Plaaase split across proofErr runs is an exact-span spelling comment suggesting Please", async () => {
+test("Plaaase split across same-format proofErr runs is an exact tracked correction", async () => {
   assert.equal("plaaase" in TYPO_ALLOWLIST, false);
   const after = " confirm the applicable escalation mechanism. The draft contains an inconsistency between 7% and six percent for the remaining term.";
   const body = proseParagraph(
@@ -80,12 +80,12 @@ test("Plaaase split across proofErr runs is an exact-span spelling comment sugge
   const analysis = await analyzeProof(await xmlDocx(body, stylesPart("en-IN")));
   const hit = analysis.plan.findings.find((finding) => finding.exactQuote === "Plaaase");
   assert.equal(hit?.ruleId, "spelling.dictionary");
-  assert.equal(hit?.kind, "comment");
-  assert.equal(hit?.replacement, null);
+  assert.equal(hit?.kind, "correction");
+  assert.equal(hit?.replacement, "Please");
   assert.equal(hit?.primarySpan.textStart, "Escalation: ".length);
   assert.equal(hit?.primarySpan.textEnd, "Escalation: Plaaase".length);
   assert.equal(hit?.primarySpan.nodeSegments.length, 3);
-  assert.match(hit?.comment ?? "", /Suggested spelling: Please/);
+  assert.match(hit?.comment ?? "", /High-confidence spelling correction/);
   assert.equal(analysis.source.paragraphs[0]?.language, "en-IN");
 });
 
@@ -180,7 +180,7 @@ test("Dear [-] team is an unfinished placeholder; numeric and class brackets are
   assert.equal(traps.plan.findings.some((finding) => finding.ruleId === "completion.placeholder"), false);
 });
 
-test("re-run preserves an existing Licensor comment and still marks Plaaase on a synthetic source", async () => {
+test("re-run preserves an existing Licensor comment and tracks Plaaase on a synthetic source", async () => {
   const zip = await JSZip.loadAsync(await buildDocx(["placeholder"]));
   zip.file(
     "word/document.xml",
@@ -220,9 +220,12 @@ test("re-run preserves an existing Licensor comment and still marks Plaaase on a
   assert.ok(analysis.plan.findings.some((finding) => finding.exactQuote === "Plaaase"));
   assert.ok(analysis.plan.findings.some((finding) => finding.exactQuote === "[-]"));
   const result = await processProofLocal(new Uint8Array(source));
-  const comments = await (await JSZip.loadAsync(result.output)).file("word/comments.xml")!.async("string");
+  const output = await JSZip.loadAsync(result.output);
+  const comments = await output.file("word/comments.xml")!.async("string");
+  const document = await output.file("word/document.xml")!.async("string");
   assert.match(comments, /Proof does not recognise “Licensor”/);
-  assert.match(comments, /Suggested spelling: Please/);
   assert.match(comments, /unfilled: \[-\]/);
   assert.equal((comments.match(/Proof does not recognise “Licensor”/g) ?? []).length, 1);
+  assert.match(document, /<w:del\b[^>]*>.*Plaaase.*<\/w:del>/s);
+  assert.match(document, /<w:ins\b[^>]*>.*Please.*<\/w:ins>/s);
 });

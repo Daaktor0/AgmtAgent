@@ -4,6 +4,7 @@
  * PDFs. Fails on any console error or Content-Security-Policy violation.
  *
  *   npm run build && npm run e2e            (SCREENSHOTS=dir to keep screenshots)
+ *   npm run build:artifact && E2E_OUTDIR=dist-artifact npm run e2e
  */
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -16,7 +17,9 @@ const shots = process.env.SCREENSHOTS;
 if (shots) mkdirSync(shots, { recursive: true });
 
 // Run vite directly in its own process group, so stopping it frees the port.
-const server = spawn("node", ["node_modules/vite/bin/vite.js", "preview"], { stdio: "ignore", detached: true });
+// E2E_OUTDIR=dist-artifact checks the claude.ai preview build instead.
+const outDir = process.env.E2E_OUTDIR ?? "dist";
+const server = spawn("node", ["node_modules/vite/bin/vite.js", "preview", "--outDir", outDir], { stdio: "ignore", detached: true });
 const stop = () => {
   try {
     process.kill(-server.pid);

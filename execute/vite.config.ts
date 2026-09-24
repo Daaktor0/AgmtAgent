@@ -29,9 +29,23 @@ function lockdown(): Plugin {
   };
 }
 
-export default defineConfig({
-  base: "./",
-  plugins: [react(), lockdown()],
-  build: { target: "es2022", chunkSizeWarningLimit: 1500 },
-  preview: { host: "127.0.0.1", port: 4174, strictPort: true },
+/**
+ * `--mode artifact` builds the claude.ai preview: that viewer applies its own
+ * sandbox and CSP (and blocks page-started downloads, see saveBytes), serves
+ * fonts only inline, and wraps the page in its own document skeleton. See
+ * scripts/build-artifact.mjs.
+ */
+export default defineConfig(({ mode }) => {
+  const artifact = mode === "artifact";
+  return {
+    base: "./",
+    plugins: artifact ? [react()] : [react(), lockdown()],
+    build: {
+      target: "es2022",
+      chunkSizeWarningLimit: 1500,
+      outDir: artifact ? "dist-artifact" : "dist",
+      assetsInlineLimit: artifact ? (file: string) => file.endsWith(".woff2") : undefined,
+    },
+    preview: { host: "127.0.0.1", port: 4174, strictPort: true },
+  };
 });

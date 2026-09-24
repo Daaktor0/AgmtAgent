@@ -65,7 +65,8 @@ button, input, select { font: inherit; color: inherit; }
 .btn:hover { background: var(--chalk); }
 .btn-primary { background: var(--plum); color: var(--white); }
 .btn-primary:hover { background: var(--plum-hover); }
-.btn-quiet { border-color: var(--rule); background: transparent; margin-top: 12px; }
+.btn-quiet { border-color: var(--rule); background: transparent; }
+.intro .btn-quiet { margin-top: 12px; }
 .btn-small { min-height: 34px; padding: 0 14px; font-size: 0.9rem; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .text-btn { background: none; border: 0; padding: 2px 0; font-weight: 600; color: var(--plum); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-size: 0.88rem; }
@@ -162,3 +163,4 @@ input:not([type]), input[type="text"], select { min-height: 40px; padding: 6px 1
 }
 
 .foot { padding: 28px 0 40px; color: var(--ash); font-size: 0.82rem; }
+.reset-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-weight: 600; font-size: 0.9rem; }

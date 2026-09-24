@@ -15,8 +15,13 @@ const URL = "http://127.0.0.1:4174/";
 const shots = process.env.SCREENSHOTS;
 if (shots) mkdirSync(shots, { recursive: true });
 
-const server = spawn("npx", ["vite", "preview"], { stdio: "pipe" });
-const stop = () => server.kill();
+// Run vite directly in its own process group, so stopping it frees the port.
+const server = spawn("node", ["node_modules/vite/bin/vite.js", "preview"], { stdio: "ignore", detached: true });
+const stop = () => {
+  try {
+    process.kill(-server.pid);
+  } catch {}
+};
 process.on("exit", stop);
 
 async function waitForServer() {

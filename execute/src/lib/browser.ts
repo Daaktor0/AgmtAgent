@@ -105,8 +105,32 @@ export async function ingestFile(file: File): Promise<Ingested> {
   throw new Error(`"${file.name}" is not a PDF or an image.`);
 }
 
-export function saveBytes(bytes: Uint8Array, fileName: string, type = "application/pdf") {
-  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
+/** The claude.ai viewer's download prompt, present only when the page runs inside it. */
+type DownloadHost = {
+  use(name: "downloads"): Promise<{ save(req: { filename: string; data: Blob }): Promise<unknown> } | null>;
+};
+
+/**
+ * Hand a finished file to the user. Inside the claude.ai viewer, where the
+ * page's own downloads are blocked, this goes through the viewer's save
+ * prompt; everywhere else it is an ordinary browser download.
+ */
+export async function saveBytes(bytes: Uint8Array, fileName: string, type = "application/pdf") {
+  const blob = new Blob([bytes as BlobPart], { type });
+  const host = (window as unknown as { claude?: DownloadHost }).claude;
+  const downloads = typeof host?.use === "function" ? await host.use("downloads").catch(() => null) : null;
+  if (downloads) {
+    try {
+      await downloads.save({ filename: fileName, data: blob });
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      if (code === "declined") return;
+      if (code === "rate_limited") throw new Error("A save prompt is already open. Finish that one first.");
+      throw new Error(`"${fileName}" could not be saved here.`);
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = fileName;

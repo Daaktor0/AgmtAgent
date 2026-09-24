@@ -29,6 +29,7 @@ export function App() {
   const [thumbs, setThumbs] = useState<(string | null)[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
+  const [confirmReset, setConfirmReset] = useState(false);
   const agreementBytes = useRef<Uint8Array | null>(null);
   const sources = useRef(new Map<string, Source>());
   const hashes = useRef(new Map<string, string>());
@@ -139,7 +140,7 @@ export function App() {
         const s = stateRef.current;
         const c = await compiler(s);
         const bytes = await c.build(planFor(s, partyId), copyFileName(s, partyId).replace(/\.pdf$/i, ""));
-        saveBytes(bytes, safeFileName(copyFileName(s, partyId)));
+        await saveBytes(bytes, safeFileName(copyFileName(s, partyId)));
       });
     },
 
@@ -153,7 +154,7 @@ export function App() {
         for (const [i, id] of ids.entries()) {
           files.push({ name: names[i], bytes: await c.build(planFor(s, id), names[i].replace(/\.pdf$/i, "")) });
         }
-        saveBytes(zip(files), safeFileName(`${s.title || "Agreement"} - Executed copies`).replace(/\.pdf$/, ".zip"), "application/zip");
+        await saveBytes(zip(files), safeFileName(`${s.title || "Agreement"} - Executed copies`).replace(/\.pdf$/, ".zip"), "application/zip");
       });
     },
 
@@ -162,7 +163,7 @@ export function App() {
         const s = stateRef.current;
         const c = await compiler(s);
         const name = packFileName(s, partyId);
-        saveBytes(await c.extract(partyPages(s, partyId), name.replace(/\.pdf$/i, "")), name);
+        await saveBytes(await c.extract(partyPages(s, partyId), name.replace(/\.pdf$/i, "")), name);
       });
     },
 
@@ -176,7 +177,7 @@ export function App() {
         for (const [i, id] of ids.entries()) {
           files.push({ name: names[i], bytes: await c.extract(partyPages(s, id), names[i].replace(/\.pdf$/i, "")) });
         }
-        saveBytes(zip(files), safeFileName(`${s.title || "Agreement"} - Signature pages`).replace(/\.pdf$/, ".zip"), "application/zip");
+        await saveBytes(zip(files), safeFileName(`${s.title || "Agreement"} - Signature pages`).replace(/\.pdf$/, ".zip"), "application/zip");
       });
     },
   };
@@ -221,18 +222,29 @@ export function App() {
           <span aria-hidden className="dot" /> Runs on this computer. Nothing is uploaded.
         </p>
         {state.agreement ? (
-          <button
-            type="button"
-            className="btn btn-quiet"
-            onClick={() => {
-              if (window.confirm("Start over? Everything on this page will be cleared.")) {
-                loadToken.current += 1;
-                resetAll();
-              }
-            }}
-          >
-            Start over
-          </button>
+          confirmReset ? (
+            <div className="reset-confirm" role="group" aria-label="Start over">
+              <span>Clear everything on this page?</span>
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => {
+                  loadToken.current += 1;
+                  setConfirmReset(false);
+                  resetAll();
+                }}
+              >
+                Clear
+              </button>
+              <button type="button" className="text-btn" onClick={() => setConfirmReset(false)}>
+                Keep working
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="btn btn-quiet" onClick={() => setConfirmReset(true)}>
+              Start over
+            </button>
+          )
         ) : null}
       </header>
 

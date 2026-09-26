@@ -17,7 +17,8 @@ import { SigningView } from "./signing-view";
 import { PageViewerProvider } from "./page-viewer";
 
 export type SaveState = "saved" | "saving" | "unsaved" | "off";
-export type Batch = { added: number; placed: number; waiting: number; skipped: number; at: number };
+/** The last drop of returns: counts, and the ids of the files it added, so the screen can show where each went. */
+export type Batch = { added: number; placed: number; waiting: number; skipped: number; at: number; ids: string[] };
 
 type ExecuteApi = {
   signing: Signing;
@@ -245,7 +246,7 @@ export function ExecuteApp() {
     }
     setBusy(null);
     const now = signingRef.current!;
-    const recent = now.returns.slice(-added);
+    const recent = added ? now.returns.slice(-added) : [];
     if (!target && added + skipped > 1) {
       setBatch({
         added,
@@ -253,6 +254,7 @@ export function ExecuteApp() {
         waiting: recent.filter((r) => r.placement.status === "unplaced" && r.textSource !== "pending").length,
         skipped,
         at: Date.now(),
+        ids: recent.map((r) => r.id),
       });
     }
     if (skipped) notify(`Skipped ${skipped} file${skipped === 1 ? "" : "s"} already in this signing.`);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useModalFocus } from "./dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -8,7 +9,7 @@ const KINDS = [
   { id: "broke", label: "Something broke" },
   { id: "wrong-match", label: "A file went to the wrong place" },
   { id: "missing", label: "I need something it doesn't do" },
-  { id: "works", label: "This works well" },
+  { id: "works", label: "Something works well" },
   { id: "other", label: "Something else" },
 ] as const;
 
@@ -31,23 +32,24 @@ function FeedbackDialog({ onClose }: { onClose: () => void }) {
   const [technical, setTechnical] = useState(true);
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed" | "limited">("idle");
   const first = useRef<HTMLTextAreaElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useModalFocus(box, first);
 
   useEffect(() => {
-    first.current?.focus();
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/30 px-4 py-10" role="dialog" aria-modal="true" aria-labelledby="feedback-title" onClick={onClose}>
-      <div className="w-full max-w-[520px] bg-paper p-7 text-ink shadow-[0_24px_64px_rgba(28,25,23,0.25)]" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/30 px-4 py-10" onClick={onClose}>
+      <div ref={box} role="dialog" aria-modal="true" aria-labelledby="feedback-title" className="w-full max-w-[520px] border border-ink bg-paper p-6 text-ink shadow-[0_24px_64px_rgba(28,25,23,0.25)] sm:p-7" onClick={(e) => e.stopPropagation()}>
         {state === "sent" ? (
           <div className="space-y-4" role="status">
             <h2 id="feedback-title" className="font-display text-3xl">
               Thank you.
             </h2>
-            <p className="text-sm leading-6 text-stone">It has reached the founder. {email ? "You'll get a reply at the address you gave." : ""}</p>
+            <p className="text-sm leading-6 text-stone">Your feedback has been sent.{email.trim() ? ` A reply will come to ${email.trim()}.` : ""}</p>
             <Button onClick={onClose}>Close</Button>
           </div>
         ) : (
@@ -67,20 +69,20 @@ function FeedbackDialog({ onClose }: { onClose: () => void }) {
           >
             <div className="flex items-start justify-between gap-4">
               <h2 id="feedback-title" className="font-display text-3xl">
-                Tell us what's working
+                Send feedback
               </h2>
-              <button type="button" onClick={onClose} className="text-2xl leading-none text-stone hover:text-ink" aria-label="Close">
+              <button type="button" onClick={onClose} className="text-2xl leading-none text-stone hover:text-ink" aria-label="Close feedback">
                 ×
               </button>
             </div>
             <p className="text-sm leading-6 text-stone">
-              This goes straight to the person building Agmt. Don't paste client names or document text. Your documents are
-              never sent with it.
+              It goes straight to Agmt's founder. Please leave out client names and document text. Your documents are never sent
+              with it.
             </p>
             <fieldset className="flex flex-wrap gap-2">
               <legend className="sr-only">What is it about?</legend>
               {KINDS.map((k) => (
-                <label key={k.id} className={cn("cursor-pointer border px-3 py-1.5 text-[13px]", kind === k.id ? "border-ink bg-ink text-paper" : "border-rule hover:border-ink")}>
+                <label key={k.id} className={cn("cursor-pointer border px-3 py-1.5 text-[13px] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-oxblood", kind === k.id ? "border-ink bg-ink text-paper" : "border-rule-strong hover:border-ink")}>
                   <input type="radio" name="kind" value={k.id} checked={kind === k.id} onChange={() => setKind(k.id)} className="sr-only" />
                   {k.label}
                 </label>
@@ -95,21 +97,21 @@ function FeedbackDialog({ onClose }: { onClose: () => void }) {
                 rows={5}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="block w-full border border-rule bg-paper p-3 text-sm leading-6 outline-none focus:border-ink"
+                className="block w-full border border-rule-strong bg-paper p-3 text-sm leading-6 outline-none focus:border-ink"
               />
             </label>
             <label className="block space-y-1.5">
               <span className="text-sm font-medium">Your email, if you'd like a reply</span>
-              <input type="email" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)} className="block h-10 w-full border border-rule bg-paper px-3 text-sm outline-none focus:border-ink" />
+              <input type="email" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)} className="block h-10 w-full border border-rule-strong bg-paper px-3 text-sm outline-none focus:border-ink" />
             </label>
             <label className="flex items-start gap-2 text-[13px] leading-5 text-stone">
               <input type="checkbox" checked={technical} onChange={(e) => setTechnical(e.target.checked)} className="mt-0.5 accent-[var(--color-oxblood)]" />
               Include my browser and app version. They describe your software, not your documents.
             </label>
-            {state === "failed" ? <p className="text-sm text-oxblood">It didn't send. Check your connection and try again.</p> : null}
-            {state === "limited" ? <p className="text-sm text-oxblood">That's a lot of messages today. Try again tomorrow.</p> : null}
+            {state === "failed" ? <p className="text-sm text-oxblood" role="alert">Not sent. Check your connection and try again.</p> : null}
+            {state === "limited" ? <p className="text-sm text-oxblood" role="alert">Too many messages from this connection today. Try again tomorrow.</p> : null}
             <Button type="submit" disabled={!message.trim() || state === "sending"}>
-              {state === "sending" ? "Sending…" : "Send"}
+              {state === "sending" ? "Sending…" : "Send feedback"}
             </Button>
           </form>
         )}
@@ -122,7 +124,7 @@ export function FeedbackButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="text-[13px] text-paper underline-offset-4 hover:underline" data-testid="feedback">
+      <button type="button" onClick={() => setOpen(true)} className="text-[13px] text-current underline underline-offset-4 decoration-rule-strong hover:decoration-current" data-testid="feedback">
         Feedback
       </button>
       {open ? <FeedbackDialog onClose={() => setOpen(false)} /> : null}
@@ -136,28 +138,29 @@ export function InviteOnly({ reason }: { reason: string | null }) {
   const [acknowledged, setAcknowledged] = useState(false);
   const note =
     reason === "expired"
-      ? "That invite link has expired. Ask for a new one below."
+      ? "That invitation link has expired. Ask for a new one below."
       : reason === "invalid"
-        ? "That invite link isn't valid. Check you copied all of it, or ask for access below."
+        ? "That invitation link isn't valid. Check you copied all of it, or ask for access below."
         : null;
   return (
     <section className="mx-auto max-w-[560px] space-y-8 py-6">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-stone">Executed copies · private beta</p>
-      <h1 className="font-display text-[40px] leading-[1.05] sm:text-[52px]">Open to invited lawyers for now.</h1>
-      <p className="text-[17px] leading-8 text-ink/80">
-        Agmt assembles executed copies of multi-party agreements on your own computer. We're opening it to a small group
-        first, so we can learn from real closings. If you have an invite link, open it in this browser.
+      <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[50px]">Execute is available by invitation for now.</h1>
+      <p className="text-[17px] leading-8 text-ink/85">
+        Execute assembles an executed copy for every party to a multi-party agreement, on your own computer. If you have an invitation
+        link, open it in this browser. Otherwise, ask for access below.
       </p>
       {note ? <p className="border-l-2 border-oxblood pl-3 text-sm">{note}</p> : null}
       {state === "sent" ? (
         <div className="space-y-3 border-t border-rule pt-8" role="status" data-testid="access-sent">
-          <h2 className="font-display text-2xl">Thank you, {form.name.trim().split(/\s+/)[0]}.</h2>
-          <p className="text-[15px] leading-7 text-ink/80">
-            Your request is noted. We'll email an invite to <span className="font-medium text-ink">{form.email.trim()}</span> as
-            soon as your place is ready. There is nothing else you need to do.
+          <h2 className="font-display text-2xl">Request received.</h2>
+          <p className="text-[15px] leading-7 text-ink/85">
+            We'll write to <span className="font-medium text-ink">{form.email.trim()}</span> when your access is ready. There's nothing
+            more to do.
           </p>
           {acknowledged ? (
-            <p className="text-sm leading-6 text-stone">We've sent a short confirmation to that address. If it isn't in your inbox, check spam.</p>
+            <p className="text-sm leading-6 text-stone">
+              A confirmation is on its way to {form.email.trim()}. If it isn't in your inbox, check your spam folder.
+            </p>
           ) : null}
         </div>
       ) : (
@@ -176,7 +179,7 @@ export function InviteOnly({ reason }: { reason: string | null }) {
             [
               ["name", "Name", "text", true],
               ["email", "Work email", "email", true],
-              ["firm", "Firm or company", "text", false],
+              ["firm", "Firm or company (optional)", "text", false],
             ] as const
           ).map(([key, label, type, required]) => (
             <label key={key} className="block space-y-1.5">
@@ -187,16 +190,16 @@ export function InviteOnly({ reason }: { reason: string | null }) {
                 maxLength={key === "email" ? 200 : 160}
                 value={form[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                className="block h-10 w-full border border-rule bg-paper px-3 text-sm outline-none focus:border-ink"
+                className="block h-10 w-full border border-rule-strong bg-paper px-3 text-sm outline-none focus:border-ink"
               />
             </label>
           ))}
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">What do you sign most often? (optional)</span>
-            <textarea rows={3} maxLength={1000} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="block w-full border border-rule bg-paper p-3 text-sm outline-none focus:border-ink" />
+            <textarea rows={3} maxLength={1000} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="block w-full border border-rule-strong bg-paper p-3 text-sm outline-none focus:border-ink" />
           </label>
-          {state === "failed" ? <p className="text-sm text-oxblood">It didn't send. Check your connection and try again.</p> : null}
-          {state === "limited" ? <p className="text-sm text-oxblood">We've already had a few requests from this connection today. Please try again tomorrow.</p> : null}
+          {state === "failed" ? <p className="text-sm text-oxblood" role="alert">Not sent. Check your connection and try again.</p> : null}
+          {state === "limited" ? <p className="text-sm text-oxblood" role="alert">Too many requests from this connection today. Try again tomorrow.</p> : null}
           <Button type="submit" disabled={state === "sending"}>
             {state === "sending" ? "Sending…" : "Ask for access"}
           </Button>

@@ -132,7 +132,7 @@ try {
   // The sample, as it opens: one countersigned page awaited.
   await page.getByTestId("sample").click();
   await page.getByTestId("signing-name").waitFor();
-  await page.waitForFunction(() => /Sorted \d+ files/.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 120_000 });
+  await page.waitForFunction(() => /\d+ files read\./.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 120_000 });
   await page.getByTestId("tab-documents").click();
   await settle(4000);
   await shot(page, "documents");
@@ -142,7 +142,7 @@ try {
   await page.getByTestId("tab-returns").click();
   await settle();
   await shot(page, "returns-phone");
-  await page.locator("tr", { hasText: "Tamarind Growth Partners" }).getByTestId("cell").first().click();
+  await page.getByTestId("cell-m").filter({ hasText: "Tamarind Growth Partners" }).first().click();
   await settle();
   await shot(page, "cell-panel-phone", false);
   await page.keyboard.press("Escape");
@@ -160,11 +160,11 @@ try {
     { name: "WhatsApp Image 2026-09-25 at 23.14.07.png", mimeType: "image/png", buffer: blank.toBuffer("image/png") },
     { name: "Kestrel stamp.pdf", mimeType: "application/pdf", buffer: Buffer.from(banyanStamp.bytes) },
   ]);
-  await page.waitForFunction(() => /Sorted \d+ file/.test(document.querySelector("[data-testid='batch']")?.textContent ?? "") && !/still being read/.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 120_000 });
+  await page.waitForFunction(() => /\d+ files? read\./.test(document.querySelector("[data-testid='batch']")?.textContent ?? "") && !/still being read/.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 120_000 });
   await settle(2500);
   await shot(page, "returns-needs-you");
   await page.getByTestId("tab-copies").click();
-  await page.locator("[data-testid='copy-row']").first().getByRole("button", { name: "See pages" }).click();
+  await page.locator("[data-testid='copy-row']").first().getByRole("button", { name: "Show pages" }).click();
   await settle(2500);
   await shot(page, "copies-preview");
 
@@ -206,7 +206,7 @@ try {
   returns.push({ name: "e-Stamp Meridian second sheet.pdf", mimeType: "application/pdf", buffer: Buffer.from(await stamp("IN-DEMO799999", STRESS_PARTIES[0], "Article 5(h) Agreement - Shareholders' Agreement")) });
   await page.getByTestId("tab-returns").click();
   await page.getByTestId("returns-drop").locator("input[type=file]").setInputFiles(returns);
-  await page.waitForFunction(() => /Sorted \d+ file/.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 180_000 });
+  await page.waitForFunction(() => /\d+ files? read\./.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 180_000 });
   await settle(2000);
   await shot(page, "stress-returns");
   await page.setViewportSize({ width: 390, height: 844 });

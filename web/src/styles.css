@@ -108,6 +108,57 @@
 }
 
 @layer components {
+  /* A page still rendering: vellum with faint ruled lines, never a blank white page. */
+  .thumb-loading {
+    background-color: var(--color-vellum);
+    background-image: repeating-linear-gradient(to bottom, transparent 0 7px, var(--color-rule) 7px 8px);
+    background-size: 70% 45%;
+    background-position: 50% 22%;
+    background-repeat: no-repeat;
+    outline: 1px solid var(--color-rule);
+    outline-offset: -1px;
+    animation: thumb-breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes thumb-breathe {
+    50% { opacity: 0.55; }
+  }
+  kbd,
+  .kbd {
+    display: inline-block;
+    min-width: 1.4em;
+    padding: 1px 4px;
+    border: 1px solid var(--color-rule-strong);
+    border-bottom-width: 2px;
+    border-radius: 2px;
+    background: var(--color-paper);
+    font: 500 11px/1.2 var(--font-sans);
+    text-align: center;
+    color: var(--color-ink);
+  }
+  @keyframes seal-in {
+    from { transform: scale(1.35); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes spine-in {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes panel-in {
+    from { transform: translateX(24px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  /* A cell changed by the last drop: one oxblood pulse, then still. */
+  .cell-settled {
+    animation: cell-settle 1.8s ease-out 1;
+  }
+  @keyframes cell-settle {
+    0% { box-shadow: inset 0 0 0 2px var(--color-oxblood); background-color: var(--color-oxblood-wash); }
+    100% { box-shadow: inset 0 0 0 2px transparent; background-color: transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell-settled { animation: none; box-shadow: inset 0 0 0 2px var(--color-oxblood); }
+  }
+
   .proof-touch {
     min-height: 44px;
     min-width: 44px;

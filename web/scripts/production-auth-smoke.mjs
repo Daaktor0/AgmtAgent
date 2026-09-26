@@ -4,7 +4,7 @@
  *
  * Never creates an account, never signs in with real credentials, never logs
  * a password, token, or full response body. Checks only:
- *  - the sign-in page (/) loads;
+ *  - the login page loads (following its returnTo redirect);
  *  - a signed-out session returns 200;
  *  - a same-origin sign-in with made-up credentials is rejected quickly with
  *    a stable code, not a hang or a bare 500 (the actual production bug this
@@ -43,8 +43,8 @@ async function main() {
   const results = [];
 
   results.push(
-    await check("sign-in page loads", async () => {
-      const response = await fetch(`${baseUrl}/`, {
+    await check("login page loads", async () => {
+      const response = await fetch(`${baseUrl}/login`, {
         redirect: "follow",
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

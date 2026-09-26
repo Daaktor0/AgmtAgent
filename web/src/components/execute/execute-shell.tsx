@@ -4,7 +4,7 @@ import { FeedbackButton } from "./feedback";
 
 /**
  * Execute's page frame: the lock-up on paper under one ink rule. Quieter than
- * a dark bar, which matters at night.
+ * a dark bar, which matters at night. Proof keeps its own shell.
  */
 export function ExecuteShell({ children, account }: { children: ReactNode; account?: ReactNode }) {
   return (

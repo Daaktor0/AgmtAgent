@@ -68,8 +68,8 @@ export class AgmtContainer extends Container {
     AUTH_EMAIL_FROM: workerValue("AUTH_EMAIL_FROM"),
     AUTH_SUPPORT_EMAIL: workerValue("AUTH_SUPPORT_EMAIL"),
 
-    // Preserve an already-created secret so a deploy does not destroy the
-    // legacy binding.
+    // Review is not a Proof launch dependency, but preserve an already-created
+    // secret so this deployment change does not destroy the legacy binding.
     OPENROUTER_API_KEY: workerValue("OPENROUTER_API_KEY"),
   };
 }

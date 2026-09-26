@@ -2,12 +2,16 @@ import { access, readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import test from "node:test";
 
+const sessionSource = await readFile(
+  new URL("../src/lib/server/session.ts", import.meta.url),
+  "utf8",
+);
 const authSource = await readFile(
   new URL("../src/lib/auth/server.ts", import.meta.url),
   "utf8",
 );
-const signInSource = await readFile(
-  new URL("../src/components/execute/access-gate.tsx", import.meta.url),
+const loginSource = await readFile(
+  new URL("../src/routes/login.tsx", import.meta.url),
   "utf8",
 );
 const resendSource = await readFile(
@@ -15,13 +19,27 @@ const resendSource = await readFile(
   "utf8",
 );
 
+const agmtSource = await readFile(
+  new URL("../src/lib/fn/agmt.ts", import.meta.url),
+  "utf8",
+);
+
+test("production auth has no anonymous test-session path", () => {
+  assert.doesNotMatch(sessionSource, /openAnonymousTestSession/);
+  assert.doesNotMatch(sessionSource, /temporary_test_access/);
+  assert.doesNotMatch(sessionSource, /test\.agmt\.local/);
+  assert.doesNotMatch(loginSource, /test workspace/i);
+  assert.doesNotMatch(agmtSource, /export const (request|verify)MagicLink/);
+  assert.doesNotMatch(agmtSource, /previewToken/);
+});
+
 test("deployed auth does not derive or bake credentials", () => {
   assert.match(authSource, /BETTER_AUTH_SECRET/);
   assert.match(authSource, /sendVerificationEmail/);
   assert.match(resendSource, /RESEND_API_KEY/);
   assert.match(resendSource, /api\.resend\.com\/emails/);
   assert.doesNotMatch(authSource, /genericOAuth|GROK_AUTH|GROK_PROVIDERS/);
-  assert.doesNotMatch(signInSource, /Google|Continue with|oauth2|magic/i);
+  assert.doesNotMatch(loginSource, /Google|Continue with|oauth2/i);
   assert.doesNotMatch(authSource, /previewSecret|derived.*secret|test-access/i);
 });
 

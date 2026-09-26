@@ -1,0 +1,46 @@
+{
+  "run": "first-run-before-rewrite",
+  "labelledBeforeExecution": true,
+  "originalUserExample": "not reproduced",
+  "documentCount": 20,
+  "cleanCount": 11,
+  "dirtyCount": 9,
+  "blocked": [],
+  "perRule": {
+    "definitions.undefined_use": { "tp": 1, "fp": 2, "fn": 0 },
+    "references.missing_target": { "tp": 0, "fp": 3, "fn": 0 },
+    "references.duplicate_number": { "tp": 0, "fp": 1, "fn": 0 },
+    "spelling.dictionary": { "tp": 3, "fp": 0, "fn": 0 },
+    "language.typo_allowlist": { "tp": 1, "fp": 0, "fn": 0 },
+    "punctuation.duplicate_mark": { "tp": 1, "fp": 0, "fn": 0 },
+    "language.duplicate_word": { "tp": 1, "fp": 0, "fn": 0 },
+    "completion.placeholder": { "tp": 1, "fp": 0, "fn": 0 },
+    "figures.words_figures_mismatch": { "tp": 1, "fp": 0, "fn": 0 }
+  },
+  "misses": [
+    {
+      "id": "01_agreement_clean_asset_sale",
+      "fp": [
+        { "ruleId": "definitions.undefined_use", "kind": "comment", "quote": "Reference Amount" },
+        { "ruleId": "references.missing_target", "kind": "comment", "quote": "Schedule 1" },
+        { "ruleId": "references.missing_target", "kind": "comment", "quote": "Schedule 2" }
+      ],
+      "fn": []
+    },
+    {
+      "id": "03_amendment_clean_clause",
+      "fp": [
+        { "ruleId": "references.duplicate_number", "kind": "comment", "quote": "4.1" },
+        { "ruleId": "definitions.undefined_use", "kind": "comment", "quote": "Payment Date" }
+      ],
+      "fn": []
+    },
+    {
+      "id": "17_agreement_placeholder",
+      "fp": [
+        { "ruleId": "references.missing_target", "kind": "comment", "quote": "Clause 8" }
+      ],
+      "fn": []
+    }
+  ]
+}

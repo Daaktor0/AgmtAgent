@@ -11,6 +11,12 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "r2_buckets": [
+    {
+      "binding": "AGMT_OBJECTS",
+      "bucket_name": "agmt-proof-objects"
+    }
+  ],
   // The executed-copies beta's approved list (src/lib/execute/access-store.ts).
   "kv_namespaces": [
     {
@@ -18,6 +24,9 @@
       "id": "64ed6441513549819e50e9955d810bbb"
     }
   ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
   "hyperdrive": [
     {
       "binding": "AGMT_APP_DB",

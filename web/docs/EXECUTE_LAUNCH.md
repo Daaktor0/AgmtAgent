@@ -1,8 +1,8 @@
 # Executed copies: launch runbook
 
-`app.agmt.legal/` is **Execute**: signature pages out, countersigned pages and
-stamp papers in, one complete executed copy per party. It is Agmt's only
-product.
+`app.agmt.legal/` is now **Executed copies**: signature pages out, countersigned
+pages and stamp papers in, one complete executed copy per party. It is the only
+product in the header. Proof still works at `/proof` but is not linked.
 
 ## How it works, in one paragraph
 
@@ -150,7 +150,7 @@ Execute pages' policy also refuses any web manifest (`manifest-src 'none'`).
   and pdf-lib.
 - `node scripts/execute-screens.mjs [<url>] [<dir>]`: screenshots of every
   screen state (sample, needs-you, a duplicate certificate, 20 parties across
-  3 documents, phone widths, the closing index) for design checks.
+  3 documents, phone widths, the closing index) for design review.
 - `node scripts/brand-assets.mjs`: redraws the Execute and Agmt marks,
   favicons, email header image and social preview from the fonts in
   `public/fonts`.

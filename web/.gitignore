@@ -4,3 +4,10 @@ dist/
 .output/
 src/routeTree.gen.ts
 *.log
+tmp-proof-local-sdk/
+tmp-proof-local-word/
+tmp-proof-production/
+tmp-proof-capacity-word/
+.proof-production.env
+scripts/proof-local-dist/
+scripts/proof-capacity-dist/

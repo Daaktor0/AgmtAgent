@@ -15,6 +15,8 @@ const DIRECTIVES = [
   "connect-src 'self' blob: data:",
   "worker-src 'self' blob:",
   "frame-src 'none'",
+  // Agmt is a website, not an app to install: no web manifest may load.
+  "manifest-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

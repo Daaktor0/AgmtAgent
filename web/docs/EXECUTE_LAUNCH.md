@@ -114,14 +114,16 @@ In `public` mode, the full browser journey also runs against production:
 `cd web && npm run execute:journey -- https://app.agmt.legal` (it uses the
 built-in sample; nothing real is uploaded anywhere).
 
-## Security note: the template's platform script
+## Security note: the app template's platform tags (removed)
 
-The template this app came from injects
-`https://grok.com/grok-app-builder/extensions.js` into every HTML page
-(`server/middleware/grok-pwa.ts`). On `/` the page policy
-(`src/lib/execute/csp.ts`, sent as a header by `server/middleware/execute-csp.ts`)
-refuses it, so no third-party code runs where documents are opened. `/proof`
-still receives it. Removing that injection everywhere is recommended.
+The template this app came from injected, into every HTML page, a web app
+manifest named "Grok App" (so phones offered to "Install Grok App" on
+app.agmt.legal), Apple home-screen tags, Grok project ids and the script
+`https://grok.com/grok-app-builder/extensions.js`. All of it is gone:
+`server/middleware/grok-pwa.ts` now adds only the share card (and strips those
+tags from any page that still has them), `/__grok/*` answers 404, and the
+Execute pages' policy also refuses any web manifest (`manifest-src 'none'`).
+`npm run execute:journey` checks the page has no manifest and names no Grok.
 
 ## Known limits of this beta
 

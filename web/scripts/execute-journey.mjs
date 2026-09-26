@@ -184,7 +184,9 @@ try {
   await page.getByText("Thank you.").waitFor();
   check(true, "feedback sends");
 
-  if (platformBlocked) console.log("ok - the template's third-party platform script was refused by the page policy");
+  check(!platformBlocked, "the page doesn't even try to load the app template's grok.com script");
+  check((await page.locator("link[rel='manifest']").count()) === 0, "no web manifest, so no browser offers to install an app");
+  check(!/Grok/i.test(await page.locator("head").innerHTML()), "nothing in the page head names Grok");
   check(outside.length === 0, `no request left Agmt${outside.length ? `: ${outside.join(", ")}` : ""}`);
   check(problems.length === 0, `no console errors or unexpected policy violations${problems.length ? `: ${problems.join("; ")}` : ""}`);
 } catch (err) {

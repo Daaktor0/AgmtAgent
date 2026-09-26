@@ -1,0 +1,56 @@
+name: Site checks
+
+# agmt.legal (site/). Vercel builds and deploys it; this checks every change,
+# including blog posts saved from the editor at agmt.legal/write.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+      - ".github/workflows/site-checks.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/site-checks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit and integration tests
+        run: npm test
+      - name: Build as a preview (drafts shown) and check it
+        env:
+          VERCEL_ENV: preview
+        run: npm run build && npm run check:output
+      - name: Build as the live site (drafts hidden) and check it
+        env:
+          VERCEL_ENV: production
+        run: npm run build && npm run check:output
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Every page in a browser
+        env:
+          VERCEL_ENV: production
+        run: |
+          npx playwright install --with-deps chromium
+          npm run preview > preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:8081/ && break; sleep 1; done
+          npm run test:e2e

@@ -23,16 +23,30 @@ Square corners.
 gradients, illustrations, chat columns, dashboard charts. Never "AGMT". Never
 an exclamation mark.
 
-## Not yet reconciled with `site/`
+## The house and its products
 
-The marketing site was redesigned separately and does not currently follow
-this document. This is a decision to take, not a defect to fix quietly.
+Agmt (the company, `site/`, agmt.legal) and its products have separate but
+related identities. The house is neutral so that each product can bring one
+colour of its own.
 
-| | This document | `site/` today |
+| | Agmt house (`site/`) | Execute (`web/`) |
 |---|---|---|
-| Serif | Source Serif 4 | Spectral |
-| Sans | Archivo | IBM Plex Sans |
-| Paper | `#F4EFE6` | `#f5efe5` |
-| Ink | `#1C1917` (warm) | `#171c22` (cool) |
-| Accent | `#6B2B2B` | `#9b3028` |
-| Accents | oxblood only | oxblood plus `brass #b8894a` |
+| Ground | White `#FFFFFF`, desk grey `#F5F6F8` | Paper `#F4EFE6` |
+| Ink | `#0E1015` (cool) | `#1C1917` (warm) |
+| Accent | Signature blue `#2343D6` (links, focus, the sign-here flag) | Oxblood `#6B2B2B` |
+| Display / reading | Newsreader | Source Serif 4 |
+| Interface | Instrument Sans; Geist Mono for labels and figures | Archivo |
+| Mark | "Agmt" in Newsreader with a blue square full stop | The Execute mark: spine and three leaves, the signed one in oxblood |
+
+Where a product appears on agmt.legal it keeps its own mark and accent (the
+Execute mark and oxblood), set inside the house layout. The Execute app keeps
+the system described above; nothing in `web/` follows the house style.
+
+Rules shared by both: never "AGMT", never an exclamation mark, numbers set
+tabular, no confidence scores, sparkles, prompt boxes or chat columns. The
+house allows what a marketing site needs and an app doesn't: a dark band for
+contrast, soft shadows under product screenshots, and one orchestrated motion
+on the home page (off when the reader prefers reduced motion).
+
+Tokens live in `site/src/styles.css`; social cards and icons are drawn by
+`site/scripts/og/render.mjs`.

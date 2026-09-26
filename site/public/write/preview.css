@@ -1,0 +1,72 @@
+/* The editor's preview pane, set like a post on agmt.legal (see .prose in src/styles.css). */
+
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/newsreader-opsz.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/newsreader-italic.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/fonts/instrument-sans.woff2") format("woff2");
+  font-weight: 400 700;
+}
+
+body {
+  font-family: "Newsreader", Georgia, serif;
+  font-optical-sizing: auto;
+  font-size: 1.25rem;
+  line-height: 1.68;
+  color: #0e1015;
+  background: #ffffff;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+h1 {
+  font-weight: 400;
+  font-size: 2.6rem;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+h2 {
+  font-weight: 450;
+  font-size: 1.65em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-top: 2em;
+}
+h3 {
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 0.95em;
+  font-weight: 600;
+  margin-top: 1.8em;
+}
+a {
+  color: inherit;
+  text-decoration-color: #2343d6;
+  text-underline-offset: 0.18em;
+}
+blockquote {
+  margin-left: 0;
+  padding-left: 1.1em;
+  border-left: 2px solid #2343d6;
+  font-style: italic;
+  color: #3e4450;
+}
+img {
+  max-width: 100%;
+  border-radius: 10px;
+}
+code {
+  font-size: 0.8em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: #f5f6f8;
+}

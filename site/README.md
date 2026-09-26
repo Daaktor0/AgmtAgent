@@ -135,9 +135,12 @@ does. `AGMT_SHOW_DRAFTS=1` or `0` overrides either way.
 
 Vercel builds `site/` on every push: `main` is production (agmt.legal), every
 other branch gets a preview link. Commits that don't touch `site/` are skipped
-(`ignoreCommand` in `vercel.json`). The Execute app's deploy
-(`.github/workflows/deploy-cloudflare.yml`) runs only for changes to the app, so
-a blog post never redeploys app.agmt.legal. `.github/workflows/site-checks.yml`
+(`ignoreCommand` in `vercel.json`). The Execute app's GitHub deploy
+(`.github/workflows/deploy-cloudflare.yml`) runs only for changes to the app.
+Cloudflare's own Git integration (Workers Builds) also builds the `agmt` Worker
+on every push; to limit it to app changes, set its build watch paths in the
+Cloudflare dashboard (Workers & Pages → agmt → Settings → Build) to `web/*`,
+`src/*`, `wrangler.jsonc` and `package*.json`. `.github/workflows/site-checks.yml`
 runs lint, tests, both builds, the output check and the browser pass on every
 change to `site/`.
 

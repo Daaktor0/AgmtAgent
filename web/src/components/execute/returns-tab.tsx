@@ -5,7 +5,7 @@ import { signingPartiesOf } from "@/lib/execute/classify";
 import type { ReturnFile, ReturnRole, SigningDocument } from "@/lib/execute/model";
 import {
   confirmAllAutoPlaced, confirmReturn, pagesOf, partyName, placeReturn, rotateReturn, setCopyType, toggleSignedBy,
-  unplaced,
+  unplaced, pageLabel, pageSource,
 } from "@/lib/execute/signing";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -175,7 +175,7 @@ function PlacedFile({ file, doc, partyId, shared }: { file: ReturnFile; doc: Sig
   const e = file.estamp;
   const signed = file.placement.status === "placed" && file.placement.role === "signed";
   const compare: ViewedPage[] = signed
-    ? pagesOf(doc, partyId).map((p) => ({ fileId: doc.fileId, kind: "pdf" as const, page: p + 1, label: `Final: ${doc.title} p. ${p + 1}` }))
+    ? pagesOf(doc, partyId).map((p) => ({ ...pageSource(doc, p), kind: "pdf" as const, label: `Sent: ${doc.title} ${pageLabel(doc, p)}` }))
     : [];
   return (
     <li className="grid gap-4 py-4 sm:grid-cols-[88px_minmax(0,1fr)]">

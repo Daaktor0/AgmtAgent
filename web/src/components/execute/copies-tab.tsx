@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { copyStatus, type Flag } from "@/lib/execute/checks";
 import type { CopyType, SigningDocument } from "@/lib/execute/model";
-import { copyFileName, copyParties, partyName, planFor, setCopyName, setCopyType } from "@/lib/execute/signing";
+import { copyFileName, copyParties, pageSource, partyName, planFor, setCopyName, setCopyType } from "@/lib/execute/signing";
 import { signingPartiesOf } from "@/lib/execute/classify";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,8 @@ import { useThumbnail } from "./thumbs";
 
 function AgreementPage({ doc, index, unsigned }: { doc: SigningDocument; index: number; unsigned: boolean }) {
   const { getBytes } = useExecute();
-  const url = useThumbnail(doc.fileId, "pdf", index + 1, 120, getBytes);
+  const source = pageSource(doc, index);
+  const url = useThumbnail(source.fileId, "pdf", source.page, 120, getBytes);
   return (
     <span className={cn("relative block w-[60px] shrink-0 border bg-white", unsigned ? "border-oxblood" : "border-rule")}>
       {url ? <img src={url} alt="" className="block w-full" /> : <span className="block aspect-[1/1.414]" />}

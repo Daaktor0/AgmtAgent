@@ -5,6 +5,7 @@
  * bytes are stored separately, by id.
  */
 import type { EStamp } from "./estamp.ts";
+import type { NameSlot } from "./generate.ts";
 import type { CopyType } from "./names.ts";
 
 export type { CopyType };
@@ -18,6 +19,53 @@ export type PageInfo = {
   text: string;
   likelySignature: boolean;
   suggestedParties: string[];
+};
+
+/**
+ * Signature pages Agmt made for an agreement that has none of its own: one
+ * page per party, stored as a PDF of their own and counted after the
+ * agreement's last page (page index pageCount + i), so each executed copy
+ * carries the signed pages at the end, after the schedules.
+ */
+export type MadePages = {
+  from: "parties" | "template";
+  fileId: string;
+  pages: PageInfo[];
+  /** The setup they were made from, to tell when it has changed since. */
+  key: string;
+};
+
+/** The lawyer's choices for making signature pages, kept so they can be changed and made again. */
+export type MakeParty = {
+  id: string;
+  name: string;
+  /** The plain format used when pages are made from the parties. */
+  formatId: string;
+  /** The template used when pages are made from the lawyer's template; null means the first. */
+  templateId: string | null;
+  /** Where the name came from when it was read from a schedule: "Investors · Part A of Schedule 1". */
+  group: string | null;
+};
+export type MakeFormat = { id: string; label: string; body: string };
+export type MakeTemplate = {
+  id: string;
+  label: string;
+  fileId: string;
+  fileName: string;
+  pageIndex: number;
+  sample: string;
+  slots: NameSlot[];
+  text: string;
+  /** The last pages made from it still showed the sample name in their text (it could only be painted over). */
+  residue?: boolean;
+};
+export type MakeSetup = {
+  from: "parties" | "template";
+  parties: MakeParty[];
+  formats: MakeFormat[];
+  templates: MakeTemplate[];
+  footer: string;
+  useFooter: boolean;
 };
 
 export type SigningDocument = {
@@ -34,6 +82,10 @@ export type SigningDocument = {
   copies: Record<string, CopyType>;
   /** Party id -> a file name the user typed over the suggestion. */
   copyNames: Record<string, string>;
+  /** Signature pages Agmt made, when the agreement has none of its own. */
+  made?: MadePages | null;
+  /** How they were (or will be) made. */
+  setup?: MakeSetup | null;
 };
 
 export type Placement =

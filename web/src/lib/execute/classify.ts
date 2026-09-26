@@ -10,6 +10,13 @@ import type { Confidence, Party, ReturnRole, Signing, SigningDocument, Suggestio
 import { guessRoleByFileName } from "./names.ts";
 import { nameMatch, nameTokens, recall, tokenSet } from "./text.ts";
 
+/** Text of a page of the agreement, or of a signature page Agmt made after it. */
+function textOf(doc: SigningDocument, page: number): string {
+  return (page < doc.pageCount ? doc.pages[page] : doc.made?.pages[page - doc.pageCount])?.text ?? "";
+}
+
+const labelOf = (doc: SigningDocument, page: number) => (page < doc.pageCount ? `p. ${page + 1}` : `signature page ${page - doc.pageCount + 1}`);
+
 type Candidate = { doc: SigningDocument; pageIndex: number; score: number };
 
 const ABBREVIATIONS: Record<string, string> = {
@@ -35,7 +42,7 @@ export function documentWords(doc: SigningDocument): Set<string> {
   const parts = [doc.title];
   for (const t of tokenSet(doc.title)) if (ABBREVIATIONS[t]) parts.push(ABBREVIATIONS[t]);
   for (const page of Object.keys(doc.sigPages).map(Number)) {
-    const m = (doc.pages[page]?.text ?? "").match(/signature\s+page\s+to\s+(?:the\s+)?([^\]\n]{3,120})/i);
+    const m = textOf(doc, page).match(/signature\s+page\s+to\s+(?:the\s+)?([^\]\n]{3,120})/i);
     if (m) parts.push(m[1]);
   }
   return tokenSet(parts.join(" "));
@@ -66,6 +73,27 @@ export function signingPartiesOf(doc: SigningDocument): string[] {
 }
 
 /**
+ * How well some line of `text` is `name` standing alone: all of the name's
+ * words, and not much else on that line. A long sentence that mentions the
+ * name (a footer listing every party) scores low.
+ */
+export function nameLineScore(name: string, text: string): number {
+  const want = nameTokens(name);
+  if (want.size === 0) return 0;
+  let best = 0;
+  for (const line of text.split("\n")) {
+    const words = tokenSet(line);
+    if (words.size === 0) continue;
+    const hit = [...want].filter((w) => words.has(w)).length;
+    const recallOfName = hit / want.size;
+    const precision = hit / words.size;
+    const score = precision >= 0.3 ? recallOfName : recallOfName * (precision / 0.3);
+    if (score > best) best = score;
+  }
+  return best;
+}
+
+/**
  * Score every signature page by the share of its distinctive words found in
  * the file. Words printed on every signature page of a document (the
  * "Signature page to the Agreement" footer, "Name:", "Designation:") say
@@ -79,11 +107,15 @@ export function rankSignaturePages(signing: Signing, text: string, fileName = ""
   const out: Candidate[] = [];
   for (const doc of signing.documents) {
     const pages = Object.keys(doc.sigPages).map(Number);
-    const sets = pages.map((p) => tokenSet(doc.pages[p]?.text ?? ""));
+    const sets = pages.map((p) => tokenSet(textOf(doc, p)));
     const common = sets.length > 1 ? new Set([...sets[0]].filter((t) => sets.every((s) => s.has(t)))) : new Set<string>();
     pages.forEach((pageIndex, i) => {
       const distinctive = new Set([...sets[i]].filter((t) => !common.has(t)));
-      const own = recall(distinctive.size >= 2 ? distinctive : sets[i], found);
+      const signer = pageIndex >= doc.pageCount ? doc.made?.pages[pageIndex - doc.pageCount]?.suggestedParties[0] : undefined;
+      // A page Agmt made names its signer on a line of its own; the footer
+      // names the parties to the agreement on every page, so it proves
+      // nothing about whose page this is.
+      const own = signer ? nameLineScore(signer, text) : recall(distinctive.size >= 2 ? distinctive : sets[i], found);
       // A party that signs two documents often has the same block on both,
       // so the document's own name ("Signature page to the Shareholders'
       // Agreement", or "SHA" in the file name) decides between them.
@@ -183,7 +215,7 @@ function signedFromText(signing: Signing, text: string, fileName: string): Sugge
   const clear = margin >= 0.15;
   const single = onPage.length === 1 || byFile.length >= 1;
   const confidence: Confidence = clear && single ? "high" : clear ? "medium" : "low";
-  const pageNo = best.pageIndex + 1;
+  const where = labelOf(best.doc, best.pageIndex);
   return {
     role: "signed",
     docId: best.doc.id,
@@ -192,10 +224,10 @@ function signedFromText(signing: Signing, text: string, fileName: string): Sugge
     confidence,
     reason:
       onPage.length > 1 && byFile.length === 0
-        ? `Reads like ${best.doc.title} p. ${pageNo}, which several parties sign. Tick who signed this copy.`
+        ? `Reads like ${best.doc.title} ${where}, which several parties sign. Tick who signed this copy.`
         : clear
-          ? `Reads like ${best.doc.title} p. ${pageNo}.${who}`
-          : `Closest match is ${best.doc.title} p. ${pageNo}, but another page is similar.`,
+          ? `Reads like ${best.doc.title} ${where}.${who}`
+          : `Closest match is ${best.doc.title} ${where}, but another page is similar.`,
   };
 }
 

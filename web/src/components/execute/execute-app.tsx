@@ -1,16 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { readEStamp } from "@/lib/execute/estamp";
-import { newId, type Placement, type Signing, type SigningDocument } from "@/lib/execute/model";
+import { newId, type MakeSetup, type MakeTemplate, type Placement, type Signing, type SigningDocument } from "@/lib/execute/model";
 import { safeFileName, uniqueNames } from "@/lib/execute/names";
 import type { RenderAttachment } from "@/lib/execute/render";
 import {
-  addDocument, addReturn, copyFileName, copyParties, createSigning, packFileName, pagesOf, placeReturn,
-  planFor, removeReturn as dropReturn, updateReturnText,
+  addDocument, addReturn, applyMadePages, copyFileName, copyParties, createSigning, packFileName, pagesOf, placeReturn,
+  planFor, removeReturn as dropReturn, saveMakeSetup, setupKey, updateReturnText,
 } from "@/lib/execute/signing";
+import type { FoundParties, ReadTemplate } from "@/lib/execute/browser/make";
 import { signingPartiesOf } from "@/lib/execute/classify";
 import { copyStatus, signingFlags } from "@/lib/execute/checks";
 import { forgetThumbnails } from "./thumbs";
-import { loadIntake, loadSave, loadStore } from "./runtime";
+import { loadIntake, loadMake, loadSave, loadStore } from "./runtime";
 import { StartScreen } from "./start-screen";
 import { SigningView } from "./signing-view";
 import { PageViewerProvider } from "./page-viewer";
@@ -29,6 +30,15 @@ type ExecuteApi = {
   downloadCopies: (docIds?: string[]) => Promise<void>;
   downloadPacks: (docId: string) => Promise<void>;
   downloadPack: (docId: string, partyId: string) => Promise<void>;
+  /** Who signs, read from the agreement's parties clause and schedules. */
+  readParties: (docId: string) => Promise<FoundParties | null>;
+  /** Add the lawyer's signature page template (a PDF) to a document's setup. */
+  addTemplate: (docId: string, file: File) => Promise<void>;
+  /** The party name as printed on a template, to be replaced on each page. */
+  setTemplateSample: (docId: string, templateId: string, sample: string) => Promise<void>;
+  removeTemplate: (docId: string, templateId: string) => void;
+  /** Make one signature page per party from the setup, and use them. */
+  makePages: (docId: string) => Promise<void>;
   notify: (text: string) => void;
   busy: string | null;
   ocrQueue: number;
@@ -238,6 +248,8 @@ export function ExecuteApp() {
     const { createCompiler } = await import("@/lib/execute/render");
     const agreement = await getBytes(doc.fileId);
     if (!agreement) throw new Error(`The file for ${doc.title} is no longer on this device. Add it again.`);
+    const made = doc.made ? await getBytes(doc.made.fileId) : null;
+    if (doc.made && !made) throw new Error(`The signature pages made for ${doc.title} are no longer on this device. Make them again.`);
     const atts = new Map<string, RenderAttachment>();
     for (const r of s.returns) {
       if (r.placement.status !== "placed" || r.placement.docId !== doc.id) continue;
@@ -252,7 +264,29 @@ export function ExecuteApp() {
             : { type: "image", format: "jpg", bytes: data, width: r.image.width, height: r.image.height },
       });
     }
-    return createCompiler(agreement, atts);
+    return createCompiler(agreement, atts, made);
+  }
+
+  // Templates read this session: their positioned text, to find the name again when it is edited.
+  const templates = useRef(new Map<string, ReadTemplate>());
+
+  function withSetup(docId: string, fn: (setup: MakeSetup) => MakeSetup) {
+    const s = signingRef.current!;
+    const doc = s.documents.find((d) => d.id === docId);
+    if (!doc?.setup) return;
+    const next = saveMakeSetup(s, docId, fn(doc.setup));
+    signingRef.current = next;
+    setSigning(next);
+  }
+
+  async function templateRead(t: MakeTemplate): Promise<ReadTemplate | null> {
+    const cached = templates.current.get(t.id);
+    if (cached) return cached;
+    const data = await getBytes(t.fileId);
+    if (!data) return null;
+    const read = await (await loadMake()).readTemplateBytes(data, t.fileName);
+    templates.current.set(t.id, read);
+    return read;
   }
 
   async function run(label: string, task: () => Promise<void>) {
@@ -339,6 +373,139 @@ export function ExecuteApp() {
             const name = packFileName(s, doc, partyId);
             const { saveBytes } = await loadSave();
             saveBytes(await c.extract(pagesOf(doc, partyId), name.replace(/\.pdf$/i, "")), name);
+          });
+        },
+        async readParties(docId) {
+          const s = signingRef.current!;
+          const doc = s.documents.find((d) => d.id === docId);
+          if (!doc) return null;
+          const data = await getBytes(doc.fileId);
+          if (!data) {
+            notify(`The file for ${doc.title} is no longer on this device. Add it again.`);
+            return null;
+          }
+          setBusy(`Reading the parties in ${doc.title}…`);
+          try {
+            return await (await loadMake()).readAgreementParties(data, doc.title || "Agreement");
+          } catch (err) {
+            notify(message(err));
+            return null;
+          } finally {
+            setBusy(null);
+          }
+        },
+        async addTemplate(docId, file) {
+          await run(`Reading ${file.name}…`, async () => {
+            const make = await loadMake();
+            const read = await make.readTemplate(file);
+            const { findNameSlots } = await import("@/lib/execute/generate");
+            const s = signingRef.current!;
+            const id = newId("tpl");
+            const fileId = newId("fil");
+            await keep(s.id, fileId, read.bytes, "application/pdf");
+            templates.current.set(id, read);
+            const sample = read.guess ?? "";
+            withSetup(docId, (setup) => ({
+              ...setup,
+              templates: [
+                ...setup.templates,
+                {
+                  id,
+                  label: file.name.replace(/\.pdf$/i, ""),
+                  fileId,
+                  fileName: file.name,
+                  pageIndex: read.pageIndex,
+                  sample,
+                  slots: sample ? findNameSlots(read.items, sample, read.width) : [],
+                  text: read.text,
+                },
+              ],
+            }));
+          });
+        },
+        async setTemplateSample(docId, templateId, sample) {
+          const doc = signingRef.current!.documents.find((d) => d.id === docId);
+          const t = doc?.setup?.templates.find((x) => x.id === templateId);
+          if (!t) return;
+          const read = await templateRead(t);
+          const { findNameSlots } = await import("@/lib/execute/generate");
+          const slots = read && sample.trim() ? findNameSlots(read.items, sample, read.width) : [];
+          withSetup(docId, (setup) => ({
+            ...setup,
+            templates: setup.templates.map((x) => (x.id === templateId ? { ...x, sample, slots, residue: false } : x)),
+          }));
+        },
+        removeTemplate(docId, templateId) {
+          const doc = signingRef.current!.documents.find((d) => d.id === docId);
+          const t = doc?.setup?.templates.find((x) => x.id === templateId);
+          if (!t) return;
+          templates.current.delete(templateId);
+          withSetup(docId, (setup) => ({
+            ...setup,
+            templates: setup.templates.filter((x) => x.id !== templateId),
+            parties: setup.parties.map((p) => (p.templateId === templateId ? { ...p, templateId: null } : p)),
+          }));
+          bytes.current.delete(t.fileId);
+          void loadStore().then((store) => store.deleteFile(t.fileId)).catch(() => undefined);
+        },
+        async makePages(docId) {
+          await run("Making the signature pages…", async () => {
+            const s = signingRef.current!;
+            const doc = s.documents.find((d) => d.id === docId)!;
+            const setup = doc.setup;
+            if (!setup) throw new Error("Choose who signs first.");
+            const parties = setup.parties.filter((p) => p.name.trim());
+            if (!parties.length) throw new Error("Add at least one party before making pages.");
+            const gen = await import("@/lib/execute/generate");
+            const sheets: import("@/lib/execute/generate").Sheet[] = [];
+            const sheetTemplate: (string | null)[] = [];
+            const specs = new Map<string, import("@/lib/execute/generate").TemplateSpec>();
+            for (const p of parties) {
+              if (setup.from === "template") {
+                const t = setup.templates.find((x) => x.id === p.templateId) ?? setup.templates[0];
+                if (!t) throw new Error("Add your signature page template (a PDF) first.");
+                if (!t.slots.length) throw new Error(`Tell Agmt which name to replace on “${t.label}”: type it exactly as it is printed.`);
+                let spec = specs.get(t.id);
+                if (!spec) {
+                  const data = await getBytes(t.fileId);
+                  if (!data) throw new Error(`The template “${t.label}” is no longer on this device. Add it again.`);
+                  spec = { bytes: data, pageIndex: t.pageIndex, sample: t.sample, slots: t.slots, text: t.text };
+                  specs.set(t.id, spec);
+                }
+                sheets.push({ name: p.name.trim(), kind: "template", template: spec });
+                sheetTemplate.push(t.id);
+              } else {
+                const format = setup.formats.find((f) => f.id === p.formatId) ?? setup.formats[0];
+                sheets.push({ name: p.name.trim(), kind: "plain", body: format?.body ?? gen.PRESET_FORMATS.company.body });
+                sheetTemplate.push(null);
+              }
+            }
+            const { PDFDocument } = await import("pdf-lib");
+            const agreement = await getBytes(doc.fileId);
+            if (!agreement) throw new Error(`The file for ${doc.title} is no longer on this device. Add it again.`);
+            const first = (await PDFDocument.load(agreement, { updateMetadata: false })).getPage(0).getSize();
+            const built = await gen.buildSignaturePages({
+              size: [first.width, first.height],
+              sheets,
+              footer: setup.from === "parties" && setup.useFooter && setup.footer.trim() ? setup.footer.trim() : null,
+            });
+            const fileId = newId("fil");
+            await keep(s.id, fileId, built.bytes, "application/pdf");
+            const old = doc.made?.fileId;
+            const residueIds = new Set(built.residue.map((i) => sheetTemplate[i]));
+            let next = applyMadePages(signingRef.current!, docId, {
+              from: setup.from,
+              fileId,
+              key: setupKey(setup),
+              sheets: sheets.map((sheet, i) => ({ name: sheet.name, text: built.texts[i] })),
+            });
+            next = saveMakeSetup(next, docId, { ...setup, templates: setup.templates.map((t) => ({ ...t, residue: residueIds.has(t.id) })) });
+            signingRef.current = next;
+            setSigning(next);
+            if (old) {
+              bytes.current.delete(old);
+              void loadStore().then((store) => store.deleteFile(old)).catch(() => undefined);
+            }
           });
         },
         notify,

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Shell } from "@/components/agmt/shell";
+import { ExecuteShell } from "@/components/execute/execute-shell";
 import { FIELD, Field, useHydrated } from "@/components/execute/access-gate";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/join")({
   component: Join,
   head: () => ({
     meta: [
-      { title: "Set up your account — Agmt" },
+      { title: "Set up your account — Execute by Agmt" },
       { name: "robots", content: "noindex" },
       { httpEquiv: "Content-Security-Policy", content: EXECUTE_CSP_META },
     ],
@@ -41,12 +41,11 @@ function Join() {
   const ready = useHydrated();
 
   return (
-    <Shell>
+    <ExecuteShell>
       <section className="mx-auto max-w-[520px] space-y-8 py-6" data-testid="join">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-stone">Executed copies · private beta</p>
         {state === "sent" ? (
           <div className="space-y-4" role="status" data-testid="join-sent">
-            <h1 className="font-display text-[40px] leading-[1.05]">Check your inbox.</h1>
+            <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">Check your inbox.</h1>
             <p className="text-[17px] leading-8 text-ink/80">
               We've sent a link to <span className="font-medium text-ink">{email.trim()}</span>. Click it to confirm the address is
               yours, and you're in.
@@ -59,11 +58,11 @@ function Join() {
         ) : (
           <>
             <div className="space-y-3">
-              <h1 className="font-display text-[40px] leading-[1.05]">{invited ? "Set up your account." : "Create an account."}</h1>
+              <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">{invited ? "Set up your account." : "Create an account."}</h1>
               <p className="text-[17px] leading-8 text-ink/80">
                 {invited
                   ? "Choose a password. Then confirm your email from the link we send, and you're in."
-                  : "Agmt is open to invited lawyers for now. Use the email you asked for access with."}
+                  : "Execute is available by invitation for now. Use the email address you asked for access with."}
               </p>
             </div>
             <form
@@ -81,14 +80,14 @@ function Join() {
                     setError(
                       res.error.code === "PASSWORD_TOO_SHORT"
                         ? "Use at least 12 characters."
-                        : "We couldn't set up the account just now. Try again in a moment.",
+                        : "Setting up the account didn't work just now. Try again in a moment.",
                     );
                     setState("idle");
                     return;
                   }
                   setState("sent");
                 } catch {
-                  setError("We couldn't reach Agmt. Check your connection and try again.");
+                  setError("Agmt couldn't be reached. Check your connection and try again.");
                   setState("idle");
                 }
               }}
@@ -96,7 +95,7 @@ function Join() {
               <Field label="Name">
                 <input required maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} className={FIELD} />
               </Field>
-              <Field label="Email" hint={invited ? "The address your invite was sent to." : undefined}>
+              <Field label="Email" hint={invited ? "The address your access was approved for." : undefined}>
                 <input type="email" required maxLength={200} autoComplete="username" readOnly={invited} value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} />
               </Field>
               <Field label="Password" hint="At least 12 characters. A short sentence you'll remember works well.">
@@ -129,6 +128,6 @@ function Join() {
           </>
         )}
       </section>
-    </Shell>
+    </ExecuteShell>
   );
 }

@@ -154,7 +154,7 @@ async function specimenStamp(fields: { cert: string; purchasedBy: string; first:
       y -= size + 12;
     };
     line("SPECIMEN - NOT A STAMP PAPER", 15, f.bold);
-    line("Sample e-Stamp certificate generated for testing Agmt. No stamp duty has been paid.", 9);
+    line("Specimen e-stamp certificate for the Execute sample. No stamp duty has been paid.", 9);
     line(`Certificate No. : ${fields.cert}${sheets > 1 ? String(s + 1) : ""}`);
     line("Certificate Issued Date : 12-Sep-2026 11:04 AM");
     line(`Purchased by : ${fields.purchasedBy}`);

@@ -1,27 +1,36 @@
-@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400;1,8..60,600&display=swap");
+/* Self-hosted (SIL OFL): the page makes no request outside Agmt. */
+@import "@fontsource-variable/source-serif-4/opsz.css";
+@import "@fontsource-variable/source-serif-4/opsz-italic.css";
+@import "@fontsource/archivo/400.css";
+@import "@fontsource/archivo/500.css";
+@import "@fontsource/archivo/600.css";
 @import "tailwindcss";
 
 @theme {
+  /* Execute by Agmt, direction "Bound". Every text colour passes WCAG AA on paper, vellum and sunk. */
   --color-paper: #f4efe6;
-  --color-paper-elevated: #f4efe6;
-  --color-paper-sunk: #ede7da;
+  --color-paper-elevated: #fbf8f1;
+  --color-vellum: #fbf8f1;
+  --color-paper-sunk: #ebe4d6;
   --color-rule: #d9d2c4;
-  --color-rule-strong: #6e7478;
+  --color-rule-strong: #857d70;
   --color-ink: #1c1917;
-  --color-ink-muted: #6e7478;
-  --color-ink-subtle: #6e7478;
-  --color-stone: #6e7478;
+  --color-ink-muted: #565b5f;
+  --color-ink-subtle: #565b5f;
+  --color-stone: #565b5f;
   --color-oxblood: #6b2b2b;
   --color-oxblood-pressed: #571f1f;
+  --color-oxblood-wash: #f1e4de;
+  --color-oxblood-lift: #b8645a;
 
   /* Compatibility aliases while older screens are migrated. No green remains. */
   --color-forest: #6b2b2b;
   --color-forest-fg: #f4efe6;
   --color-danger: #6b2b2b;
   --color-warn: #1c1917;
-  --color-ok: #6e7478;
+  --color-ok: #565b5f;
 
-  --font-display: "Source Serif 4", Georgia, serif;
+  --font-display: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
   --font-sans: "Archivo", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Archivo", "Segoe UI", system-ui, sans-serif;
 
@@ -30,6 +39,7 @@
   --radius-lg: 2px;
   --radius-xl: 2px;
   --motion-quick: 150ms;
+  --motion-settle: 420ms;
 }
 
 @layer base {
@@ -98,6 +108,57 @@
 }
 
 @layer components {
+  /* A page still rendering: vellum with faint ruled lines, never a blank white page. */
+  .thumb-loading {
+    background-color: var(--color-vellum);
+    background-image: repeating-linear-gradient(to bottom, transparent 0 7px, var(--color-rule) 7px 8px);
+    background-size: 70% 45%;
+    background-position: 50% 22%;
+    background-repeat: no-repeat;
+    outline: 1px solid var(--color-rule);
+    outline-offset: -1px;
+    animation: thumb-breathe 1.6s ease-in-out infinite;
+  }
+  @keyframes thumb-breathe {
+    50% { opacity: 0.55; }
+  }
+  kbd,
+  .kbd {
+    display: inline-block;
+    min-width: 1.4em;
+    padding: 1px 4px;
+    border: 1px solid var(--color-rule-strong);
+    border-bottom-width: 2px;
+    border-radius: 2px;
+    background: var(--color-paper);
+    font: 500 11px/1.2 var(--font-sans);
+    text-align: center;
+    color: var(--color-ink);
+  }
+  @keyframes seal-in {
+    from { transform: scale(1.35); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes spine-in {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes panel-in {
+    from { transform: translateX(24px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  /* A cell changed by the last drop: one oxblood pulse, then still. */
+  .cell-settled {
+    animation: cell-settle 1.8s ease-out 1;
+  }
+  @keyframes cell-settle {
+    0% { box-shadow: inset 0 0 0 2px var(--color-oxblood); background-color: var(--color-oxblood-wash); }
+    100% { box-shadow: inset 0 0 0 2px transparent; background-color: transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell-settled { animation: none; box-shadow: inset 0 0 0 2px var(--color-oxblood); }
+  }
+
   .proof-touch {
     min-height: 44px;
     min-width: 44px;

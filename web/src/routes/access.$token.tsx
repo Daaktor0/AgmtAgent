@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Shell } from "@/components/agmt/shell";
+import { ExecuteShell } from "@/components/execute/execute-shell";
 import { useHydrated } from "@/components/execute/access-gate";
 import { Button } from "@/components/ui/button";
 import { getDecision } from "@/lib/execute/access.fn";
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/access/$token")({
   component: Decide,
   head: () => ({
     meta: [
-      { title: "Access request — Agmt" },
+      { title: "Access request — Execute by Agmt" },
       { name: "robots", content: "noindex" },
       { name: "referrer", content: "no-referrer" },
       { httpEquiv: "Content-Security-Policy", content: EXECUTE_CSP_META },
@@ -40,9 +40,9 @@ const STATUS_LABEL: Record<AccessStatus, string> = {
 const ACTION: Record<Action, { status: AccessStatus; button: string; explain: (first: string) => string; done: (first: string, emailed: boolean) => string }> = {
   approve: {
     status: "approved",
-    button: "Approve and send invite",
-    explain: (f) => `${f} gets "You're in" with a link to set up their account. They sign in with this email and a password of their own.`,
-    done: (f, emailed) => (emailed ? `Approved. ${f} has been sent "You're in".` : `Approved. The email to ${f} couldn't be sent; copy the link below and send it yourself.`),
+    button: "Approve and send the set-up link",
+    explain: (f) => `${f} is sent a link to set up their account. They sign in with this email and a password of their own.`,
+    done: (f, emailed) => (emailed ? `Approved. ${f} has been sent the link to set up their account.` : `Approved. The email to ${f} couldn't be sent; copy the link below and send it yourself.`),
   },
   not_yet: {
     status: "not_yet",
@@ -70,19 +70,19 @@ function Decide() {
   const { token } = Route.useParams();
   const search = Route.useSearch();
   return (
-    <Shell>
+    <ExecuteShell>
       <section className="mx-auto max-w-[640px] space-y-8 py-6" data-testid="decide">
         <p className="text-[11px] uppercase tracking-[0.16em] text-stone">Access request</p>
         {view.ok ? (
           <Decision token={token} initial={view.record} join={"join" in view ? view.join : undefined} preselect={search.do} />
         ) : (
           <div className="space-y-3">
-            <h1 className="font-display text-[40px] leading-[1.05]">This link can't be used.</h1>
+            <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">This link can't be used.</h1>
             <p className="text-[17px] leading-8 text-ink/80">{REASON[view.reason] ?? REASON.invalid}</p>
           </div>
         )}
       </section>
-    </Shell>
+    </ExecuteShell>
   );
 }
 
@@ -100,7 +100,7 @@ function Decision({ token, initial, join, preselect }: { token: string; initial:
   return (
     <>
       <div className="space-y-2">
-        <h1 className="font-display text-[40px] leading-[1.05]">{record.name}</h1>
+        <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">{record.name}</h1>
         <p className="text-[15px] text-ink/80">
           {record.email}
           {record.firm ? ` · ${record.firm}` : ""}
@@ -132,7 +132,7 @@ function Decision({ token, initial, join, preselect }: { token: string; initial:
         <legend className="mb-3 text-sm font-medium">Your decision</legend>
         <div className="flex flex-wrap gap-2" role="radiogroup">
           {ACTIONS.map((a) => (
-            <label key={a} className={cn("cursor-pointer border px-4 py-2 text-sm", chosen === a ? "border-ink bg-ink text-paper" : "border-rule hover:border-ink")}>
+            <label key={a} className={cn("cursor-pointer border px-4 py-2 text-sm", chosen === a ? "border-ink bg-ink text-paper" : "border-rule-strong hover:border-ink")}>
               <input type="radio" name="decision" value={a} checked={chosen === a} onChange={() => setChosen(a)} className="sr-only" />
               {a === "approve" ? "Approve" : a === "not_yet" ? "Not yet" : "Decline"}
             </label>

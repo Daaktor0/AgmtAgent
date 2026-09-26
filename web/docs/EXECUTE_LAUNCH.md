@@ -35,7 +35,7 @@ survive deploys.
 Email reuses the sign-in setup: `RESEND_API_KEY` (secret) and `AUTH_EMAIL_FROM`
 (a sender on a domain verified in Resend, e.g. `Agmt <hello@agmt.legal>`).
 Without a verified sender, Resend only delivers to its own account owner, so
-nobody else gets email (not the thank-you, not "You're in", not password
+nobody else gets email (not the thank-you, not the set-up link, not password
 resets). Every access request is also written to Workers Logs as
 `EXECUTE_ACCESS_REQUEST`, and every decision as `EXECUTE_ACCESS_DECISION`.
 
@@ -56,14 +56,14 @@ Access belongs to an account, not a link: someone is in when they're signed in
 with a confirmed email that you've approved. Forwarding any email we send
 doesn't let anyone else in.
 
-1. **They ask.** At app.agmt.legal, "Ask for access". They get "Thank you for
-   your interest in Agmt"; the request goes on the approved list as waiting.
-2. **You decide from your email.** "Access request: Name, Firm" has three
+1. **They ask.** At app.agmt.legal, "Ask for access". They get "Your request for
+   Execute by Agmt"; the request goes on the approved list as waiting.
+2. **You decide from your email.** "Access request: Name" has three
    buttons. Each opens a page on app.agmt.legal showing the request; nothing
    happens until you press the button there (mail scanners open links).
-   - **Approve** sends "You're in" with *Set up your account*. The page also
+   - **Approve** sends "Set up your Execute account" with the set-up link. The page also
      shows that link to copy, if you'd rather send it yourself.
-   - **Not yet** sends a warm "not just yet". The request stays; the same
+   - **Not yet** sends a short note that access can't be offered yet. The request stays; the same
      email's Approve button still works later.
    - **Decline** sends a polite note. Declining someone already approved ends
      their access.
@@ -75,7 +75,7 @@ doesn't let anyone else in.
 
 To invite someone who hasn't asked, send them to app.agmt.legal to ask, then
 approve. If an approved person loses their email, they can simply ask again:
-they're sent "You're in" again and you're not asked twice.
+they're sent the set-up link again and you're not asked twice.
 
 Your own account (`AGMT_FEEDBACK_TO`) is always let in: set it up at
 `https://app.agmt.legal/join?email=<your address>`.
@@ -131,12 +131,19 @@ still receives it. Removing that injection everywhere is recommended.
 - `npm run test:execute`: engine, sorting, checks, access decisions and
   emails, endpoints, policy header, and the two-document sample through pdf.js
   and pdf-lib.
+- `node scripts/execute-screens.mjs [<url>] [<dir>]`: screenshots of every
+  screen state (sample, needs-you, a duplicate certificate, 20 parties across
+  3 documents, phone widths, the closing index) for design review.
+- `node scripts/brand-assets.mjs`: redraws the Execute and Agmt marks,
+  favicons, email header image and social preview from the fonts in
+  `public/fonts`.
 - `npm run execute:journey [-- <url>]`: the whole flow in Chromium, including a
   photo read by local OCR, the zip opened and every copy's page count checked,
-  reload persistence, phone width, feedback, and zero unexpected policy
-  violations. Needs a running app (`npm run dev`) or a URL.
+  reload persistence, phone width, feedback, the side panel by keyboard, the
+  closing index set in the Execute typefaces, no request leaving Agmt, and
+  zero unexpected policy violations. Needs a running app (`npm run dev`) or a URL.
 - `npm run execute:access-journey`: the closed beta's account journey in
-  Chromium: ask, approve, "You're in", set up the account, confirm the email,
+  Chromium: ask, approve, the set-up email, set up the account, confirm the email,
   sign out and in, forgot password, Not yet and Decline, a forwarded link, the
   owner. Needs `npm run dev` in invite mode with `AGMT_DEV_OUTBOX` set to a
   file, where email is written instead of sent (development only; ignored in

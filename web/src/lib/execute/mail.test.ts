@@ -34,7 +34,7 @@ const request = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-const priya = { name: "Priya Nair", email: "priya@khaitan.example", firm: "Khaitan & Co", note: "SHAs with 10+ investors" };
+const priya = { name: "Priya Nair", email: "priya@khaitan.example", note: "SHAs & SSAs with 10+ investors" };
 const configured = {
   RESEND_API_KEY: "re_test",
   AUTH_EMAIL_FROM: "Agmt <hello@agmt.legal>",
@@ -52,7 +52,7 @@ const decide = (token: string, action: string, origin = "https://app.agmt.legal"
 
 /** The decision link the founder's email carries. */
 function tokenFrom(notice: Sent): string {
-  const match = notice.text.match(/Approve \(sends "You're in"\): https:\/\/app\.agmt\.legal\/access\/([^?\s]+)\?do=approve/);
+  const match = notice.text.match(/Approve \(sends the set-up link\): https:\/\/app\.agmt\.legal\/access\/([^?\s]+)\?do=approve/);
   assert.ok(match, "the founder's email has an Approve link");
   return match[1];
 }
@@ -65,14 +65,19 @@ test("an access request thanks the person, is kept on the list, and gives the fo
     assert.deepEqual(thanks.to, ["priya@khaitan.example"]);
     assert.equal(thanks.reply_to, "founder@agmt.legal", "replies to the thank-you reach the founder");
     assert.equal(thanks.from, "Agmt <hello@agmt.legal>");
-    assert.match(thanks.text, /^Hi Priya,/);
-    assert.match(thanks.text, /we'll remember it/);
-    assert.match(thanks.text, /email you to set up your account/);
-    assert.match(thanks.html ?? "", /Thank you for your interest in Agmt/);
+    assert.equal(thanks.subject, "Your request for Execute by Agmt");
+    assert.match(thanks.text, /^Dear Priya,/);
+    assert.match(thanks.text, /Access is by invitation for now/);
+    assert.match(thanks.text, /email you a link to set up your account/);
+    assert.match(thanks.html ?? "", /alt="Execute by Agmt"/);
+    assert.doesNotMatch(thanks.text, /firm|company/i, "no organisation is asked for or mentioned");
+    for (const mail of [thanks.text, thanks.html ?? ""]) assert.doesNotMatch(mail, /beta|small group|coming soon|after the/i);
     assert.deepEqual(notice.to, ["founder@agmt.legal"]);
     assert.equal(notice.reply_to, "priya@khaitan.example");
-    assert.equal(notice.subject, "Access request: Priya Nair, Khaitan & Co");
-    assert.match(notice.text, /SHAs with 10\+ investors/);
+    assert.equal(notice.subject, "Access request: Priya Nair");
+    assert.match(notice.html ?? "", /SHAs &amp; SSAs/, "user text is escaped in HTML");
+    assert.doesNotMatch(notice.text, /Firm:/);
+    assert.match(notice.text, /SHAs & SSAs with 10\+ investors/);
     assert.doesNotMatch(notice.text, /npm run/, "no command line for the founder");
     const token = tokenFrom(notice);
     for (const action of ["approve", "not_yet", "decline"]) assert.match(notice.html ?? "", new RegExp(`/access/${token}\\?do=${action}`));
@@ -91,7 +96,7 @@ test("Approve sends 'You're in' with a link to set up the account; pressing twic
     assert.equal(body.emailed, true);
     const welcome = sent[2];
     assert.deepEqual(welcome.to, ["priya@khaitan.example"]);
-    assert.equal(welcome.subject, "You're in: set up your Agmt account");
+    assert.equal(welcome.subject, "Set up your Execute account");
     assert.match(welcome.text, /https:\/\/app\.agmt\.legal\/join\?email=priya%40khaitan\.example&name=Priya\+Nair/);
     assert.match(welcome.text, /forwarding this email won't let anyone else in/);
     assert.equal((await store.get("priya@khaitan.example"))?.status, "approved");
@@ -106,14 +111,15 @@ test("Not yet keeps the request and can be approved later; Decline is polite and
     await handleExecuteApi(request("access-request", priya));
     const token = tokenFrom(sent[1]);
     await handleExecuteApi(decide(token, "not_yet"));
-    assert.equal(sent[2].subject, "Your Agmt request: not just yet");
+    assert.equal(sent[2].subject, "Your request for Execute");
     assert.match(sent[2].text, /no need to ask again/);
     assert.equal((await store.get("priya@khaitan.example"))?.status, "not_yet");
     await handleExecuteApi(decide(token, "approve"));
-    assert.equal(sent[3].subject, "You're in: set up your Agmt account");
+    assert.equal(sent[3].subject, "Set up your Execute account");
     await handleExecuteApi(decide(token, "decline"));
-    assert.equal(sent[4].subject, "About your Agmt request");
-    assert.match(sent[4].text, /open to everyone after the beta/);
+    assert.equal(sent[4].subject, "Your request for Execute");
+    assert.match(sent[4].text, /not able to offer you access to Execute/);
+    assert.doesNotMatch(sent[4].text, /beta|after the|will open/i);
     assert.equal((await store.get("priya@khaitan.example"))?.status, "declined");
   });
 });
@@ -127,11 +133,11 @@ test("asking again: approved people get their email again; declined people go ba
     const res = await (await handleExecuteApi(request("access-request", priya))).json();
     assert.deepEqual(res, { ok: true, acknowledged: true, notified: false, status: "approved" });
     assert.equal(sent.length, 1);
-    assert.equal(sent[0].subject, "You're in: set up your Agmt account");
+    assert.equal(sent[0].subject, "Set up your Execute account");
     await handleExecuteApi(decide(token, "decline"));
     sent.length = 0;
     await handleExecuteApi(request("access-request", priya));
-    assert.equal(sent[1].subject, "Access request: Priya Nair, Khaitan & Co");
+    assert.equal(sent[1].subject, "Access request: Priya Nair");
     assert.match(sent[1].text, /asked again/);
     assert.equal((await store.get("priya@khaitan.example"))?.status, "requested");
   });

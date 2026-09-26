@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useModalFocus } from "./dialog";
 import { useExecute } from "./execute-app";
 import { useThumbnail } from "./thumbs";
 
@@ -15,15 +16,44 @@ function Large({ p }: { p: ViewedPage }) {
   const url = useThumbnail(p.fileId, p.kind, p.page, 1100, getBytes);
   return (
     <figure className="min-w-0 flex-1 space-y-2">
-      <figcaption className="text-[11px] uppercase tracking-[0.14em] text-paper/70">{p.label}</figcaption>
+      <figcaption className="text-[11px] uppercase tracking-[0.14em] text-paper/80">{p.label}</figcaption>
       <div className="overflow-hidden bg-white">
         {url ? (
           <img src={url} alt={p.label} className="block w-full" style={{ transform: p.rotation ? `rotate(${p.rotation}deg)` : undefined }} />
         ) : (
-          <div className="aspect-[1/1.414] w-full animate-pulse bg-paper-sunk" />
+          <div className="thumb-loading aspect-[1/1.414] w-full" />
         )}
       </div>
     </figure>
+  );
+}
+
+function Viewer({ viewing, onClose }: { viewing: Viewing; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useModalFocus(ref);
+  return (
+    <div
+      ref={ref}
+      className="fixed inset-0 z-[60] overflow-y-auto bg-ink/[0.97] px-4 py-6 sm:px-10"
+      role="dialog"
+      aria-modal="true"
+      aria-label={viewing.title}
+      onClick={onClose}
+    >
+      <div className="mx-auto max-w-[1180px] space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-4 text-paper">
+          <p className="font-display text-xl">{viewing.title}</p>
+          <button type="button" onClick={onClose} className="px-1 text-2xl leading-none text-paper/80 hover:text-paper focus-visible:outline-2 focus-visible:outline-paper" aria-label="Close comparison">
+            ×
+          </button>
+        </div>
+        <div className="flex flex-col gap-6 md:flex-row">
+          {viewing.pages.map((p) => (
+            <Large key={`${p.fileId}:${p.page}`} p={p} />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -38,23 +68,7 @@ export function PageViewerProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={setViewing}>
       {children}
-      {viewing ? (
-        <div className="fixed inset-0 z-[60] overflow-y-auto bg-ink/90 px-4 py-6 sm:px-10" role="dialog" aria-modal="true" aria-label={viewing.title} onClick={() => setViewing(null)}>
-          <div className="mx-auto max-w-[1180px] space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-4 text-paper">
-              <p className="font-display text-xl">{viewing.title}</p>
-              <button type="button" onClick={() => setViewing(null)} className="text-2xl leading-none text-paper/70 hover:text-paper" aria-label="Close">
-                ×
-              </button>
-            </div>
-            <div className="flex flex-col gap-6 md:flex-row">
-              {viewing.pages.map((p) => (
-                <Large key={`${p.fileId}:${p.page}`} p={p} />
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {viewing ? <Viewer viewing={viewing} onClose={() => setViewing(null)} /> : null}
     </Ctx.Provider>
   );
 }

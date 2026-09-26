@@ -27,7 +27,7 @@ test("stamp paper first, signed pages replace the signature pages in place", () 
     ["s1", "s2", 0, 1, 2, 3, 4, 5, "c", "r", "p", "b", 9],
   );
   assert.deepEqual(describePlan(plan, () => 1), [
-    "Stamp paper (2 pages)", "Agreement pp. 1–6", "Countersigned (4 pages)", "Agreement p. 10",
+    "Stamp paper (2 pages)", "Final pp. 1–6", "Signed (4 pages)", "Final p. 10",
   ]);
 });
 

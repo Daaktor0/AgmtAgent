@@ -7,7 +7,7 @@ type VerificationUser = {
   name?: string | null;
 };
 
-const VERIFICATION_SUBJECT = "Verify your email for Agmt";
+const VERIFICATION_SUBJECT = "Confirm your email for Agmt";
 const RESEND_REQUEST_TIMEOUT_MS = 10_000;
 
 function escapeHtml(value: string): string {
@@ -25,37 +25,36 @@ function escapeHtml(value: string): string {
 
 function verificationEmail(url: string, name: string | null | undefined): { html: string; text: string } {
   const safeUrl = escapeHtml(url);
-  const greeting = name?.trim() ? `Hi ${escapeHtml(name.trim())},` : "Hello,";
-  const textGreeting = name?.trim() ? `Hi ${name.trim()},` : "Hello,";
+  const greeting = name?.trim() ? `Dear ${escapeHtml(name.trim())},` : "Hello,";
+  const textGreeting = name?.trim() ? `Dear ${name.trim()},` : "Hello,";
   return {
     html: `<!doctype html>
 <html>
-  <body style="margin:0;padding:0;background:#f4f0e9;color:#201d1b;font-family:Arial,Helvetica,sans-serif">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f0e9;padding:40px 16px">
+  <body style="margin:0;padding:0;background:#f4efe6;color:#1c1917;font-family:Arial,Helvetica,sans-serif">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe6;padding:36px 16px">
       <tr><td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fffdf9;border:1px solid #d8d0c8;border-radius:2px">
-          <tr><td style="padding:34px 38px 12px">
-            <div style="font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1;color:#201d1b">Agmt</div>
-            <div style="margin-top:8px;width:38px;height:2px;background:#6f1d2b"></div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fbf8f1;border:1px solid #d9d2c4;border-radius:2px">
+          <tr><td style="padding:26px 32px 20px;border-bottom:1px solid #1c1917">
+            <span style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:600;line-height:1;letter-spacing:-0.03em;color:#1c1917">Agmt</span><span style="display:inline-block;width:5px;height:5px;background:#6b2b2b;vertical-align:top;margin:3px 0 0 3px"></span>
           </td></tr>
-          <tr><td style="padding:18px 38px 38px">
-            <p style="margin:0;color:#514b47;font-size:15px;line-height:1.7">${greeting}</p>
-            <h1 style="margin:12px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:500;line-height:1.25;color:#201d1b">Verify your email address</h1>
-            <p style="margin:16px 0 0;color:#514b47;font-size:15px;line-height:1.7">Confirm this is your email to finish setting up your Agmt account. This link expires in one hour.</p>
-            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px">
-              <tr><td bgcolor="#6f1d2b" style="border-radius:2px">
-                <a href="${safeUrl}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:.01em">Verify email</a>
+          <tr><td style="padding:26px 32px 32px">
+            <h1 style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:23px;font-weight:400;line-height:1.25;color:#1c1917">Confirm your email address</h1>
+            <p style="margin:14px 0 0;color:#3b3734;font-size:15px;line-height:1.7">${greeting}</p>
+            <p style="margin:14px 0 0;color:#3b3734;font-size:15px;line-height:1.7">Confirm your email address to finish setting up your Agmt account. This link expires in one hour.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 4px">
+              <tr><td bgcolor="#6b2b2b" style="border-radius:2px">
+                <a href="${safeUrl}" style="display:inline-block;padding:12px 20px;color:#fbf8f1;text-decoration:none;font-size:14px;font-weight:700">Confirm email</a>
               </td></tr>
             </table>
-            <p style="margin:22px 0 0;color:#6f6763;font-size:13px;line-height:1.6">If you did not create an Agmt account, you can ignore this email.</p>
+            <p style="margin:20px 0 0;color:#565b5f;font-size:13px;line-height:1.6">If you didn't create an Agmt account, you can ignore this email.</p>
           </td></tr>
         </table>
-        <p style="max-width:560px;margin:16px auto 0;color:#8b827c;font-size:11px;line-height:1.5">Agmt</p>
+        <p style="max-width:560px;margin:14px auto 0;color:#565b5f;font-size:11.5px;line-height:1.5">Agmt</p>
       </td></tr>
     </table>
   </body>
 </html>`,
-    text: `${textGreeting}\n\nConfirm this is your email to finish setting up your Agmt account:\n${url}\n\nThis link expires in one hour. If you did not create an Agmt account, ignore this email.`,
+    text: `${textGreeting}\n\nConfirm your email address to finish setting up your Agmt account:\n${url}\n\nThis link expires in one hour. If you didn't create an Agmt account, you can ignore this email.`,
   };
 }
 

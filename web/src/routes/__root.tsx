@@ -11,10 +11,10 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#F3EFE6" },
+      { name: "theme-color", content: "#f4efe6" },
       {
         name: "description",
-        content: "Agmt — Proof and Review for Indian transactional counsel.",
+        content: "Agmt makes software for transactional lawyers.",
       },
     ],
     links: [

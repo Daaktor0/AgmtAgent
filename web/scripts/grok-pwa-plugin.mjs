@@ -1,45 +1,23 @@
 /**
- * Dev/preview (Vite) half of the platform PWA chrome: serves the ?install=1
- * tutorial and the per-app manifest, and injects missing PWA head tags into
- * app documents. The deployed-app half lives in server/middleware/grok-pwa.ts;
- * both share scripts/grok-pwa-shared.mjs.
+ * Dev/preview (Vite) half of the head chrome: injects the share card into app
+ * documents and answers 404 for the template's old /__grok/ manifest and
+ * install tutorial (nothing of Grok's is served, so no browser offers to
+ * "Install Grok App"). The deployed-app half lives in
+ * server/middleware/grok-pwa.ts; both share scripts/grok-pwa-shared.mjs.
  */
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
-  acceptsHtml,
   createHeadInjector,
   injectGrokPwaHead,
   isDocumentPath,
-  isInstallQuery,
-  renderInstallPageHtml,
-  renderWebManifest,
   snapshotOgIdentity,
 } from "./grok-pwa-shared.mjs";
 
 export const GROK_OG_IDENTITY_ID = "virtual:grok-og-identity";
 
-const INSTALL_PAGE_PATH = join(dirname(fileURLToPath(import.meta.url)), "install-page.html");
-
 function requestHost(req) {
   const forwarded = req.headers["x-forwarded-host"];
   const host = forwarded ?? req.headers.host ?? req.headers[":authority"];
   return Array.isArray(host) ? host[0] : host;
-}
-
-export function renderInstallPage(hostHeader, url = "/") {
-  const template = readFileSync(INSTALL_PAGE_PATH, "utf8");
-  return renderInstallPageHtml(template, { host: hostHeader, url });
-}
-
-function sendHtml(res, html) {
-  const body = Buffer.from(html, "utf8");
-  res.statusCode = 200;
-  res.setHeader("content-type", "text/html; charset=utf-8");
-  res.setHeader("cache-control", "no-cache");
-  res.setHeader("content-length", String(body.byteLength));
-  res.end(body);
 }
 
 function serveGrokPwa(middlewares) {
@@ -52,24 +30,11 @@ function serveGrokPwa(middlewares) {
       return;
     }
 
-    if (pathOnly === "/__grok/manifest.webmanifest" || pathOnly === "/__grok/manifest.json") {
-      const body = Buffer.from(renderWebManifest(requestHost(req)), "utf8");
-      res.statusCode = 200;
-      res.setHeader("content-type", "application/manifest+json; charset=utf-8");
-      res.setHeader("cache-control", "no-cache");
-      res.setHeader("content-length", String(body.byteLength));
-      res.end(body);
-      return;
-    }
-
-    if (isInstallQuery(rawUrl) && isDocumentPath(pathOnly) && acceptsHtml(req.headers.accept)) {
-      try {
-        sendHtml(res, renderInstallPage(requestHost(req), rawUrl));
-      } catch (err) {
-        console.error("[app-builder] install page missing:", err);
-        res.statusCode = 500;
-        res.end("install page unavailable");
-      }
+    if (pathOnly.startsWith("/__grok/")) {
+      res.statusCode = 404;
+      res.setHeader("cache-control", "no-store");
+      res.setHeader("content-type", "text/plain; charset=utf-8");
+      res.end("Not found");
       return;
     }
 
@@ -78,8 +43,8 @@ function serveGrokPwa(middlewares) {
 }
 
 /**
- * Wrap res.write/res.end on app-document requests to inject missing PWA head
- * tags at the `</head>` boundary as chunks stream through (no full-document
+ * Wrap res.write/res.end on app-document requests to inject the share card
+ * at the `</head>` boundary as chunks stream through (no full-document
  * buffering, so streaming SSR keeps its early flush). Skips anything already
  * content-encoded: under `vite preview` the compression middleware can hand
  * this wrapper gzipped bytes, which must pass through untouched.
@@ -92,7 +57,6 @@ function wrapHtmlResponses(middlewares, cwd) {
     const looksLikeDocument =
       method === "GET" &&
       String(req.headers.accept ?? "").includes("text/html") &&
-      !isInstallQuery(rawUrl) &&
       isDocumentPath(pathOnly);
     if (!looksLikeDocument) {
       next();

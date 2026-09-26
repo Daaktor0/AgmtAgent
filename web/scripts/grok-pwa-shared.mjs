@@ -1,12 +1,15 @@
 /**
- * Single source of truth for platform head chrome (PWA, extensions.js, OG),
- * shared by the Vite plugin and Nitro middleware. Plain ESM so `node --test`
+ * Single source of truth for the head chrome injected into every HTML
+ * document: the share card (Open Graph / Twitter tags) only. The template's
+ * installable "Grok App" manifest and grok.com script are not injected (see
+ * injectGrokPwaHead). Shared by the Vite plugin and Nitro middleware. Plain ESM so `node --test`
  * and the Nitro bundler can both consume it.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export const DEFAULT_APP_NAME = "Grok App";
+// Never the template's "Grok App": an unnamed page is still Agmt's.
+export const DEFAULT_APP_NAME = "Agmt";
 export const OG_SERVICE_URL_DEFAULT = "https://og.grok.me";
 export const OG_SITE_REL_PATH = "src/lib/og/site.json";
 
@@ -116,15 +119,6 @@ export function resolvePublicHost(hostHeader) {
   );
 }
 
-export function isInstallQuery(url) {
-  const query = String(url ?? "").split("?", 2)[1] ?? "";
-  const params = new URLSearchParams(query);
-  const install = params.get("install");
-  const platform = (params.get("platform") ?? "").toLowerCase();
-  return (install === "1" || install === "true") && platform === "ios";
-}
-
-/** Paths that can carry an app document (vs assets / API / internals). */
 export function isDocumentPath(pathname) {
   const path = String(pathname ?? "");
   return (
@@ -134,112 +128,6 @@ export function isDocumentPath(pathname) {
     !path.startsWith("/node_modules") &&
     !/\.[a-z0-9]+$/i.test(path)
   );
-}
-
-export function acceptsHtml(accept) {
-  const value = String(accept ?? "");
-  return value === "" || value.includes("text/html") || value.includes("*/*");
-}
-
-/** The same URL without the install-tutorial params (used as the app link). */
-export function stripInstallParams(url) {
-  const [path = "/", query = ""] = String(url ?? "/").split("?", 2);
-  const params = new URLSearchParams(query);
-  params.delete("install");
-  params.delete("platform");
-  const rest = params.toString();
-  return rest ? `${path}?${rest}` : path;
-}
-
-export function renderInstallPageHtml(template, { host, url } = {}) {
-  return String(template)
-    .replaceAll("{{APP_NAME}}", escapeHtml(appNameFromHost(host)))
-    .replaceAll("{{APP_URL}}", escapeHtml(stripInstallParams(url)));
-}
-
-export function renderWebManifest(hostHeader) {
-  const name = appNameFromHost(hostHeader);
-  return JSON.stringify(
-    {
-      name,
-      short_name: name,
-      id: "/",
-      start_url: "/",
-      scope: "/",
-      display: "standalone",
-      background_color: "#000000",
-      theme_color: "#000000",
-      icons: [
-        {
-          src: "/__grok/icon-180.png",
-          sizes: "180x180",
-          type: "image/png",
-        },
-      ],
-    },
-    null,
-    2,
-  );
-}
-
-export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
-  return [
-    // Standalone display comes from the manifest ("display": "standalone");
-    // the legacy *-web-app-capable metas it replaces are deliberately absent.
-    ["manifest", '<link rel="manifest" href="/__grok/manifest.webmanifest">'],
-    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/__grok/icon-180.png">'],
-    [
-      "apple-mobile-web-app-title",
-      `<meta name="apple-mobile-web-app-title" content="${escapeHtml(appName)}">`,
-    ],
-    [
-      "apple-mobile-web-app-status-bar-style",
-      '<meta name="apple-mobile-web-app-status-bar-style" content="black">',
-    ],
-    ["theme-color", '<meta name="theme-color" content="#000000">'],
-  ];
-}
-
-export const GROK_EXTENSIONS_SCRIPT_SRC = "https://grok.com/grok-app-builder/extensions.js";
-
-export function readGrokProjectId() {
-  const fromProcess = typeof process !== "undefined" ? process.env?.VITE_PROJECT_ID : "";
-  return String(fromProcess ?? "").trim();
-}
-
-export function readXCreator() {
-  const fromProcess = typeof process !== "undefined" ? process.env?.X_CREATOR : "";
-  return String(fromProcess ?? "").trim();
-}
-
-export function readXCreatorId() {
-  const fromProcess = typeof process !== "undefined" ? process.env?.X_CREATOR_ID : "";
-  return String(fromProcess ?? "").trim();
-}
-
-export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readXCreatorId()) {
-  const name = String(creator ?? "").trim();
-  const id = String(creatorId ?? "").trim();
-  if (!name || !id) return [];
-  return [
-    `<meta property="x:creator" content="${escapeHtml(name)}">`,
-    `<meta property="x:creator:id" content="${escapeHtml(id)}">`,
-  ];
-}
-
-/** Platform "Created with Grok" banner — injected into every HTML document. */
-export function grokExtensionsHeadTags(projectId = readGrokProjectId()) {
-  const id = escapeHtml(projectId);
-  const tags = [];
-  if (projectId) {
-    tags.push(`<meta name="grok-project-id" content="${id}">`);
-  }
-  tags.push(
-    `<script src="${GROK_EXTENSIONS_SCRIPT_SRC}"${
-      projectId ? ` data-project-id="${id}"` : ""
-    } defer></script>`,
-  );
-  return tags;
 }
 
 export function readOgSite(cwd = process.cwd()) {
@@ -397,11 +285,6 @@ function insertAfterHeadOpen(html, snippet) {
   return `<!doctype html><html><head>${snippet}</head>${html}`;
 }
 
-function insertBeforeHeadClose(html, snippet) {
-  if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${snippet}</head>`);
-  return insertAfterHeadOpen(html, snippet);
-}
-
 export function normalizeHeadContext(ctx = {}) {
   const hasWorkspaceCwd = typeof ctx.cwd === "string" && ctx.cwd.length > 0;
   const cwd = hasWorkspaceCwd ? ctx.cwd : null;
@@ -418,63 +301,39 @@ export function normalizeHeadContext(ctx = {}) {
   const appName = resolveOgTitle(site, ctx.appName ?? DEFAULT_APP_NAME, ctx.host ?? "");
   return {
     appName,
-    projectId: ctx.projectId ?? readGrokProjectId(),
-    creator: ctx.creator ?? readXCreator(),
-    creatorId: ctx.creatorId ?? readXCreatorId(),
     host: ctx.host ?? "",
     cwd,
     site,
   };
 }
 
+/**
+ * Head chrome for every HTML document: the share card (og:/twitter: tags) only.
+ *
+ * The app template also injected an installable "Grok App" web manifest, Apple
+ * home-screen tags, the grok.com extensions script and Grok project/creator
+ * ids. Browsers then offered to "Install Grok App" on app.agmt.legal. None of
+ * that is Agmt's, so none of it is injected any more, and a page that still
+ * carries those tags (a cached shell, say) has them taken out.
+ */
 export function injectGrokPwaHead(html, ctx = {}) {
   if (typeof html !== "string") return html;
-  const { site, projectId, creator, creatorId, host, cwd } = normalizeHeadContext(ctx);
+  const { site, host, cwd } = normalizeHeadContext(ctx);
   const documentTitle = titleFromDocument(html);
-  const appName = resolveOgTitle(
-    site,
-    ctx.appName ?? DEFAULT_APP_NAME,
-    host,
-    documentTitle,
-  );
-  let next = stripShareMetaTags(html);
+  const appName = resolveOgTitle(site, ctx.appName ?? DEFAULT_APP_NAME, host, documentTitle);
+  const next = stripGrokPlatformTags(stripShareMetaTags(html));
+  return insertAfterHeadOpen(next, grokOgHeadTags({ host, appName, site, documentTitle, cwd }).join(""));
+}
 
-  const missing = grokPwaHeadTags(appName)
-    .filter(([key]) => {
-      if (key === "manifest") return !next.includes('href="/__grok/manifest.webmanifest"');
-      if (key === "apple-touch-icon") return !next.includes('href="/__grok/icon-180.png"');
-      return !next.includes(`name="${key}"`);
-    })
-    .map(([, tag]) => tag);
-
-  next = insertAfterHeadOpen(
-    next,
-    grokOgHeadTags({ host, appName, site, documentTitle, cwd }).join(""),
-  );
-
-  if (!next.includes("/grok-app-builder/extensions.js")) {
-    missing.push(...grokExtensionsHeadTags(projectId));
-  } else if (projectId && !next.includes('name="grok-project-id"')) {
-    missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
-  }
-  if (
-    projectId &&
-    !next.includes('property="grok:app_id"') &&
-    !next.includes("property='grok:app_id'")
-  ) {
-    missing.push(`<meta property="grok:app_id" content="${escapeHtml(projectId)}">`);
-  }
-  const creatorTags = grokXCreatorHeadTags(creator, creatorId);
-  if (creatorTags.length > 0) {
-    const hasCreator =
-      next.includes('property="x:creator" content=') ||
-      next.includes("property='x:creator' content=");
-    if (!hasCreator) missing.push(creatorTags[0]);
-    if (!next.includes('property="x:creator:id"')) missing.push(creatorTags[1]);
-  }
-
-  if (missing.length === 0) return next;
-  return insertBeforeHeadClose(next, missing.join(""));
+/** Remove the template's platform tags: its manifest, Apple install tags, script and ids. */
+export function stripGrokPlatformTags(html) {
+  return html
+    .replace(/<link\b[^>]*rel=["']manifest["'][^>]*href=["']\/__grok\/[^"']*["'][^>]*>/gi, "")
+    .replace(/<link\b[^>]*href=["']\/__grok\/[^"']*["'][^>]*>/gi, "")
+    .replace(/<meta\b[^>]*name=["']apple-mobile-web-app-(?:title|status-bar-style|capable)["'][^>]*>/gi, "")
+    .replace(/<meta\b[^>]*name=["']grok-project-id["'][^>]*>/gi, "")
+    .replace(/<meta\b[^>]*property=["'](?:grok:app_id|x:creator|x:creator:id)["'][^>]*>/gi, "")
+    .replace(/<script\b[^>]*grok\.com\/grok-app-builder\/extensions\.js[^>]*>\s*<\/script>/gi, "");
 }
 
 function findHeadClose(buf) {
@@ -497,9 +356,6 @@ export function createHeadInjector(ctx = {}) {
   const apply = (html) =>
     injectGrokPwaHead(html, {
       appName: normalized.appName,
-      projectId: normalized.projectId,
-      creator: normalized.creator,
-      creatorId: normalized.creatorId,
       host: normalized.host,
       cwd: normalized.cwd,
       site: normalized.site,

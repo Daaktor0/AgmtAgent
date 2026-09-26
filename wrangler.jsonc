@@ -18,7 +18,7 @@
 		"AGMT_EXECUTE_ACCESS": "invite",
 		"AGMT_FEEDBACK_TO": "dexterinlab@protonmail.com",
 		"AGMT_PUBLIC_URL": "https://app.agmt.legal",
-		"AUTH_EMAIL_FROM": "agmt.legal@gmail.com"
+		"AUTH_EMAIL_FROM": "Agmt <hello@agmt.legal>"
 	},
 	"hyperdrive": [
 		{ "binding": "AGMT_APP_DB", "id": "6738d0760a774700808fddf13018e36b" },

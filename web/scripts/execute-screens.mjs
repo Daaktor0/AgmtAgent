@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Screenshots of every Execute screen state, for design checks. Not a test:
+ * Screenshots of every Execute screen state, for design review. Not a test:
  * it drives the app against a running dev server and writes PNGs.
  *
  *   node --experimental-strip-types scripts/execute-screens.mjs [base-url] [out-dir]

@@ -1,38 +1,13 @@
-# Agmt web workspace instructions
+# Agmt Proof web workspace instructions
 
-These instructions apply to the checked-in web application: **Execute by Agmt**,
-served at `app.agmt.legal/`.
+These instructions apply to the checked-in web application.
 
-1. **Documents never leave the user's device.** Execute is browser-only:
-   agreements, signed returns and stamp papers are read (pdf.js, and local OCR
-   served from `/execute-ocr/`), sorted, assembled and optionally kept in the
-   user's own browser storage. They are never sent to Agmt. The page runs under
-   `src/lib/execute/csp.ts`: no third-party script and no outside connection.
-   The only server endpoints are `/api/execute/feedback`,
-   `/api/execute/access-request` and `/api/execute/decide`, which accept short
-   text fields and never documents. Never add a server upload.
-2. **Access.** During the closed beta (`AGMT_EXECUTE_ACCESS=invite`) the page
-   opens only for a signed-in account whose verified email the founder has
-   approved (`src/lib/execute/access-store.ts`, KV `AGMT_ACCESS`); that check
-   gates the page only, once, when it loads. In public mode the session is
-   never consulted. Once the page is open it must not wait for `get-session`
-   or any Auth database response before choose → process → download. Never add
-   anonymous, preview, magic-link or test access to accounts, never mint
-   sessions or mark users verified to bypass sign-in, and never commit secrets
-   or environment files.
-3. **Signature pages** come from the agreement itself, or Execute makes them
-   (from the parties clause and any schedule it points to, or from the
-   lawyer's own PDF template); signed returns are then appended after the
-   schedules. Pages Execute makes carry no Agmt name or mark, visible or in PDF
-   metadata; their footer never states a date, because execution dates move;
-   and a template's sample name is removed from the page's text
-   (`src/lib/execute/pdf-content.ts`), never only painted over.
-4. **Database.** Execute keeps its data in the browser; the server database
-   holds accounts only. Keep migrations forward-only and separate from
-   application builds, and never edit an applied migration.
-5. Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run
-   build:cloudflare` and the Execute journeys (`execute:journey`,
-   `execute:make-journey`, `execute:access-journey`) against a running app
-   before reporting a change complete.
-6. Keep changes narrowly scoped and document launch blockers instead of
-   weakening a gate.
+1. Treat uploaded DOCX files, filenames, metadata, parser output, evidence, and tenant identifiers as hostile input. Reject unsupported or ambiguous structures and fail closed.
+2. Keep authentication enabled by default for accounts, settings, matters, stored resources, server document endpoints, and any future R2 mode. Never add anonymous, preview, magic-link, or test-workspace access to those paths, and never mint sessions or mark users verified to bypass login. Local overrides must remain explicit and must never be committed with secrets.
+   **Founder exception (temporary):** browser-only local Proof at `/proof` is usable while signed out.
+   **Executed copies (`/`)** is also browser-only: documents are read, sorted (PDF text and local OCR), assembled and optionally kept in the user's own browser storage; they are never sent to Agmt. During the closed beta (`AGMT_EXECUTE_ACCESS=invite`) the page opens only for a signed-in account whose verified email the founder has approved (`src/lib/execute/access-store.ts`, KV `AGMT_ACCESS`); that check gates the page only, once, when it loads. In public mode the session is never consulted. Signature pages come from the agreement itself, or Agmt makes them (from the parties clause and any schedule it points to, or from the lawyer's own PDF template) and signed returns are then appended after the schedules. Pages Agmt makes carry no Agmt name or mark, visible or in PDF metadata; their footer never states a date, because execution dates move; and a template's sample name is removed from the page's text (`src/lib/execute/pdf-content.ts`), never only painted over. The page runs under `src/lib/execute/csp.ts`: no third-party script and no outside connection. The only server endpoints are `/api/execute/feedback`, `/api/execute/access-request` and `/api/execute/decide`, which accept short text fields and never documents. Once the page is open it must not wait for `get-session` or any Auth database response before choose → process → download. Anonymous local processing does not authorise anonymous server storage, processing, or document access. Server uploads remain disabled.
+3. Keep database migrations forward-only and separate from application builds. Preserve tenant isolation, immutable generations, transaction boundaries, and idempotent handlers.
+4. Run the narrow regression tests for each change and the relevant build, typecheck, security, database, and proof suites before reporting a package complete.
+5. Do not publish a finding unless canonical text, the final span map, and the exact OOXML source all validate. Absence findings require an evaluated-scope inventory.
+6. **Brand-asset pass** — Follow the Open Graph skill under .grok/skills/og and verify the filesystem contract before reporting completion. The marker is /workspace/.grok/og-pending and expires after 10 minutes. The foreground path is not allowed to block on the background task: never wait_tasks for it and never get_task_output from it.
+7. Keep changes narrowly scoped, do not commit credentials or environment files, and document launch blockers instead of weakening gates.

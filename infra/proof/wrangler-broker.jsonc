@@ -1,0 +1,19 @@
+{
+  // Placeholder broker config for the new Proof object lane (PWC-17).
+  // Bucket names are intended identifiers only. This file contains no account
+  // IDs, API tokens or secrets and is not an apply/deploy authorization.
+  "name": "agmt-proof-broker",
+  "compatibility_date": "2026-09-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "r2_buckets": [
+    {
+      "binding": "PROOF_QUARANTINE",
+      "bucket_name": "agmt-proof-quarantine-staging"
+    },
+    {
+      "binding": "PROOF_TEMPORARY",
+      "bucket_name": "agmt-proof-temporary-staging"
+    }
+  ]
+}

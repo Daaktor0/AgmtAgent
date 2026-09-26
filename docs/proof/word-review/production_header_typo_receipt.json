@@ -1,0 +1,13 @@
+{
+  "origin": "https://app.agmt.legal",
+  "state": "limited",
+  "dest": "D:\\AI Agent\\agreement-agent\\docs\\proof\\word-review\\production_header_typo_Proofread.docx",
+  "headerDel": 1,
+  "headerIns": 1,
+  "headerHasRecieve": true,
+  "headerHasReceive": true,
+  "headerComments": 0,
+  "bodyHasRecieve": false,
+  "bodyDel": 0,
+  "coverageMentionsHeader": true
+}

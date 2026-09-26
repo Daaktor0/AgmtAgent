@@ -249,7 +249,7 @@ export function AccessGate({ access }: { access: ExecuteAccess }) {
     );
   }
 
-  // Signed in but hasn't asked yet.
+  // Signed in (for example from Proof) but hasn't asked yet.
   return (
     <Frame title="Ask for access to Execute.">
       <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">{INTRO}</p>

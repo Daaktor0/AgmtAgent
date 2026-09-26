@@ -22,7 +22,12 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      # The Worker entry (src/worker.ts) imports a root package.
+      - run: npm ci
+        working-directory: .
       - run: npm ci
       - name: Cloudflare build (also generates the route tree)
         run: npm run build:cloudflare

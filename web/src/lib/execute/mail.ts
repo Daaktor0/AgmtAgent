@@ -66,28 +66,41 @@ export function greetingName(name: string): string {
   return parts.length > 1 && /^[A-Za-z][a-z]+$/.test(first) ? first : name.trim();
 }
 
-/** The same look as the sign-in email: paper, a serif wordmark, an oxblood rule. */
-function layout(bodyHtml: string, footer: string): string {
+/** Where the email header image is served from: this app's own public folder. */
+function publicUrl(): string {
+  return (serverEnv("AGMT_PUBLIC_URL") ?? "https://app.agmt.legal").replace(/\/+$/, "");
+}
+
+/**
+ * Execute's email frame, in the app's own colours: paper ground, a vellum
+ * card, the lock-up over an ink rule. Tables and inline styles only, so Gmail,
+ * Outlook and Apple Mail agree. The lock-up is a PNG because Outlook doesn't
+ * render SVG; its alt text carries the name if images are off.
+ */
+export function layout(bodyHtml: string, footer: string): string {
   return `<!doctype html>
 <html>
-  <body style="margin:0;padding:0;background:#f4f0e9;color:#201d1b;font-family:Arial,Helvetica,sans-serif">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f0e9;padding:40px 16px">
+  <body style="margin:0;padding:0;background:#f4efe6;color:#1c1917;font-family:Arial,Helvetica,sans-serif">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe6;padding:36px 16px">
       <tr><td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fffdf9;border:1px solid #d8d0c8;border-radius:2px">
-          <tr><td style="padding:34px 38px 12px">
-            <div style="font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1;color:#201d1b">Agmt</div>
-            <div style="margin-top:8px;width:38px;height:2px;background:#6f1d2b"></div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fbf8f1;border:1px solid #d9d2c4;border-radius:2px">
+          <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #1c1917">
+            <img src="${publicUrl()}/brand/execute-lockup-email.png" width="${LOCKUP_WIDTH}" height="36" alt="Execute by Agmt" style="display:block;border:0;outline:none;text-decoration:none;height:36px;width:${LOCKUP_WIDTH}px;font-family:Georgia,serif;font-size:20px;color:#1c1917">
           </td></tr>
-          <tr><td style="padding:18px 38px 38px">${bodyHtml}</td></tr>
+          <tr><td style="padding:26px 32px 32px">${bodyHtml}</td></tr>
         </table>
-        <p style="max-width:560px;margin:16px auto 0;color:#8b827c;font-size:11px;line-height:1.5">${footer}</p>
+        <p style="max-width:560px;margin:14px auto 0;color:#565b5f;font-size:11.5px;line-height:1.5;text-align:left">${footer}</p>
       </td></tr>
     </table>
   </body>
 </html>`;
 }
 
-const P = 'style="margin:16px 0 0;color:#514b47;font-size:15px;line-height:1.7"';
+/** Width of public/brand/execute-lockup-email.png at 1x (it is drawn at 2x). */
+const LOCKUP_WIDTH = 229;
+
+const P = 'style="margin:14px 0 0;color:#3b3734;font-size:15px;line-height:1.7"';
+const H = 'style="margin:0 0 4px;font-family:Georgia,\'Times New Roman\',serif;font-size:23px;font-weight:400;line-height:1.25;color:#1c1917"';
 
 export type AccessRequest = { name: string; email: string; firm?: string; note?: string };
 
@@ -96,30 +109,33 @@ export function accessThanks(request: AccessRequest): { subject: string; text: s
   const who = greetingName(request.name);
   const firm = request.firm?.trim();
   const lines = [
-    `Hi ${who},`,
+    `Dear ${who},`,
     "",
-    `Thank you for asking to try Agmt${firm ? ` at ${firm}` : ""}. Your request is noted, and we'll remember it.`,
+    `Thank you for asking for access to Execute${firm ? ` for ${firm}` : ""}.`,
     "",
-    "We're opening Agmt to a small group of lawyers first, so we can learn from real closings and get every detail right. As soon as your place is ready, we'll email you a personal invite link. There is nothing else you need to do.",
+    "Access is by invitation for now. When yours is ready, we'll email you a link to set up your account. There's nothing more you need to do.",
     "",
-    "What you'll be able to do: add the final agreement, send each party its signature page, drop in the countersigned pages and stamp papers as they come back, and download a complete executed copy for every party. It all happens on your own computer; your documents are never uploaded.",
+    "Execute assembles an executed copy for every party to a multi-party agreement: signature pages out, signed pages and stamp papers in. It runs in your browser, and your documents are not uploaded.",
     "",
-    "If you have a question, or a closing coming up that you'd like to try it on, just reply to this email.",
+    "If you have a closing coming up, or a question, reply to this email.",
     "",
-    "With thanks,",
+    "Regards,",
     "Agmt",
+    "",
+    "--",
+    "You're receiving this because you asked for access to Execute at app.agmt.legal. If that wasn't you, you can ignore this email.",
   ];
   const html = layout(
-    `<p style="margin:0;color:#514b47;font-size:15px;line-height:1.7">Hi ${escapeHtml(who)},</p>
-     <h1 style="margin:12px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:500;line-height:1.25;color:#201d1b">Thank you for your interest in Agmt</h1>
-     <p ${P}>Your request${firm ? ` for ${escapeHtml(firm)}` : ""} is noted, and we'll remember it.</p>
-     <p ${P}>We're opening Agmt to a small group of lawyers first, so we can learn from real closings and get every detail right. As soon as your place is ready, we'll email you a personal invite link. There is nothing else you need to do.</p>
-     <p ${P}>What you'll be able to do: add the final agreement, send each party its signature page, drop in the countersigned pages and stamp papers as they come back, and download a complete executed copy for every party. It all happens on your own computer; your documents are never uploaded.</p>
-     <p ${P}>If you have a question, or a closing coming up that you'd like to try it on, just reply to this email.</p>
-     <p ${P}>With thanks,<br>Agmt</p>`,
-    "You're receiving this because you asked for access at app.agmt.legal. If that wasn't you, you can ignore this email.",
+    `<h1 ${H}>Thank you for asking</h1>
+     <p ${P}>Dear ${escapeHtml(who)},</p>
+     <p ${P}>Thank you for asking for access to Execute${firm ? ` for ${escapeHtml(firm)}` : ""}.</p>
+     <p ${P}>Access is by invitation for now. When yours is ready, we'll email you a link to set up your account. There's nothing more you need to do.</p>
+     <p ${P}>Execute assembles an executed copy for every party to a multi-party agreement: signature pages out, signed pages and stamp papers in. It runs in your browser, and your documents are not uploaded.</p>
+     <p ${P}>If you have a closing coming up, or a question, reply to this email.</p>
+     <p ${P}>Regards,<br>Agmt</p>`,
+    "You're receiving this because you asked for access to Execute at app.agmt.legal. If that wasn't you, you can ignore this email.",
   );
-  return { subject: "Thank you for your interest in Agmt", text: lines.join("\n"), html };
+  return { subject: "Your request for Execute by Agmt", text: lines.join("\n"), html };
 }
 
 /** To the founder: who asked, and the command that invites them. */
@@ -129,7 +145,7 @@ export function accessNotice(request: AccessRequest, acknowledged: boolean): { s
   return {
     subject: `Access request: ${label}`,
     text: [
-      `${request.name} asked for access to Agmt.`,
+      `${request.name} asked for access to Execute.`,
       "",
       `Name:  ${request.name}`,
       `Email: ${request.email}`,

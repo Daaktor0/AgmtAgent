@@ -41,10 +41,13 @@ test("an access request thanks the person and tells the founder how to invite th
     assert.deepEqual(thanks.to, ["priya@khaitan.example"]);
     assert.equal(thanks.reply_to, "founder@agmt.legal", "replies to the thank-you reach the founder");
     assert.equal(thanks.from, "Agmt <hello@agmt.legal>");
-    assert.match(thanks.text, /^Hi Priya,/);
-    assert.match(thanks.text, /we'll remember it/);
-    assert.match(thanks.text, /email you a personal invite link/);
-    assert.match(thanks.html ?? "", /Thank you for your interest in Agmt/);
+    assert.equal(thanks.subject, "Your request for Execute by Agmt");
+    assert.match(thanks.text, /^Dear Priya,/);
+    assert.match(thanks.text, /Access is by invitation for now/);
+    assert.match(thanks.text, /your documents are not uploaded/);
+    assert.doesNotMatch(thanks.text, /beta|small group|first|coming soon/i);
+    assert.match(thanks.html ?? "", /alt="Execute by Agmt"/);
+    assert.match(thanks.html ?? "", /Khaitan &amp; Co/, "user text is escaped in HTML");
     assert.deepEqual(notice.to, ["founder@agmt.legal"]);
     assert.equal(notice.reply_to, "priya@khaitan.example");
     assert.equal(notice.subject, "Access request: Priya Nair, Khaitan & Co");

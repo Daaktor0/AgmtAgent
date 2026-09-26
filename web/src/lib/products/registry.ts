@@ -3,12 +3,13 @@ import type { ProductId } from "./contracts.ts";
 export type ProductDescriptor = Readonly<{
   id: ProductId; name: string; description: string; availability: "available" | "planned";
   route: string | null; inputKinds: readonly string[]; outputKinds: readonly string[];
-  retentionPolicy: "temporary_2h" | "not_configured";
+  /** on_device: processed and kept only in the user's browser; never stored by Agmt. */
+  retentionPolicy: "temporary_2h" | "on_device" | "not_configured";
 }>;
 export const PRODUCTS: readonly ProductDescriptor[] = Object.freeze([
   { id: "proof", name: "Proof", description: "Proofread a Word agreement with tracked corrections and comments.", availability: "available", route: "/proof", inputKinds: ["docx"], outputKinds: ["docx"], retentionPolicy: "temporary_2h" },
   { id: "review", name: "Review", description: "Agreement review.", availability: "planned", route: null, inputKinds: [], outputKinds: [], retentionPolicy: "not_configured" },
-  { id: "executed-copy", name: "Executed copy", description: "Compile executed agreement copies.", availability: "planned", route: null, inputKinds: [], outputKinds: [], retentionPolicy: "not_configured" },
+  { id: "executed-copy", name: "Executed copies", description: "Assemble executed copies of multi-party agreements on the user's device.", availability: "available", route: "/", inputKinds: ["pdf", "image"], outputKinds: ["pdf", "zip"], retentionPolicy: "on_device" },
   { id: "signature-pack", name: "Signature pack", description: "Prepare signature packs.", availability: "planned", route: null, inputKinds: [], outputKinds: [], retentionPolicy: "not_configured" },
 ]);
 

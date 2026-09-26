@@ -1,6 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { FeedbackButton } from "@/components/execute/feedback";
 
 function SignInLink({ proofActive }: { proofActive: boolean }) {
   return (
@@ -46,6 +47,7 @@ function IndependentAccount({ proofActive }: { proofActive: boolean }) {
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const proofActive = pathname === "/proof" || pathname.startsWith("/proof/");
+  const executeActive = pathname === "/";
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -55,7 +57,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="flex min-w-0 items-center gap-8 lg:gap-12">
             <Link
               to="/"
-              aria-label="Agmt — agreement utilities"
+              aria-label="Agmt home"
               className="group inline-flex shrink-0 items-start gap-1.5 no-underline"
             >
               <span className="font-display text-[28px] font-semibold leading-none tracking-[-0.045em] text-paper">
@@ -66,25 +68,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
             <nav className="flex items-center gap-1" aria-label="Products">
               <Link
-                to="/proof"
-                aria-current={proofActive ? "page" : undefined}
-                className={proofActive
+                to="/"
+                aria-current={executeActive ? "page" : undefined}
+                className={executeActive
                   ? "border-b-2 border-oxblood px-3 py-[22px] text-[13px] font-medium text-paper no-underline"
                   : "px-3 py-[22px] text-[13px] text-paper no-underline"}
               >
-                Proof
+                Executed copies
               </Link>
-              <span className="inline-flex items-center gap-2 px-3 py-[22px] text-[13px] text-white/45">
-                Review
-                <span className="border border-white/15 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-white/45">
-                  soon
-                </span>
-              </span>
             </nav>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
-            <IndependentAccount proofActive={proofActive} />
+          <div className="flex shrink-0 items-center gap-5">
+            <FeedbackButton />
+            {proofActive ? <IndependentAccount proofActive={proofActive} /> : null}
           </div>
         </div>
       </header>

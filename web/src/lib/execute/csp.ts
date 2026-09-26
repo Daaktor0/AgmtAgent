@@ -25,3 +25,11 @@ export const EXECUTE_CSP_META = DIRECTIVES.join("; ");
 
 /** As the HTTP header the Worker sends with the page. */
 export const EXECUTE_CSP_HEADER = [...DIRECTIVES, "frame-ancestors 'self'"].join("; ");
+
+/**
+ * Pages that get the policy: the tool itself, and the account and decision
+ * pages, where passwords are typed and the founder approves people.
+ */
+export function isExecutePage(pathname: string): boolean {
+  return pathname === "/" || pathname === "/join" || pathname === "/reset-password" || pathname.startsWith("/access/");
+}

@@ -9,6 +9,10 @@ const html = () => new Response("<html></html>", { headers: { "content-type": "t
 test("the executed-copies page is served with the strict policy header", async () => {
   const res = (await executeCsp(event("/"), html)) as Response;
   assert.equal(res.headers.get("content-security-policy"), EXECUTE_CSP_HEADER);
+  for (const path of ["/join", "/reset-password", "/access/abc.def"]) {
+    const page = (await executeCsp(event(path), html)) as Response;
+    assert.equal(page.headers.get("content-security-policy"), EXECUTE_CSP_HEADER, path);
+  }
   assert.match(EXECUTE_CSP_HEADER, /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'/);
   assert.match(EXECUTE_CSP_HEADER, /connect-src 'self' blob: data:/);
   assert.match(EXECUTE_CSP_HEADER, /frame-ancestors 'self'/);

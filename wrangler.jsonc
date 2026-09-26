@@ -27,6 +27,9 @@
 	"r2_buckets": [
 		{ "binding": "AGMT_OBJECTS", "bucket_name": "agmt-proof-objects" }
 	],
+	"kv_namespaces": [
+		{ "binding": "AGMT_ACCESS", "id": "64ed6441513549819e50e9955d810bbb" }
+	],
 	"triggers": {
 		"crons": ["* * * * *"]
 	}

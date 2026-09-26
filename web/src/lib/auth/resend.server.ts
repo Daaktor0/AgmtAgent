@@ -41,7 +41,7 @@ function verificationEmail(url: string, name: string | null | undefined): { html
           <tr><td style="padding:18px 38px 38px">
             <p style="margin:0;color:#514b47;font-size:15px;line-height:1.7">${greeting}</p>
             <h1 style="margin:12px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:500;line-height:1.25;color:#201d1b">Verify your email address</h1>
-            <p style="margin:16px 0 0;color:#514b47;font-size:15px;line-height:1.7">Confirm your email to sign in to Agmt and use Proof. This link expires in one hour.</p>
+            <p style="margin:16px 0 0;color:#514b47;font-size:15px;line-height:1.7">Confirm this is your email to finish setting up your Agmt account. This link expires in one hour.</p>
             <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px">
               <tr><td bgcolor="#6f1d2b" style="border-radius:2px">
                 <a href="${safeUrl}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:.01em">Verify email</a>
@@ -50,12 +50,12 @@ function verificationEmail(url: string, name: string | null | undefined): { html
             <p style="margin:22px 0 0;color:#6f6763;font-size:13px;line-height:1.6">If you did not create an Agmt account, you can ignore this email.</p>
           </td></tr>
         </table>
-        <p style="max-width:560px;margin:16px auto 0;color:#8b827c;font-size:11px;line-height:1.5">Agmt · Proof for transactional documents</p>
+        <p style="max-width:560px;margin:16px auto 0;color:#8b827c;font-size:11px;line-height:1.5">Agmt</p>
       </td></tr>
     </table>
   </body>
 </html>`,
-    text: `${textGreeting}\n\nVerify your email address to sign in to Agmt and use Proof:\n${url}\n\nThis link expires in one hour. If you did not create an Agmt account, ignore this email.`,
+    text: `${textGreeting}\n\nConfirm this is your email to finish setting up your Agmt account:\n${url}\n\nThis link expires in one hour. If you did not create an Agmt account, ignore this email.`,
   };
 }
 
@@ -73,6 +73,9 @@ export async function sendResendVerificationEmail(data: {
   user: VerificationUser;
   url: string;
 }): Promise<void> {
+  const { writeDevOutbox } = await import("../execute/mail.ts");
+  const outbox = verificationEmail(data.url, data.user.name);
+  if (await writeDevOutbox({ from: "dev", to: [data.user.email], subject: VERIFICATION_SUBJECT, ...outbox }, "verify-email").catch(() => false)) return;
   const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
     console.error("[auth.email] RESEND_API_KEY is not configured");
@@ -130,4 +133,30 @@ export async function sendResendVerificationEmail(data: {
       message: "We could not send the verification email.",
     });
   }
+}
+
+/**
+ * Forgot password. Better Auth answers the same whether or not the address
+ * has an account, so a failure here is logged, never shown.
+ */
+export async function sendPasswordResetEmail(data: { user: VerificationUser; url: string }): Promise<void> {
+  const { mailConfig, passwordReset, sendMail } = await import("../execute/mail.ts");
+  const mail = mailConfig();
+  const sent = await sendMail(mail, { to: [data.user.email], ...passwordReset(data.user.name, data.url) }, "password-reset");
+  if (!sent) console.error(`[auth.email] password reset not sent: providerSet=${Boolean(mail.apiKey)} verifiedSender=${mail.verifiedSender}`);
+}
+
+/** A sign-up for an address that already has an account: send them home. */
+export async function sendExistingAccountEmail(data: { user: VerificationUser }): Promise<void> {
+  const { existingAccount, mailConfig, sendMail } = await import("../execute/mail.ts");
+  const base = serverEnv("AGMT_PUBLIC_URL") ?? "http://localhost:8080";
+  const mail = mailConfig();
+  const reset = new URL("/reset-password", base);
+  reset.searchParams.set("email", data.user.email);
+  const sent = await sendMail(
+    mail,
+    { to: [data.user.email], ...existingAccount(data.user.name, { signIn: new URL("/", base).toString(), reset: reset.toString() }) },
+    "existing-account",
+  );
+  if (!sent) console.error(`[auth.email] existing-account note not sent: providerSet=${Boolean(mail.apiKey)}`);
 }

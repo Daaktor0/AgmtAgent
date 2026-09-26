@@ -1,9 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createInvite } from "./access.ts";
-import { acceptInvite, executeAccess, handleExecuteApi } from "./server.ts";
-
-const SECRET = "s".repeat(40);
+import { memoryAccessStore, setAccessStoreForTests } from "./access-store.ts";
+import { executeAccess, handleExecuteApi } from "./server.ts";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<void>) {
   const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
@@ -13,25 +11,34 @@ function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<voi
   });
 }
 
-test("public mode lets everyone in; invite mode needs a valid invite and fails closed without a secret", async () => {
-  await withEnv({ AGMT_EXECUTE_ACCESS: undefined }, async () => {
-    assert.equal((await executeAccess(null)).allowed, true);
-  });
-  await withEnv({ AGMT_EXECUTE_ACCESS: "invite", AGMT_INVITE_SECRET: undefined }, async () => {
-    assert.equal((await executeAccess("anything")).allowed, false);
-  });
-  await withEnv({ AGMT_EXECUTE_ACCESS: "invite", AGMT_INVITE_SECRET: SECRET, AGMT_INVITE_REVOKED: undefined }, async () => {
-    const token = await createInvite(SECRET, { label: "Beta tester", days: 7 });
-    assert.deepEqual(await executeAccess(token), { mode: "invite", allowed: true, label: "Beta tester" });
-    assert.equal((await executeAccess(null)).allowed, false);
-    const res = await acceptInvite(new Request("https://app.agmt.legal/invite/x"), token);
-    assert.equal(res.status, 302);
-    assert.equal(res.headers.get("location"), "/");
-    assert.match(res.headers.get("set-cookie") ?? "", /^agmt_invite=/);
-    const bad = await acceptInvite(new Request("https://app.agmt.legal/invite/x"), "bad.token");
-    assert.equal(bad.headers.get("location"), "/?invite=invalid");
-    assert.equal(bad.headers.get("set-cookie"), null);
-  });
+const at = "2026-09-26T10:00:00.000Z";
+const person = (email: string, emailVerified = true) => ({ email, emailVerified, name: "Someone" });
+
+test("public mode lets everyone in; invite mode needs a verified, approved account", async () => {
+  const store = memoryAccessStore();
+  setAccessStoreForTests(store);
+  try {
+    await withEnv({ AGMT_EXECUTE_ACCESS: undefined }, async () => {
+      assert.equal((await executeAccess(null)).state, "allowed");
+    });
+    await withEnv({ AGMT_EXECUTE_ACCESS: "invite", AGMT_FEEDBACK_TO: "Founder@agmt.legal" }, async () => {
+      assert.equal((await executeAccess(null)).state, "signed_out");
+      assert.equal((await executeAccess(person("founder@agmt.legal", false))).state, "signed_out", "an unverified email is not trusted");
+      assert.equal((await executeAccess(person("FOUNDER@agmt.legal"))).state, "allowed", "the owner is always in");
+      assert.equal((await executeAccess(person("new@firm.example"))).state, "not_requested");
+      for (const [status, state] of [["requested", "pending"], ["not_yet", "pending"], ["declined", "declined"], ["approved", "allowed"]] as const) {
+        await store.put({ email: "priya@firm.example", name: "Priya", status, requestedAt: at, updatedAt: at });
+        assert.equal((await executeAccess(person("Priya@Firm.example"))).state, state, status);
+      }
+    });
+    setAccessStoreForTests({ get: () => Promise.reject(new Error("down")), put: () => Promise.reject(new Error("down")) });
+    await withEnv({ AGMT_EXECUTE_ACCESS: "invite", AGMT_FEEDBACK_TO: "founder@agmt.legal" }, async () => {
+      assert.equal((await executeAccess(person("priya@firm.example"))).state, "unavailable", "an unreachable list keeps the tool closed");
+      assert.equal((await executeAccess(person("founder@agmt.legal"))).state, "allowed");
+    });
+  } finally {
+    setAccessStoreForTests(null);
+  }
 });
 
 const post = (path: string, body: unknown, origin = "https://app.agmt.legal") =>
@@ -50,6 +57,24 @@ test("feedback is accepted from the app, refused from elsewhere, validated and r
     for (let i = 0; i < 25; i += 1) last = (await handleExecuteApi(post("feedback", good))).status;
     assert.equal(last, 429);
   });
+});
+
+test("colleagues sharing an office connection can all ask on the same day, within reason", async () => {
+  const ask = (i: number) =>
+    handleExecuteApi(
+      new Request("https://app.agmt.legal/api/execute/access-request", {
+        method: "POST",
+        headers: { origin: "https://app.agmt.legal", "content-type": "application/json", "cf-connecting-ip": "192.0.2.77" },
+        body: JSON.stringify({ name: `Lawyer ${i}`, email: `lawyer${i}@firm.example` }),
+      }),
+    );
+  setAccessStoreForTests(memoryAccessStore());
+  try {
+    for (let i = 0; i < 20; i += 1) assert.equal((await ask(i)).status, 200, `request ${i + 1}`);
+    assert.equal((await ask(21)).status, 429);
+  } finally {
+    setAccessStoreForTests(null);
+  }
 });
 
 test("an access request needs a name and a valid email", async () => {

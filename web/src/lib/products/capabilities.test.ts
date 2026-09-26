@@ -193,8 +193,9 @@ test("PWC-01 upload handlers admit before reading bytes and do not add scanningâ
   assert.ok(http.indexOf("proofRouteRequiresUploadAdmission") < http.indexOf("request.json()"));
   assert.doesNotMatch(api, /request\.arrayBuffer\(\)/);
   assert.doesNotMatch(http, /request\.arrayBuffer\(\)/);
-  assert.match(home, /PROOF_LOCAL_DEVICE/);
-  assert.match(home, /PROOF_LOCAL_NO_ACCOUNT/);
+  // The home page is now executed copies (browser-only, no upload); it must
+  // not advertise server uploads either way.
+  assert.match(home, /ExecuteApp/);
   assert.match(proof, /ProofLocalExperience/);
   assert.doesNotMatch(home, /proofAvailabilityCopy/);
   assert.doesNotMatch(proof, /proofAvailabilityCopy/);

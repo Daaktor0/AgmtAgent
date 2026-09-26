@@ -11,6 +11,7 @@ import { nitro } from "nitro/vite";
 import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
+import { executeOcrAssets } from "./scripts/execute-ocr-assets.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
 import {
   isForbiddenProofWorkerImport,
@@ -149,6 +150,9 @@ export default defineConfig(({ command, isPreview, mode }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // Executed copies load these on first use; declaring them stops the dev
+  // server from re-optimising and reloading the page mid-signing.
+  optimizeDeps: { include: ["pdfjs-dist/legacy/build/pdf.mjs", "pdf-lib", "fflate", "tesseract.js"] },
   assetsInclude: ["**/*.aff", "**/*.dic"],
   worker: {
     format: "es",
@@ -162,6 +166,8 @@ export default defineConfig(({ command, isPreview, mode }) => ({
     appEnvPlugin(),
     // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
     grokPwaPlugin(),
+    // Local OCR engine for executed copies, served from /execute-ocr/.
+    executeOcrAssets(),
     tailwindcss(),
     tanstackStart(),
     ...(command === "build" || isPreview

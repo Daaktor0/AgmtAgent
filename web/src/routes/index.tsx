@@ -1,23 +1,32 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Shell } from "@/components/agmt/shell";
-import { PROOF_LOCAL_DEVICE, PROOF_LOCAL_NO_ACCOUNT } from "@/lib/proof-local/copy";
+import { ExecuteApp } from "@/components/execute/execute-app";
+import { InviteOnly } from "@/components/execute/feedback";
+import { getExecuteAccess } from "@/lib/execute/access.fn";
+import { EXECUTE_CSP_META } from "@/lib/execute/csp";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): { invite?: string } =>
+    typeof search.invite === "string" ? { invite: search.invite } : {},
+  loader: () => getExecuteAccess(),
+  component: Home,
+  head: () => ({
+    meta: [
+      { title: "Executed copies — Agmt" },
+      {
+        name: "description",
+        content:
+          "Assemble executed copies of multi-party agreements on your own computer: signature pages out, countersigned pages and stamp papers in, one complete copy per party.",
+      },
+      // Documents are opened here: only Agmt's own code may run, and it may
+      // only talk to Agmt. The Worker sends the same policy as a header.
+      { httpEquiv: "Content-Security-Policy", content: EXECUTE_CSP_META },
+    ],
+  }),
+});
 
 function Home() {
-  return <Shell><section className="max-w-3xl space-y-7">
-    <p className="text-sm text-stone">Tools for modern legal work</p>
-    <h1 className="font-display text-4xl sm:text-5xl">Agmt</h1>
-    <p className="text-base leading-7">Tools for the work around agreements. Proof is the first product.</p>
-    <div className="space-y-4 border-y border-rule py-7">
-      <h2 className="font-display text-3xl">Proof</h2>
-      <p className="text-sm leading-6 text-stone">Proofread a Word agreement. Review safe corrections as tracked changes and items needing judgment as comments.</p>
-      <p className="text-sm">Free at launch</p>
-      <p className="text-sm leading-6 text-stone">{PROOF_LOCAL_NO_ACCOUNT}</p>
-      <p className="text-sm leading-6 text-stone">{PROOF_LOCAL_DEVICE}</p>
-      <Link to="/proof" className="inline-flex min-h-10 items-center border border-oxblood bg-oxblood px-5 text-sm text-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-oxblood">Open Proof</Link>
-    </div>
-    <Link to="/matters" className="text-sm text-stone underline underline-offset-4">Existing matters</Link>
-    {import.meta.env.DEV ? <p className="text-sm text-stone"><Link to="/proof/dev" className="underline underline-offset-4">Development Proof fixtures</Link> — not live processing.</p> : null}
-  </section></Shell>;
+  const access = Route.useLoaderData();
+  const { invite } = Route.useSearch();
+  return <Shell>{access.allowed ? <ExecuteApp /> : <InviteOnly reason={invite ?? null} />}</Shell>;
 }

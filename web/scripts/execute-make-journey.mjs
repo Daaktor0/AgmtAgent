@@ -119,8 +119,8 @@ try {
   const radhika = await textOf(zip[Object.keys(zip).find((f) => /Radhika Menon/.test(f))]);
   check(/RADHIKA MENON/.test(radhika) && !/ORCHID/.test(radhika), "a template page carries the party's name, and the sample name is gone from its text");
 
-  // Everything is kept on this computer: after a reload the pages and the template are still there.
-  await page.waitForFunction(() => /Saved on this computer/.test(document.body.textContent ?? ""), null, { timeout: 15_000 });
+  // Everything is kept in this browser: after a reload the pages and the template are still there.
+  await page.waitForFunction(() => /Saved in this browser/.test(document.body.textContent ?? ""), null, { timeout: 15_000 });
   await page.reload();
   await page.locator("[data-testid='start'][data-ready='true']").waitFor({ timeout: 60_000 });
   await page.getByRole("button", { name: /Saffron SHA/ }).first().click();
@@ -132,14 +132,14 @@ try {
   await page.getByTestId("tab-returns").click();
   const signed = Object.entries(zip).map(([, bytes], i) => ({ name: `Scan_${String(i + 1).padStart(4, "0")}.pdf`, mimeType: "application/pdf", buffer: Buffer.from(bytes) }));
   await page.getByTestId("returns-drop").locator("input[type=file]").setInputFiles(signed);
-  await page.waitForFunction((n) => new RegExp(`Sorted ${n} files`).test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), everyone.length, { timeout: 60_000 });
+  await page.waitForFunction((n) => new RegExp(`All ${n} placed`).test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), everyone.length, { timeout: 60_000 });
   check((await page.getByTestId("tray").count()) === 0, "every signed page is sorted to its party; none left for the lawyer");
   await shot(page, "returns");
 
   // Each copy: the whole agreement, then the signed pages at the end.
   await page.getByTestId("tab-copies").click();
   const row = page.getByTestId("copy-row").filter({ hasText: "Vikram Mehta" }).first();
-  await row.getByRole("button", { name: "See pages" }).click();
+  await row.getByRole("button", { name: "Show pages" }).click();
   const order = await row.locator("ol[aria-label='Pages of this copy in order'] > li").evaluateAll((els) => els.map((e) => e.textContent?.trim() ?? ""));
   check(order.length === 7 + everyone.length, `the copy is 7 agreement pages then ${everyone.length} signed pages (${order.length})`);
   check(order.slice(7).every((t) => /Signed/.test(t)) && order.slice(0, 7).every((t) => !/Signed/.test(t)), "signed pages come after the schedules");

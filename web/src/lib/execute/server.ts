@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { serverEnv } from "../runtime-env.server.ts";
 import { INVITE_COOKIE, inviteCookie, parseAccessMode, parseRevoked, verifyInvite, type AccessMode } from "./access.ts";
+import { accessNotice, accessThanks, mailConfig, sendMail } from "./mail.ts";
 
 export type ExecuteAccess = { mode: AccessMode; allowed: boolean; label: string | null };
 
@@ -92,26 +93,6 @@ async function ipKey(request: Request, kind: string, now: number): Promise<strin
   return `${kind}:${new Date(now).toISOString().slice(0, 10)}:${short}`;
 }
 
-async function emailFounder(subject: string, text: string, replyTo?: string): Promise<boolean> {
-  const apiKey = serverEnv("RESEND_API_KEY");
-  const to = serverEnv("AGMT_FEEDBACK_TO");
-  if (!apiKey || !to) return false;
-  const from = serverEnv("AUTH_EMAIL_FROM") ?? "Agmt <onboarding@resend.dev>";
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from, to: to.split(",").map((v) => v.trim()), subject, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) console.error(`[execute.email] provider rejected status=${res.status}`);
-    return res.ok;
-  } catch {
-    console.error("[execute.email] provider unreachable");
-    return false;
-  }
-}
-
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
 
@@ -123,8 +104,24 @@ const KIND_LABEL: Record<z.infer<typeof FeedbackSchema>["kind"], string> = {
   other: "Other",
 };
 
+/**
+ * GET /api/execute/status: whether beta access and email are set up, as
+ * yes/no answers only. Never returns a value, a key or an address.
+ */
+export function executeStatus(): Record<string, boolean | string> {
+  const mail = mailConfig();
+  return {
+    accessMode: parseAccessMode(serverEnv("AGMT_EXECUTE_ACCESS")),
+    inviteSecretSet: Boolean(serverEnv("AGMT_INVITE_SECRET")),
+    emailProviderSet: Boolean(mail.apiKey),
+    verifiedSenderSet: mail.verifiedSender,
+    founderAddressSet: mail.founder.length > 0,
+  };
+}
+
 export async function handleExecuteApi(request: Request, now = Date.now()): Promise<Response> {
   const path = new URL(request.url).pathname.replace(/^\/api\/execute\/?/, "");
+  if (request.method === "GET" && path === "status") return json(executeStatus());
   if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   if (path !== "feedback" && path !== "access-request") return json({ error: "not_found" }, 404);
   if (!originOk(request)) return json({ error: "invalid_origin" }, 403);
@@ -155,19 +152,50 @@ export async function handleExecuteApi(request: Request, now = Date.now()): Prom
       "",
       f.technical ? `Browser: ${f.technical.browser}\nPage: ${f.technical.path}\nVersion: ${f.technical.version}` : "No technical details shared.",
     ];
-    const delivered = await emailFounder(`Agmt feedback: ${KIND_LABEL[f.kind]}`, lines.join("\n"), f.email || undefined);
+    const mail = mailConfig();
+    const delivered = await sendMail(
+      mail,
+      { to: mail.founder, subject: `Agmt feedback: ${KIND_LABEL[f.kind]}`, text: lines.join("\n"), replyTo: f.email || undefined },
+      "feedback",
+    );
+    if (!delivered) console.error(JSON.stringify({ type: "EXECUTE_FEEDBACK_UNDELIVERED", founderAddressSet: mail.founder.length > 0 }));
     return json({ ok: true, delivered });
   }
 
   const parsed = AccessRequestSchema.safeParse(body);
   if (!parsed.success) return json({ error: "invalid" }, 400);
   counts.set(key, used + 1);
-  const r = parsed.data;
-  console.info(JSON.stringify({ type: "EXECUTE_ACCESS_REQUEST", at: new Date(now).toISOString() }));
-  const delivered = await emailFounder(
-    `Agmt access request: ${r.name}`,
-    [`Name: ${r.name}`, `Email: ${r.email}`, `Firm: ${r.firm || "not given"}`, "", r.note || "(no note)", "", "Mint an invite: npm run execute:invite -- --label \"<name, firm>\""].join("\n"),
-    r.email,
+  const r = { ...parsed.data, firm: parsed.data.firm || undefined, note: parsed.data.note || undefined };
+  const mail = mailConfig();
+
+  // The thank-you goes to the requester; replies reach the founder. Resend's
+  // test sender can only mail its own account owner, so without a verified
+  // sender it is not attempted.
+  const thanks = accessThanks(r);
+  const acknowledged = mail.verifiedSender
+    ? await sendMail(mail, { to: [r.email], ...thanks, replyTo: mail.founder[0] }, "access-thanks")
+    : false;
+  const notice = accessNotice(r, acknowledged);
+  const notified = await sendMail(mail, { to: mail.founder, ...notice, replyTo: r.email }, "access-notice");
+
+  // The request itself is always kept in the Worker's logs, so none is lost
+  // if an email fails. It holds only what the person typed into the form.
+  console.info(
+    JSON.stringify({
+      type: "EXECUTE_ACCESS_REQUEST",
+      name: r.name,
+      email: r.email,
+      firm: r.firm ?? null,
+      note: r.note ?? null,
+      acknowledged,
+      notified,
+      at: new Date(now).toISOString(),
+    }),
   );
-  return json({ ok: true, delivered });
+  if (!notified) {
+    console.error(
+      `[execute.email] access request not emailed to the founder: providerSet=${Boolean(mail.apiKey)} founderAddressSet=${mail.founder.length > 0}`,
+    );
+  }
+  return json({ ok: true, acknowledged, notified });
 }

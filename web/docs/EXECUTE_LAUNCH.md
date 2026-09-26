@@ -30,9 +30,29 @@ Secrets). The deploy uses `--keep-vars`, so values set there survive deploys.
 | `AGMT_INVITE_REVOKED` | variable | comma-separated invite ids to withdraw (optional) |
 | `AGMT_FEEDBACK_TO` | variable | where feedback and access requests are emailed, e.g. your address |
 
-`RESEND_API_KEY` and `AUTH_EMAIL_FROM` already exist for sign-in email and are
-reused. Without `AGMT_FEEDBACK_TO`, feedback is still accepted and logged
-(`EXECUTE_FEEDBACK` in Workers Logs) but not emailed.
+Email reuses the sign-in setup: `RESEND_API_KEY` (secret) and `AUTH_EMAIL_FROM`
+(a sender on a domain verified in Resend, e.g. `Agmt <hello@agmt.legal>`).
+
+| Needed for | `RESEND_API_KEY` | `AUTH_EMAIL_FROM` (verified) | `AGMT_FEEDBACK_TO` |
+|---|---|---|---|
+| You get access requests and feedback | yes | recommended | yes |
+| The requester gets a thank-you email | yes | **yes** | recommended (their replies reach you) |
+
+Without a verified `AUTH_EMAIL_FROM`, Resend's test sender only delivers to the
+Resend account owner, so the thank-you is not sent. Whatever the email setup,
+every access request is also written to Workers Logs as
+`EXECUTE_ACCESS_REQUEST` (name, email, firm, note), so none is lost.
+
+### Check the setup
+
+Open `https://app.agmt.legal/api/execute/status`. It answers yes or no only,
+never a value:
+
+```json
+{"accessMode":"invite","inviteSecretSet":true,"emailProviderSet":true,"verifiedSenderSet":true,"founderAddressSet":true}
+```
+
+Every `false` is a missing Worker setting from the table above.
 
 Invite mode without `AGMT_INVITE_SECRET` fails closed: nobody gets in.
 
@@ -45,8 +65,13 @@ AGMT_INVITE_SECRET='<same value as the Worker>' npm run execute:invite -- --labe
 
 It prints the link (`https://app.agmt.legal/invite/…`) and an invite id. The
 link sets a cookie in that browser and opens the tool. To withdraw an invite,
-add its id to `AGMT_INVITE_REVOKED`. People without an invite see an "Ask for
-access" form; requests arrive by email with the command to mint their invite.
+add its id to `AGMT_INVITE_REVOKED`.
+
+People without an invite see an "Ask for access" form. When they send it:
+1. they get "Thank you for your interest in Agmt": their request is noted and
+   they'll be emailed an invite link when their place is ready;
+2. you get "Access request: Name, Firm" with their details and the exact
+   `npm run execute:invite` command to invite them. Reply to write to them.
 
 ## After each deploy
 

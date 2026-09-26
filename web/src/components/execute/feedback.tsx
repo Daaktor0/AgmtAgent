@@ -14,12 +14,13 @@ const KINDS = [
 
 type Kind = (typeof KINDS)[number]["id"];
 
-async function post(path: string, body: unknown): Promise<{ ok: boolean; status: number }> {
+async function post(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   try {
     const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    return { ok: res.ok, status: res.status };
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { ok: res.ok, status: res.status, data };
   } catch {
-    return { ok: false, status: 0 };
+    return { ok: false, status: 0, data: {} };
   }
 }
 
@@ -131,7 +132,8 @@ export function FeedbackButton() {
 
 export function InviteOnly({ reason }: { reason: string | null }) {
   const [form, setForm] = useState({ name: "", email: "", firm: "", note: "" });
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed" | "limited">("idle");
+  const [acknowledged, setAcknowledged] = useState(false);
   const note =
     reason === "expired"
       ? "That invite link has expired. Ask for a new one below."
@@ -148,9 +150,16 @@ export function InviteOnly({ reason }: { reason: string | null }) {
       </p>
       {note ? <p className="border-l-2 border-oxblood pl-3 text-sm">{note}</p> : null}
       {state === "sent" ? (
-        <p className="border-l-2 border-ink pl-3 text-sm leading-6" role="status">
-          Thank you. We'll email you an invite.
-        </p>
+        <div className="space-y-3 border-t border-rule pt-8" role="status" data-testid="access-sent">
+          <h2 className="font-display text-2xl">Thank you, {form.name.trim().split(/\s+/)[0]}.</h2>
+          <p className="text-[15px] leading-7 text-ink/80">
+            Your request is noted. We'll email an invite to <span className="font-medium text-ink">{form.email.trim()}</span> as
+            soon as your place is ready. There is nothing else you need to do.
+          </p>
+          {acknowledged ? (
+            <p className="text-sm leading-6 text-stone">We've sent a short confirmation to that address. If it isn't in your inbox, check spam.</p>
+          ) : null}
+        </div>
       ) : (
         <form
           className="space-y-4 border-t border-rule pt-8"
@@ -158,7 +167,8 @@ export function InviteOnly({ reason }: { reason: string | null }) {
             e.preventDefault();
             setState("sending");
             const res = await post("/api/execute/access-request", form);
-            setState(res.ok ? "sent" : "failed");
+            setAcknowledged(res.data.acknowledged === true);
+            setState(res.ok ? "sent" : res.status === 429 ? "limited" : "failed");
           }}
         >
           <h2 className="font-display text-2xl">Ask for access</h2>
@@ -185,7 +195,8 @@ export function InviteOnly({ reason }: { reason: string | null }) {
             <span className="text-sm font-medium">What do you sign most often? (optional)</span>
             <textarea rows={3} maxLength={1000} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="block w-full border border-rule bg-paper p-3 text-sm outline-none focus:border-ink" />
           </label>
-          {state === "failed" ? <p className="text-sm text-oxblood">It didn't send. Try again in a moment.</p> : null}
+          {state === "failed" ? <p className="text-sm text-oxblood">It didn't send. Check your connection and try again.</p> : null}
+          {state === "limited" ? <p className="text-sm text-oxblood">We've already had a few requests from this connection today. Please try again tomorrow.</p> : null}
           <Button type="submit" disabled={state === "sending"}>
             {state === "sending" ? "Sending…" : "Ask for access"}
           </Button>

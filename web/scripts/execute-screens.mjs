@@ -179,8 +179,8 @@ try {
   const download = page.waitForEvent("download");
   await page.getByTestId("download-all").click();
   const zip = unzipSync(readFileSync(await (await download).path()));
-  await toPng(zip["Closing index.pdf"], 1, 1100, `${OUT}/closing-index.png`);
-  writeFileSync(`${OUT}/closing-index.pdf`, zip["Closing index.pdf"]);
+  await toPng(zip["00 Closing index.pdf"], 1, 1100, `${OUT}/closing-index.png`);
+  writeFileSync(`${OUT}/closing-index.pdf`, zip["00 Closing index.pdf"]);
 
   // Twenty parties, three documents, long names, one party with two stamp papers.
   await page.getByRole("button", { name: /All signings/ }).click();

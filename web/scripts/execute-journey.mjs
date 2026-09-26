@@ -133,12 +133,12 @@ try {
   await page.getByTestId("download-all").click();
   const zip = unzipSync(readFileSync(await (await download).path()));
   const names = Object.keys(zip);
-  check(names.length === 12 && names.includes("Closing index.pdf"), `zip holds 11 copies and the closing index (${names.length} files)`);
+  check(names.length === 12 && names.includes("00 Closing index.pdf"), `zip holds 11 copies and the closing index (${names.length} files)`);
   for (const [name, bytes] of Object.entries(zip)) {
-    if (name === "Closing index.pdf") continue;
+    if (name === "00 Closing index.pdf") continue;
     const doc = await PDFDocument.load(bytes);
     const sha = name.startsWith("SHA");
-    const stamp = name.endsWith("Meridian Foods Private Limited.pdf") && sha ? 2 : 1;
+    const stamp = name.includes("/Meridian Foods Private Limited - ") && sha ? 2 : 1;
     const expected = sha ? stamp + 4 + 7 + 1 : stamp + 2 + 4 + 1;
     check(doc.getPageCount() === expected, `${name}: ${doc.getPageCount()} pages`);
   }

@@ -25,14 +25,23 @@ export function safeFileName(name: string): string {
   return `${stem.slice(0, 180)}.pdf`;
 }
 
+/** Party first, so one party's copies sort together: "Banyan Capital Fund I - SHA - Executed Counterpart.pdf". */
 export function executedCopyName(title: string, party: string, copy: CopyType): string {
   const label = copy === "original" ? "Executed Original" : "Executed Counterpart";
-  return safeFileName(`${title} - ${label} - ${party}`);
+  return safeFileName(`${party} - ${title} - ${label}`);
+}
+
+/** A copy downloaded before every signed page and stamp paper is in must not pass for a finished one. */
+export function incompleteName(name: string): string {
+  return /\(incomplete\)\.pdf$/i.test(name) ? name : name.replace(/\.pdf$/i, " (incomplete).pdf");
 }
 
 export function signaturePackName(title: string, party: string): string {
-  return safeFileName(`${title} - Signature Page - ${party}`);
+  return safeFileName(`${party} - ${title} - Signature Pages`);
 }
+
+/** Sorts first in the zip. */
+export const CLOSING_INDEX_NAME = "00 Closing index.pdf";
 
 /** Make every name in a zip distinct: "x.pdf", "x (2).pdf", ... */
 export function uniqueNames(names: string[]): string[] {

@@ -38,7 +38,7 @@ test("a document seeds the signing, its parties and its copies", () => {
   assert.deepEqual(s.parties.map((p) => p.name), ["Acme Industries Limited", "Rahul Mehta"]);
   const doc = s.documents[0];
   assert.deepEqual(Object.keys(doc.sigPages), ["2", "3"]);
-  assert.equal(copyFileName(s, doc, s.parties[1].id), "SPA - Executed Counterpart - Rahul Mehta.pdf");
+  assert.equal(copyFileName(s, doc, s.parties[1].id), "Rahul Mehta - SPA - Executed Counterpart.pdf");
 });
 
 test("the same party in a second document is one party", () => {
@@ -92,7 +92,7 @@ test("a stamp paper in the wrong copy is flagged by name", () => {
   const acme = s.parties[0].id;
   s = placeReturn(s, "st", { status: "placed", role: "stamp", docId, partyId: acme });
   const flags = signingFlags(s);
-  assert.match(flags[0].message, /names RAHUL MEHTA, not Acme Industries Limited/);
+  assert.match(flags[0].message, /is in the name of RAHUL MEHTA, not Acme Industries Limited/);
 });
 
 test("progress, readiness and the chase list follow the returns", () => {
@@ -102,8 +102,8 @@ test("progress, readiness and the chase list follow the returns", () => {
   const flags = signingFlags(s);
   const p = progress(s, flags);
   assert.deepEqual([p.signedDone, p.signedTotal, p.stampDone, p.stampTotal, p.copiesTotal], [1, 2, 0, 1, 1]);
-  assert.match(chaseList(s), /Rahul Mehta: signed signature page for the SPA \(p\. 4\)/);
-  assert.match(chaseList(s), /Acme Industries Limited: stamp paper for the SPA/);
+  assert.match(chaseList(s), /Rahul Mehta: signed page 4 of the SPA/);
+  assert.match(chaseList(s), /Acme Industries Limited: stamp paper for their copy of the SPA/);
 });
 
 test("unmarking a signature page drops its parties and frees their files", () => {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  executedCopyName, guessRoleByFileName, matchPartyByFileName, safeFileName, titleFromFileName, uniqueNames,
+  executedCopyName, guessRoleByFileName, incompleteName, signaturePackName, matchPartyByFileName, safeFileName, titleFromFileName, uniqueNames,
 } from "./names.ts";
 
 test("titles drop version noise from the file name", () => {
@@ -11,7 +11,11 @@ test("titles drop version noise from the file name", () => {
 });
 
 test("file names are safe and editable suggestions", () => {
-  assert.equal(executedCopyName("SHA", "Banyan Capital Fund I", "original"), "SHA - Executed Original - Banyan Capital Fund I.pdf");
+  assert.equal(executedCopyName("SHA", "Banyan Capital Fund I", "original"), "Banyan Capital Fund I - SHA - Executed Original.pdf");
+  assert.equal(executedCopyName("SHA", "Banyan Capital Fund I", "counterpart"), "Banyan Capital Fund I - SHA - Executed Counterpart.pdf");
+  assert.equal(signaturePackName("SHA", "Priya Nair"), "Priya Nair - SHA - Signature Pages.pdf");
+  assert.equal(incompleteName("Priya Nair - SHA - Executed Counterpart.pdf"), "Priya Nair - SHA - Executed Counterpart (incomplete).pdf");
+  assert.equal(incompleteName("x (incomplete).pdf"), "x (incomplete).pdf");
   assert.equal(safeFileName('A/B: "C"?'), "A B C.pdf");
   assert.deepEqual(uniqueNames(["a.pdf", "A.pdf", "b.pdf"]), ["a.pdf", "A (2).pdf", "b.pdf"]);
 });

@@ -69,7 +69,7 @@ export function planExecutedCopy(input: PlanInput): Plan {
   return { segments, missingParties: missing, missingStamp: input.stampIds.length === 0 };
 }
 
-/** "Agreement pp. 1–24" style summary for the screen. */
+/** "Final pp. 1–24" style summary for the screen. */
 export function describePlan(plan: Plan, pagesOf: (attachmentId: string) => number): string[] {
   type Chunk =
     | { kind: "stamp" | "signed"; pages: number }
@@ -90,7 +90,7 @@ export function describePlan(plan: Plan, pagesOf: (attachmentId: string) => numb
   const pp = (n: number) => `${n} page${n === 1 ? "" : "s"}`;
   const range = (from: number, to: number) => (from === to ? `p. ${from + 1}` : `pp. ${from + 1}–${to + 1}`);
   return chunks.map((c) => {
-    if ("pages" in c) return c.kind === "stamp" ? `Stamp paper (${pp(c.pages)})` : `Countersigned (${pp(c.pages)})`;
-    return `${c.kind === "unsigned" ? "Unsigned" : "Agreement"} ${range(c.from, c.to)}`;
+    if ("pages" in c) return c.kind === "stamp" ? `Stamp paper (${pp(c.pages)})` : `Signed (${pp(c.pages)})`;
+    return `${c.kind === "unsigned" ? "Unsigned" : "Final"} ${range(c.from, c.to)}`;
   });
 }

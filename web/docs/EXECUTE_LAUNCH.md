@@ -68,8 +68,8 @@ link sets a cookie in that browser and opens the tool. To withdraw an invite,
 add its id to `AGMT_INVITE_REVOKED`.
 
 People without an invite see an "Ask for access" form. When they send it:
-1. they get "Thank you for your interest in Agmt": their request is noted and
-   they'll be emailed an invite link when their place is ready;
+1. they get "Your request for Execute by Agmt": access is by invitation for
+   now, and they'll be emailed a link when theirs is ready;
 2. you get "Access request: Name, Firm" with their details and the exact
    `npm run execute:invite` command to invite them. Reply to write to them.
 
@@ -115,7 +115,14 @@ still receives it. Removing that injection everywhere is recommended.
 
 - `npm run test:execute`: engine, sorting, checks, invites, endpoints, policy
   header, and the two-document sample through pdf.js and pdf-lib.
+- `node scripts/execute-screens.mjs [<url>] [<dir>]`: screenshots of every
+  screen state (sample, needs-you, a duplicate certificate, 20 parties across
+  3 documents, phone widths, the closing index) for design review.
+- `node scripts/brand-assets.mjs`: redraws the Execute and Agmt marks,
+  favicons, email header image and social preview from the fonts in
+  `public/fonts`.
 - `npm run execute:journey [-- <url>]`: the whole flow in Chromium, including a
   photo read by local OCR, the zip opened and every copy's page count checked,
-  reload persistence, phone width, feedback, and zero unexpected policy
-  violations. Needs a running app (`npm run dev`) or a URL.
+  reload persistence, phone width, feedback, the side panel by keyboard, the
+  closing index set in the Execute typefaces, no request leaving Agmt, and
+  zero unexpected policy violations. Needs a running app (`npm run dev`) or a URL.

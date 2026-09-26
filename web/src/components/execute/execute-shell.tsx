@@ -6,7 +6,7 @@ import { FeedbackButton } from "./feedback";
  * Execute's page frame: the lock-up on paper under one ink rule. Quieter than
  * a dark bar, which matters at night. Proof keeps its own shell.
  */
-export function ExecuteShell({ children }: { children: ReactNode }) {
+export function ExecuteShell({ children, account }: { children: ReactNode; account?: ReactNode }) {
   return (
     <div className="min-h-screen bg-paper text-ink">
       <a
@@ -20,7 +20,10 @@ export function ExecuteShell({ children }: { children: ReactNode }) {
           <a href="/" aria-label="Execute by Agmt, all signings" className="no-underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-oxblood">
             <ExecuteLockup compact />
           </a>
-          <FeedbackButton />
+          <div className="flex items-center gap-5">
+            <FeedbackButton />
+            {account}
+          </div>
         </div>
       </header>
       <main id="execute-main" className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12">

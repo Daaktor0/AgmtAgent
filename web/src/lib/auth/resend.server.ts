@@ -72,6 +72,9 @@ export async function sendResendVerificationEmail(data: {
   user: VerificationUser;
   url: string;
 }): Promise<void> {
+  const { writeDevOutbox } = await import("../execute/mail.ts");
+  const outbox = verificationEmail(data.url, data.user.name);
+  if (await writeDevOutbox({ from: "dev", to: [data.user.email], subject: VERIFICATION_SUBJECT, ...outbox }, "verify-email").catch(() => false)) return;
   const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
     console.error("[auth.email] RESEND_API_KEY is not configured");
@@ -129,4 +132,30 @@ export async function sendResendVerificationEmail(data: {
       message: "We could not send the verification email.",
     });
   }
+}
+
+/**
+ * Forgot password. Better Auth answers the same whether or not the address
+ * has an account, so a failure here is logged, never shown.
+ */
+export async function sendPasswordResetEmail(data: { user: VerificationUser; url: string }): Promise<void> {
+  const { mailConfig, passwordReset, sendMail } = await import("../execute/mail.ts");
+  const mail = mailConfig();
+  const sent = await sendMail(mail, { to: [data.user.email], ...passwordReset(data.user.name, data.url) }, "password-reset");
+  if (!sent) console.error(`[auth.email] password reset not sent: providerSet=${Boolean(mail.apiKey)} verifiedSender=${mail.verifiedSender}`);
+}
+
+/** A sign-up for an address that already has an account: send them home. */
+export async function sendExistingAccountEmail(data: { user: VerificationUser }): Promise<void> {
+  const { existingAccount, mailConfig, sendMail } = await import("../execute/mail.ts");
+  const base = serverEnv("AGMT_PUBLIC_URL") ?? "http://localhost:8080";
+  const mail = mailConfig();
+  const reset = new URL("/reset-password", base);
+  reset.searchParams.set("email", data.user.email);
+  const sent = await sendMail(
+    mail,
+    { to: [data.user.email], ...existingAccount(data.user.name, { signIn: new URL("/", base).toString(), reset: reset.toString() }) },
+    "existing-account",
+  );
+  if (!sent) console.error(`[auth.email] existing-account note not sent: providerSet=${Boolean(mail.apiKey)}`);
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AccessGate, SignOutButton } from "@/components/execute/access-gate";
 import { ExecuteApp } from "@/components/execute/execute-app";
 import { ExecuteShell } from "@/components/execute/execute-shell";
-import { InviteOnly } from "@/components/execute/feedback";
 import { getExecuteAccess } from "@/lib/execute/access.fn";
 import { EXECUTE_CSP_META } from "@/lib/execute/csp";
 
@@ -9,8 +9,6 @@ const DESCRIPTION =
   "An executed copy for every party to a multi-party agreement, assembled on your computer. Signature pages out, signed pages and stamp papers in.";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>): { invite?: string } =>
-    typeof search.invite === "string" ? { invite: search.invite } : {},
   loader: () => getExecuteAccess(),
   component: Home,
   head: () => ({
@@ -36,6 +34,10 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const access = Route.useLoaderData();
-  const { invite } = Route.useSearch();
-  return <ExecuteShell>{access.allowed ? <ExecuteApp /> : <InviteOnly reason={invite ?? null} />}</ExecuteShell>;
+  const signedIn = access.mode === "invite" && access.state !== "signed_out";
+  return (
+    <ExecuteShell account={signedIn ? <SignOutButton className="text-[13px] text-stone underline-offset-4 hover:text-ink hover:underline" /> : null}>
+      {access.state === "allowed" ? <ExecuteApp /> : <AccessGate access={access} />}
+    </ExecuteShell>
+  );
 }

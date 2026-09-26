@@ -1,6 +1,6 @@
 /**
  * Stable, non-sensitive auth error codes shared by the server (thrown as
- * Better Auth `APIError` bodies) and the client (`routes/login.tsx`).
+ * Better Auth `APIError` bodies) and the client (`components/execute/access-gate.tsx`).
  *
  * Values for INVALID_ORIGIN / INVALID_CREDENTIALS / EMAIL_NOT_VERIFIED match
  * Better Auth's own built-in error codes exactly (see

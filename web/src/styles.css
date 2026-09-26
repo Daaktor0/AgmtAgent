@@ -159,8 +159,4 @@
     .cell-settled { animation: none; box-shadow: inset 0 0 0 2px var(--color-oxblood); }
   }
 
-  .proof-touch {
-    min-height: 44px;
-    min-width: 44px;
-  }
 }

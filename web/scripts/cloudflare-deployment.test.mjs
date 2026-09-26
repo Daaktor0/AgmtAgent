@@ -23,6 +23,11 @@ test("Cloudflare deploy builds and serves the current web app", () => {
   assert.equal(config.main, "web/.output/server/index.mjs");
   assert.equal(config.assets.directory, "web/.output/public");
   assert.equal(config.containers, undefined);
+  // Execute runs no scheduled jobs and stores no documents.
+  for (const wrangler of [config, JSON.parse(webWrangler.replace(/^\s*\/\/.*$/gm, ""))]) {
+    assert.equal(wrangler.triggers, undefined);
+    assert.equal(wrangler.r2_buckets, undefined);
+  }
   assert.match(rootScripts["build:web"], /web run build:cloudflare/);
   assert.match(rootScripts.build, /build:web/);
   assert.match(rootScripts.deploy, /web\/\.output\/server\/wrangler\.json/);

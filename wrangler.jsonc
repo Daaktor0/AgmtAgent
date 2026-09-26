@@ -24,13 +24,7 @@
 		{ "binding": "AGMT_APP_DB", "id": "6738d0760a774700808fddf13018e36b" },
 		{ "binding": "AGMT_AUTH_DB", "id": "d20b71757c7a404f9f02c1ff024b8b55" }
 	],
-	"r2_buckets": [
-		{ "binding": "AGMT_OBJECTS", "bucket_name": "agmt-proof-objects" }
-	],
 	"kv_namespaces": [
 		{ "binding": "AGMT_ACCESS", "id": "64ed6441513549819e50e9955d810bbb" }
-	],
-	"triggers": {
-		"crons": ["* * * * *"]
-	}
+	]
 }

@@ -2,12 +2,12 @@ node_modules/
 .vercel/
 .output/
 dist/
-screenshots/
-artifacts/
-.grok/
+.tanstack/
+.nitro/
 *.log
 .env
 .env.*
 .DS_Store
-AGENTS.md
-.tanstack/
+
+# Social cards, drawn by scripts/og.mjs at every build.
+public/og/

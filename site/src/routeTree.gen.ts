@@ -10,21 +10,27 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AdminRouteImport } from './routes/admin'
-import { Route as BetaRouteImport } from './routes/beta'
-import { Route as BuildersRouteImport } from './routes/builders'
-import { Route as HowRouteImport } from './routes/how'
-import { Route as LegalRouteImport } from './routes/legal'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
-import { Route as TrustRouteImport } from './routes/trust'
-import { Route as WhatRouteImport } from './routes/what'
+import { Route as BlogIndexRouteImport } from './routes/blog/index'
+import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
+import { Route as BlogRssDotxmlRouteImport } from './routes/blog/rss[.]xml'
 import { Route as ProductsIndexRouteImport } from './routes/products/index'
-import { Route as ProductsProofRouteImport } from './routes/products/proof'
+import { Route as ProductsExecuteRouteImport } from './routes/products/execute'
+import { Route as BlogTagTagRouteImport } from './routes/blog/tag.$tag'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -32,24 +38,9 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BetaRoute = BetaRouteImport.update({
-  id: '/beta',
-  path: '/beta',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BuildersRoute = BuildersRouteImport.update({
-  id: '/builders',
-  path: '/builders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HowRoute = HowRouteImport.update({
-  id: '/how',
-  path: '/how',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegalRoute = LegalRouteImport.update({
-  id: '/legal',
-  path: '/legal',
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -57,19 +48,29 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TrustRoute = TrustRouteImport.update({
-  id: '/trust',
-  path: '/trust',
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WhatRoute = WhatRouteImport.update({
-  id: '/what',
-  path: '/what',
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogRssDotxmlRoute = BlogRssDotxmlRouteImport.update({
+  id: '/blog/rss.xml',
+  path: '/blog/rss.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsIndexRoute = ProductsIndexRouteImport.update({
@@ -77,113 +78,125 @@ const ProductsIndexRoute = ProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProductsProofRoute = ProductsProofRouteImport.update({
-  id: '/products/proof',
-  path: '/products/proof',
+const ProductsExecuteRoute = ProductsExecuteRouteImport.update({
+  id: '/products/execute',
+  path: '/products/execute',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogTagTagRoute = BlogTagTagRouteImport.update({
+  id: '/blog/tag/$tag',
+  path: '/blog/tag/$tag',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
-  '/beta': typeof BetaRoute
-  '/builders': typeof BuildersRoute
-  '/how': typeof HowRoute
-  '/legal': typeof LegalRoute
+  '/contact': typeof ContactRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
-  '/trust': typeof TrustRoute
-  '/what': typeof WhatRoute
-  '/products/proof': typeof ProductsProofRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/blog/rss.xml': typeof BlogRssDotxmlRoute
+  '/products/execute': typeof ProductsExecuteRoute
+  '/blog/': typeof BlogIndexRoute
   '/products/': typeof ProductsIndexRoute
+  '/blog/tag/$tag': typeof BlogTagTagRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
-  '/beta': typeof BetaRoute
-  '/builders': typeof BuildersRoute
-  '/how': typeof HowRoute
-  '/legal': typeof LegalRoute
+  '/contact': typeof ContactRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
-  '/trust': typeof TrustRoute
-  '/what': typeof WhatRoute
-  '/products/proof': typeof ProductsProofRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/blog/rss.xml': typeof BlogRssDotxmlRoute
+  '/products/execute': typeof ProductsExecuteRoute
+  '/blog': typeof BlogIndexRoute
   '/products': typeof ProductsIndexRoute
+  '/blog/tag/$tag': typeof BlogTagTagRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
-  '/beta': typeof BetaRoute
-  '/builders': typeof BuildersRoute
-  '/how': typeof HowRoute
-  '/legal': typeof LegalRoute
+  '/contact': typeof ContactRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
-  '/trust': typeof TrustRoute
-  '/what': typeof WhatRoute
-  '/products/proof': typeof ProductsProofRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/blog/rss.xml': typeof BlogRssDotxmlRoute
+  '/products/execute': typeof ProductsExecuteRoute
+  '/blog/': typeof BlogIndexRoute
   '/products/': typeof ProductsIndexRoute
+  '/blog/tag/$tag': typeof BlogTagTagRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/admin'
-    | '/beta'
-    | '/builders'
-    | '/how'
-    | '/legal'
+    | '/contact'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
-    | '/trust'
-    | '/what'
-    | '/products/proof'
+    | '/blog/$slug'
+    | '/blog/rss.xml'
+    | '/products/execute'
+    | '/blog/'
     | '/products/'
+    | '/blog/tag/$tag'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/admin'
-    | '/beta'
-    | '/builders'
-    | '/how'
-    | '/legal'
+    | '/contact'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
-    | '/trust'
-    | '/what'
-    | '/products/proof'
+    | '/blog/$slug'
+    | '/blog/rss.xml'
+    | '/products/execute'
+    | '/blog'
     | '/products'
+    | '/blog/tag/$tag'
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/admin'
-    | '/beta'
-    | '/builders'
-    | '/how'
-    | '/legal'
+    | '/contact'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
-    | '/trust'
-    | '/what'
-    | '/products/proof'
+    | '/blog/$slug'
+    | '/blog/rss.xml'
+    | '/products/execute'
+    | '/blog/'
     | '/products/'
+    | '/blog/tag/$tag'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRoute
-  BetaRoute: typeof BetaRoute
-  BuildersRoute: typeof BuildersRoute
-  HowRoute: typeof HowRoute
-  LegalRoute: typeof LegalRoute
+  ContactRoute: typeof ContactRoute
   PrivacyRoute: typeof PrivacyRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
-  TrustRoute: typeof TrustRoute
-  WhatRoute: typeof WhatRoute
-  ProductsProofRoute: typeof ProductsProofRoute
+  BlogSlugRoute: typeof BlogSlugRoute
+  BlogRssDotxmlRoute: typeof BlogRssDotxmlRoute
+  ProductsExecuteRoute: typeof ProductsExecuteRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
+  BlogTagTagRoute: typeof BlogTagTagRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -195,6 +208,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
       id: '/admin'
       path: '/admin'
@@ -202,32 +222,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/beta': {
-      id: '/beta'
-      path: '/beta'
-      fullPath: '/beta'
-      preLoaderRoute: typeof BetaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/builders': {
-      id: '/builders'
-      path: '/builders'
-      fullPath: '/builders'
-      preLoaderRoute: typeof BuildersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/how': {
-      id: '/how'
-      path: '/how'
-      fullPath: '/how'
-      preLoaderRoute: typeof HowRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legal': {
-      id: '/legal'
-      path: '/legal'
-      fullPath: '/legal'
-      preLoaderRoute: typeof LegalRouteImport
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -237,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -244,18 +250,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/trust': {
-      id: '/trust'
-      path: '/trust'
-      fullPath: '/trust'
-      preLoaderRoute: typeof TrustRouteImport
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/what': {
-      id: '/what'
-      path: '/what'
-      fullPath: '/what'
-      preLoaderRoute: typeof WhatRouteImport
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/rss.xml': {
+      id: '/blog/rss.xml'
+      path: '/blog/rss.xml'
+      fullPath: '/blog/rss.xml'
+      preLoaderRoute: typeof BlogRssDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products/': {
@@ -265,11 +278,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/products/proof': {
-      id: '/products/proof'
-      path: '/products/proof'
-      fullPath: '/products/proof'
-      preLoaderRoute: typeof ProductsProofRouteImport
+    '/products/execute': {
+      id: '/products/execute'
+      path: '/products/execute'
+      fullPath: '/products/execute'
+      preLoaderRoute: typeof ProductsExecuteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/tag/$tag': {
+      id: '/blog/tag/$tag'
+      path: '/blog/tag/$tag'
+      fullPath: '/blog/tag/$tag'
+      preLoaderRoute: typeof BlogTagTagRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -277,17 +297,18 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   AdminRoute: AdminRoute,
-  BetaRoute: BetaRoute,
-  BuildersRoute: BuildersRoute,
-  HowRoute: HowRoute,
-  LegalRoute: LegalRoute,
+  ContactRoute: ContactRoute,
   PrivacyRoute: PrivacyRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
-  TrustRoute: TrustRoute,
-  WhatRoute: WhatRoute,
-  ProductsProofRoute: ProductsProofRoute,
+  BlogSlugRoute: BlogSlugRoute,
+  BlogRssDotxmlRoute: BlogRssDotxmlRoute,
+  ProductsExecuteRoute: ProductsExecuteRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ProductsIndexRoute: ProductsIndexRoute,
+  BlogTagTagRoute: BlogTagTagRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

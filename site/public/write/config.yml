@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://unpkg.com/@sveltia/cms@0.221.2/schema/sveltia-cms.json
+#
+# The blog editor at agmt.legal/write. Posts are saved as Markdown files in
+# site/content/blog; images in site/public/blog/media. See site/README.md.
+
+backend:
+  name: github
+  repo: Daaktor0/AgmtAgent
+  branch: main
+  # Sign in with a GitHub access key made for this repository only.
+  auth_methods: [token]
+  # Each post's changes land on main as a single commit when published.
+  squash_merges: true
+  commit_messages:
+    create: "blog: add {{slug}}"
+    update: "blog: update {{slug}}"
+    delete: "blog: delete {{slug}}"
+    uploadMedia: "blog: add image {{path}}"
+    deleteMedia: "blog: delete image {{path}}"
+
+# Saving keeps a post as a draft on its own branch, with a preview deployment.
+# Publishing merges it into main, and agmt.legal updates a minute or two later.
+publish_mode: editorial_workflow
+
+site_url: https://agmt.legal
+display_url: https://agmt.legal
+logo_url: /apple-touch-icon.png
+
+media_folder: /site/public/blog/media
+public_folder: /blog/media
+media_libraries:
+  default:
+    config:
+      slugify_filename: true
+      max_file_size: 15000000
+      # Photos are converted to WebP and scaled to at most 2400 px wide as
+      # they're uploaded, so pages stay fast without any extra step.
+      transformations:
+        raster_image:
+          format: webp
+          quality: 85
+          width: 2400
+
+slug:
+  encoding: ascii
+  clean_accents: true
+
+collections:
+  - name: blog
+    label: Blog posts
+    label_singular: Post
+    description: Posts on agmt.legal/blog. New posts start as drafts; publish when ready.
+    folder: /site/content/blog
+    create: true
+    extension: md
+    format: frontmatter
+    slug: "{{slug}}"
+    preview_path: /blog/{{slug}}
+    sortable_fields: [date, title]
+    summary: "{{title}}"
+    fields:
+      - label: Title
+        name: title
+        widget: string
+        hint: The post's headline. The web address is made from it when you first save, and doesn't change after that.
+      - label: Summary
+        name: summary
+        widget: text
+        hint: One or two sentences. Shown on the blog, in search results, and when the post is shared.
+      - label: Date
+        name: date
+        widget: datetime
+        type: date
+        default: "{{now}}"
+        hint: The date shown on the post. Set it to the day you publish.
+      - label: Author
+        name: author
+        widget: string
+        default: Agmt
+      - label: Topics
+        name: tags
+        widget: list
+        required: false
+        hint: A few words, e.g. Execution, E-stamping. Each topic gets its own page.
+      - label: Cover image
+        name: cover
+        widget: image
+        required: false
+        hint: Optional. Wide images work best (16:9). Without one, the post gets a title card when shared.
+      - label: Cover image description
+        name: coverAlt
+        widget: string
+        required: false
+        hint: What the image shows, for people who can't see it.
+      - label: Hide from the site
+        name: draft
+        widget: boolean
+        default: false
+        required: false
+        hint: Leave off. Turn on to take a published post down without deleting it.
+      - label: Post
+        name: body
+        widget: richtext

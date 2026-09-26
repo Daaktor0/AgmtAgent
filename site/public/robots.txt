@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /write/
+
+Sitemap: https://agmt.legal/sitemap.xml

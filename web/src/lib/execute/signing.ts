@@ -8,6 +8,7 @@ import type { EStamp } from "./estamp.ts";
 import {
   newId,
   type CopyType,
+  type MakeSetup,
   type PageInfo,
   type Party,
   type Placement,
@@ -29,6 +30,26 @@ export function createSigning(name: string, now = Date.now()): Signing {
 
 export const sigPageIndices = (doc: SigningDocument): number[] =>
   Object.keys(doc.sigPages).map(Number).sort((a, b) => a - b);
+
+/** Pages of the agreement plus any signature pages Agmt made, which follow it. */
+export const totalPages = (doc: SigningDocument): number => doc.pageCount + (doc.made?.pages.length ?? 0);
+
+export const isMadePage = (doc: SigningDocument, page: number): boolean => page >= doc.pageCount;
+
+/** The text of a page: of the agreement, or of a signature page Agmt made. */
+export function pageText(doc: SigningDocument, page: number): string {
+  return (page < doc.pageCount ? doc.pages[page] : doc.made?.pages[page - doc.pageCount])?.text ?? "";
+}
+
+/** Which stored PDF a page lives in, and its page number there. */
+export function pageSource(doc: SigningDocument, page: number): { fileId: string; page: number } {
+  return page < doc.pageCount || !doc.made ? { fileId: doc.fileId, page: page + 1 } : { fileId: doc.made.fileId, page: page - doc.pageCount + 1 };
+}
+
+/** "p. 12", or "signature page 3" for one Agmt made. */
+export function pageLabel(doc: SigningDocument, page: number): string {
+  return page < doc.pageCount ? `p. ${page + 1}` : `signature page ${page - doc.pageCount + 1}`;
+}
 
 export const partyName = (s: Signing, id: string): string => s.parties.find((p) => p.id === id)?.name ?? "Unknown party";
 
@@ -168,6 +189,59 @@ export const setCopyName = (s: Signing, docId: string, partyId: string, name: st
   withDoc(s, docId, (_next, doc) => {
     doc.copyNames[partyId] = name;
   });
+
+/** What the made pages depend on, to tell when the setup has changed since. */
+export function setupKey(setup: MakeSetup): string {
+  return JSON.stringify({ ...setup, templates: setup.templates.map(({ residue: _residue, label: _label, ...t }) => t) });
+}
+
+/** Keep the lawyer's choices for making signature pages. */
+export const saveMakeSetup = (s: Signing, docId: string, setup: MakeSetup) =>
+  withDoc(s, docId, (_next, doc) => {
+    doc.setup = setup;
+  });
+
+/**
+ * Use the signature pages found in the agreement itself: any pages Agmt made
+ * are set aside, and the likely signature pages are marked again.
+ */
+export function chooseAgreementPages(signing: Signing, docId: string): Signing {
+  const out = withDoc(signing, docId, (next, doc) => {
+    doc.made = null;
+    doc.sigPages = {};
+    doc.pages.forEach((p, i) => {
+      if (p.likelySignature) seedPage(next, doc, i);
+    });
+  });
+  return touch(resort(out));
+}
+
+/**
+ * Use signature pages Agmt made: one page per party, in order, after the
+ * agreement. The parties keep their ids across remakes, so returns already
+ * sorted stay with them.
+ */
+export function applyMadePages(
+  signing: Signing,
+  docId: string,
+  input: { from: "parties" | "template"; fileId: string; key?: string; sheets: { name: string; text: string }[] },
+): Signing {
+  const out = withDoc(signing, docId, (next, doc) => {
+    doc.made = {
+      from: input.from,
+      fileId: input.fileId,
+      key: input.key ?? "",
+      pages: input.sheets.map((sheet) => ({ text: sheet.text, likelySignature: true, suggestedParties: [sheet.name] })),
+    };
+    doc.sigPages = {};
+    input.sheets.forEach((sheet, i) => {
+      const id = ensureParty(next, sheet.name);
+      doc.sigPages[doc.pageCount + i] = [id];
+      doc.copies[id] ??= "counterpart";
+    });
+  });
+  return touch(resort(out));
+}
 
 /* -------------------------------------------------------------- returns */
 
@@ -316,7 +390,7 @@ export const unplaced = (s: Signing): ReturnFile[] => s.returns.filter((r) => r.
 
 export function planFor(s: Signing, doc: SigningDocument, partyId: string): Plan {
   return planExecutedCopy({
-    pageCount: doc.pageCount,
+    pageCount: totalPages(doc),
     signaturePages: new Map(sigPageIndices(doc).map((p) => [p, doc.sigPages[p]])),
     signedByParty: new Map(signingPartiesOf(doc).map((id) => [id, signedFor(s, doc.id, id).map((r) => r.id)])),
     stampIds: stampsFor(s, doc.id, partyId).map((r) => r.id),

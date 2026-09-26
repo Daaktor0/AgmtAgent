@@ -6,7 +6,7 @@
 import { signingPartiesOf } from "./classify.ts";
 import { stampNames } from "./estamp.ts";
 import type { ReturnFile, Signing, SigningDocument } from "./model.ts";
-import { copyParties, pagesOf, partyName, planFor, signedFor, stampsFor } from "./signing.ts";
+import { copyParties, pageLabel, pagesOf, pageText, partyName, planFor, signedFor, stampsFor } from "./signing.ts";
 import { nameMatch, recall, tokenSet } from "./text.ts";
 
 export type Severity = "problem" | "check";
@@ -32,7 +32,7 @@ export type Cell = {
 /** How much of the final page's wording the returned page carries (0..1), or null without text. */
 export function pageAgreement(doc: SigningDocument, pageIndices: number[], file: ReturnFile): number | null {
   if (!file.text || file.textSource === "none" || file.textSource === "pending") return null;
-  const original = tokenSet(pageIndices.map((p) => doc.pages[p]?.text ?? "").join("\n"));
+  const original = tokenSet(pageIndices.map((p) => pageText(doc, p)).join("\n"));
   if (original.size < 4) return null;
   return recall(original, tokenSet(file.text));
 }
@@ -54,7 +54,7 @@ export function signingFlags(s: Signing): Flag[] {
             docId: doc.id,
             partyId,
             fileId: file.id,
-            message: `“${file.fileName}” doesn't read like ${doc.title} p. ${pages.map((p) => p + 1).join(", ")}. Check it is the right page of the right document.`,
+            message: `“${file.fileName}” doesn't read like ${doc.title} ${pages.map((p) => pageLabel(doc, p)).join(", ")}. Check it is the right page of the right document.`,
           });
         }
         if (file.pageCount > Math.max(1, pages.length) + 1) {
@@ -187,8 +187,13 @@ export function chaseList(s: Signing, now = new Date()): string {
     const owed: string[] = [];
     for (const doc of s.documents) {
       if (signingPartiesOf(doc).includes(party.id) && signedFor(s, doc.id, party.id).length === 0) {
-        const pages = pagesOf(doc, party.id).map((p) => p + 1);
-        owed.push(`signed ${pages.length === 1 ? "page" : "pages"} ${pages.join(", ")} of the ${doc.title}`);
+        const pages = pagesOf(doc, party.id);
+        const nums = pages.map((p) => p + 1);
+        owed.push(
+          pages.every((p) => p >= doc.pageCount)
+            ? `signed signature page for the ${doc.title}`
+            : `signed ${nums.length === 1 ? "page" : "pages"} ${nums.join(", ")} of the ${doc.title}`,
+        );
       }
       if (copyParties(doc).includes(party.id) && stampsFor(s, doc.id, party.id).length === 0) {
         owed.push(`stamp paper for their copy of the ${doc.title}`);

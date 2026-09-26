@@ -33,10 +33,20 @@ function rotate(page: PDFPage, by: Rotation) {
 
 /**
  * Build output PDFs from one agreement and a set of returned files. Each
- * source is parsed once and reused for every copy.
+ * source is parsed once and reused for every copy. Signature pages Agmt
+ * made, if any, count as pages after the agreement's last page.
  */
-export async function createCompiler(agreementBytes: Uint8Array, attachments: Map<string, RenderAttachment>) {
+export async function createCompiler(agreementBytes: Uint8Array, attachments: Map<string, RenderAttachment>, madeBytes?: Uint8Array | null) {
   const agreement = await loadPdf(agreementBytes, "Final agreement");
+  const made = madeBytes ? await loadPdf(madeBytes, "Signature pages") : null;
+  const own = agreement.getPageCount();
+  /** Copy agreement or made pages, by their index in the signing, into `out`. */
+  async function copyPagesTo(out: PDFDocument, indices: number[]) {
+    for (const i of indices) {
+      const [page] = i < own || !made ? await out.copyPages(agreement, [i]) : await out.copyPages(made, [i - own]);
+      out.addPage(page);
+    }
+  }
   const refSize = agreement.getPageCount() > 0 ? agreement.getPage(0).getSize() : { width: 595.28, height: 841.89 };
   const parsed = new Map<string, PDFDocument>();
 
@@ -81,8 +91,9 @@ export async function createCompiler(agreementBytes: Uint8Array, attachments: Ma
   async function fresh(title: string) {
     const out = await PDFDocument.create();
     out.setTitle(title);
-    out.setProducer("Agmt");
-    out.setCreator("Agmt executed copies (assembled on the user's device)");
+    // Pages sent to and kept by the parties carry no Agmt name, visible or not.
+    out.setProducer("");
+    out.setCreator("");
     return out;
   }
 
@@ -92,8 +103,7 @@ export async function createCompiler(agreementBytes: Uint8Array, attachments: Ma
     /** The chosen agreement pages, e.g. one party's signature page(s). */
     async extract(pageIndices: number[], title: string): Promise<Uint8Array> {
       const out = await fresh(title);
-      const pages = await out.copyPages(agreement, pageIndices);
-      pages.forEach((p) => out.addPage(p));
+      await copyPagesTo(out, pageIndices);
       return out.save();
     },
 
@@ -101,8 +111,7 @@ export async function createCompiler(agreementBytes: Uint8Array, attachments: Ma
       const out = await fresh(title);
       for (const seg of plan.segments) {
         if (seg.kind === "agreement") {
-          const [page] = await out.copyPages(agreement, [seg.pageIndex]);
-          out.addPage(page);
+          await copyPagesTo(out, [seg.pageIndex]);
         } else {
           await appendAttachment(out, seg.attachmentId);
         }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { SigningDocument } from "@/lib/execute/model";
 import {
-  addPartyToPage, partyName, removeDocument, removePartyFromPage, renameParty, setDocumentTitle, sigPageIndices,
+  addPartyToPage, chooseAgreementPages, partyName, removeDocument, removePartyFromPage, renameParty, setDocumentTitle, sigPageIndices,
   toggleSignaturePage,
 } from "@/lib/execute/signing";
 import { signingPartiesOf } from "@/lib/execute/classify";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useExecute } from "./execute-app";
 import { DropZone } from "./drop-zone";
 import { useThumbnail } from "./thumbs";
+import { MakePanel, SOURCE_NOTE, SourceSwitch, type Source } from "./make-pages";
 
 function PageThumb({ doc, index, width, className }: { doc: SigningDocument; index: number; width: number; className?: string }) {
   const { getBytes } = useExecute();
@@ -81,11 +82,24 @@ function AddParty({ doc, page }: { doc: SigningDocument; page: number }) {
 }
 
 function DocumentSetup({ doc }: { doc: SigningDocument }) {
-  const { signing, update, downloadPacks, downloadPack } = useExecute();
+  const { signing, update } = useExecute();
   const [removing, setRemoving] = useState(false);
-  const pages = sigPageIndices(doc);
-  const signers = signingPartiesOf(doc);
-  const scanned = doc.pages.every((p) => p.text.trim().length < 20);
+  const found = doc.pages.filter((p) => p.likelySignature).length;
+  const [source, setSource] = useState<Source>(doc.made ? doc.made.from : Object.keys(doc.sigPages).length ? "agreement" : doc.setup?.from ?? "parties");
+  const [confirming, setConfirming] = useState(false);
+  const placedHere = signing.returns.filter((r) => r.placement.status === "placed" && r.placement.docId === doc.id && r.placement.role === "signed").length;
+
+  function choose(next: Source) {
+    if (next === "agreement" && doc.made) {
+      if (placedHere && !confirming) {
+        setConfirming(true);
+        return;
+      }
+      update((s) => chooseAgreementPages(s, doc.id));
+    }
+    setConfirming(false);
+    setSource(next);
+  }
 
   return (
     <div className="space-y-10">
@@ -118,10 +132,47 @@ function DocumentSetup({ doc }: { doc: SigningDocument }) {
         )}
       </div>
 
+      <section className="space-y-4" aria-labelledby={`source-${doc.id}`}>
+        <h3 id={`source-${doc.id}`} className="font-display text-xl">
+          Signature pages
+        </h3>
+        <SourceSwitch value={source} found={found} onChange={choose} />
+        {confirming ? (
+          <p className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-sm" role="alert">
+            {placedHere} returned page{placedHere === 1 ? " is" : "s are"} sorted to the pages Execute made. Switching sends {placedHere === 1 ? "it" : "them"} back to the tray.
+            <button type="button" className="text-oxblood underline underline-offset-4" onClick={() => choose("agreement")}>
+              Switch
+            </button>
+            <button type="button" className="text-stone" onClick={() => setConfirming(false)}>
+              Keep the pages Execute made
+            </button>
+          </p>
+        ) : (
+          <p className="text-sm leading-6 text-stone">{SOURCE_NOTE[source]}</p>
+        )}
+        {source !== "agreement" && !doc.made && Object.keys(doc.sigPages).length ? (
+          <p className="text-[13px] text-stone">Until you make them, the signature pages found in the agreement stay in use.</p>
+        ) : null}
+      </section>
+
+      {source === "agreement" ? <AgreementPages doc={doc} /> : <MakePanel key={source} doc={doc} from={source} />}
+    </div>
+  );
+}
+
+/** The agreement's own signature pages: marked on the page grid, with who signs each. */
+function AgreementPages({ doc }: { doc: SigningDocument }) {
+  const { signing, update, downloadPacks, downloadPack } = useExecute();
+  const pages = sigPageIndices(doc);
+  const signers = signingPartiesOf(doc);
+  const scanned = doc.pages.every((p) => p.text.trim().length < 20);
+
+  return (
+    <div className="space-y-10">
       <section className="space-y-3" aria-labelledby={`pages-${doc.id}`}>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h3 id={`pages-${doc.id}`} className="font-display text-xl">
-            Signature pages
+          <h3 id={`pages-${doc.id}`} className="sr-only">
+            Pages of the agreement
           </h3>
           <p className="text-[13px] text-stone">
             {scanned

@@ -7,8 +7,23 @@ product in the header. Proof still works at `/proof` but is not linked.
 ## How it works, in one paragraph
 
 Everything happens in the user's browser. Final agreements (PDF) are read with
-pdf.js; signature pages and party names are found by text rules
-(`src/lib/execute/detect.ts`). Returned files are sorted by what they say:
+pdf.js. Signature pages come one of three ways, chosen per document:
+
+- **In this agreement:** unsigned signature pages found in the PDF by text
+  rules (`detect.ts`); signed returns replace them in place.
+- **Make from the parties:** the parties clause is read (`parties.ts`),
+  following "the persons listed in Part A of Schedule 1" into that schedule's
+  table; the lawyer confirms the list and each party's block wording, and Agmt
+  makes one page per party (`generate.ts`) with an optional footer that names
+  the agreement and parties but never a date.
+- **Use my template:** the lawyer's own signature page as a PDF; Agmt copies it
+  per party and replaces only the sample name, in the same place and style. The
+  sample name is removed from the page's text (`pdf-content.ts`), not just
+  painted over.
+
+Pages Agmt makes are stored as their own PDF and counted after the agreement's
+last page, so signed returns go at the end of each executed copy, after the
+schedules. No Agmt name or mark is on any page, visible or in its metadata. Returned files are sorted by what they say:
 PDF text, or local OCR (Tesseract, served from `/execute-ocr/`) for scans and
 phone photos, matched against the signature pages and e-stamp certificate fields
 (`classify.ts`, `estamp.ts`). Checks flag missing returns, a stamp paper in
@@ -142,6 +157,11 @@ still receives it. Removing that injection everywhere is recommended.
   reload persistence, phone width, feedback, the side panel by keyboard, the
   closing index set in the Execute typefaces, no request leaving Agmt, and
   zero unexpected policy violations. Needs a running app (`npm run dev`) or a URL.
+- `npm run execute:make-journey [-- <url>]`: an agreement with no signature
+  pages in Chromium: parties read from the clause and Schedule 1, pages made,
+  the zip checked for names and for any Agmt mark, a PDF template with its
+  sample name replaced and gone from the text, a reload, signed returns sorted,
+  and each copy ending with the signed pages. Needs a running app.
 - `npm run execute:access-journey`: the closed beta's account journey in
   Chromium: ask, approve, the set-up email, set up the account, confirm the email,
   sign out and in, forgot password, Not yet and Decline, a forwarded link, the

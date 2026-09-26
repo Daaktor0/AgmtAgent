@@ -12,5 +12,22 @@
 	"observability": {
 		"enabled": true,
 		"head_sampling_rate": 1
+	},
+	"vars": {
+		"AGMT_DB_ROLE": "agmt_app",
+		"AGMT_EXECUTE_ACCESS": "invite",
+		"AGMT_FEEDBACK_TO": "dexterinlab@protonmail.com",
+		"AGMT_PUBLIC_URL": "https://app.agmt.legal",
+		"AUTH_EMAIL_FROM": "agmt.legal@gmail.com"
+	},
+	"hyperdrive": [
+		{ "binding": "AGMT_APP_DB", "id": "6738d0760a774700808fddf13018e36b" },
+		{ "binding": "AGMT_AUTH_DB", "id": "d20b71757c7a404f9f02c1ff024b8b55" }
+	],
+	"r2_buckets": [
+		{ "binding": "AGMT_OBJECTS", "bucket_name": "agmt-proof-objects" }
+	],
+	"triggers": {
+		"crons": ["* * * * *"]
 	}
 }

@@ -4,6 +4,17 @@ on:
   push:
     branches:
       - main
+    # Only what the Execute Worker is built from. The website (site/) deploys
+    # separately on Vercel, so a blog post doesn't redeploy app.agmt.legal.
+    paths:
+      - "web/**"
+      - "src/**"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "worker-configuration.d.ts"
+      - ".github/workflows/deploy-cloudflare.yml"
   workflow_dispatch:
 
 jobs:

@@ -12,7 +12,7 @@ to Agmt.
 | Path | What it is |
 |---|---|
 | [`web/`](web/) | The Execute app: TanStack Start, React 19, Tailwind. Deployed to the Cloudflare Worker `agmt`. |
-| [`site/`](site/) | The marketing site. |
+| [`site/`](site/) | The company website at agmt.legal, with the blog. Deployed on Vercel. See [`site/README.md`](site/README.md). |
 | [`docs/brand/`](docs/brand/) | Brand and UI system. |
 | `src/worker.ts` | A legacy Worker class Cloudflare still expects the `agmt` Worker to export. |
 | `wrangler.jsonc` | Cloudflare Workers Builds config for the `agmt` Worker (plain variables live here; secrets live in the dashboard). |
@@ -32,4 +32,4 @@ The launch runbook, Worker settings and the closed-beta access flow are in
 
 ## Deploy
 
-Merging to `main` deploys production (`.github/workflows/deploy-cloudflare.yml`).
+Merging changes to the app into `main` deploys it to production (`.github/workflows/deploy-cloudflare.yml`). The website deploys separately on Vercel.

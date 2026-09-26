@@ -290,7 +290,7 @@ export function addReturn(signing: Signing, input: NewReturn, now = Date.now()):
 
 /**
  * New text for a file (OCR finished). The guess is refreshed; a file the
- * user already placed or reviewed stays where it is.
+ * user already placed or checked stays where it is.
  */
 export function updateReturnText(
   signing: Signing,

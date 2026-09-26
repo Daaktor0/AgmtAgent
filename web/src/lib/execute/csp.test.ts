@@ -21,7 +21,7 @@ test("the executed-copies page is served with the strict policy header", async (
 });
 
 test("other pages and non-HTML responses are left alone", async () => {
-  const other = (await executeCsp(event("/proof"), html)) as Response;
+  const other = (await executeCsp(event("/api/auth/get-session"), html)) as Response;
   assert.equal(other.headers.get("content-security-policy"), null);
   const asset = (await executeCsp(event("/"), () => new Response("{}", { headers: { "content-type": "application/json" } }))) as Response;
   assert.equal(asset.headers.get("content-security-policy"), null);

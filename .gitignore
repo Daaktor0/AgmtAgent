@@ -1,21 +1,4 @@
-# Local configuration and credentials
-config.yaml
-
-# Local HTTPS certificate material
-certs/*.key
-certs/*.crt
-
-# Python environments and generated caches
-.venv/
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Local evaluation output
-_eval_mode_*.jsonl
-reports/
-
-# Windows / editor noise
+# Editor and OS noise
 .DS_Store
 Thumbs.db
 .vscode/

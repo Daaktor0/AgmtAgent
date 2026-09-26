@@ -1,6 +1,5 @@
 import { readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -13,69 +12,6 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { executeOcrAssets } from "./scripts/execute-ocr-assets.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
-import {
-  isForbiddenProofWorkerImport,
-  isProofWorkerImporter,
-  rememberProofWorkerModule,
-} from "./src/lib/proof-local/worker-graph.ts";
-
-const webRoot = dirname(fileURLToPath(import.meta.url));
-
-/** Client/worker Node stand-ins. SSR keeps real `node:*` modules. */
-function proofLocalBrowserShims(): Plugin {
-  const platform = join(webRoot, "src/lib/platform");
-  const aliases: Record<string, string> = {
-    "node:crypto": join(platform, "node-crypto.ts"),
-    "node:assert/strict": join(platform, "node-assert.ts"),
-    "node:assert": join(platform, "node-assert.ts"),
-    "node:zlib": join(platform, "node-zlib.ts"),
-  };
-  const envelope = join(platform, "envelope-forbidden.ts");
-  const workerGraph = new Set<string>();
-  return {
-    name: "agmt-proof-local-shims",
-    enforce: "pre",
-    async resolveId(id, importer, options) {
-      const idNorm = id.split(/[/\\]/).join("/");
-      if (/dictionaries\/load(?:\.ts)?$/.test(idNorm)) {
-        if (options.ssr) {
-          return join(webRoot, "src/lib/agmt/proof/dictionaries/load.stub.ts");
-        }
-        const browserLoad = join(webRoot, "src/lib/agmt/proof/dictionaries/load.browser.ts");
-        if (isProofWorkerImporter(importer, workerGraph)) rememberProofWorkerModule(browserLoad, workerGraph);
-        return browserLoad;
-      }
-      if (options.ssr) return null;
-      const fromWorker = isProofWorkerImporter(importer, workerGraph);
-      if (fromWorker && isForbiddenProofWorkerImport(id)) {
-        throw new Error(`forbidden in browser Proof worker: ${id}`);
-      }
-      if (aliases[id]) {
-        if (fromWorker) rememberProofWorkerModule(aliases[id], workerGraph);
-        return aliases[id];
-      }
-      const importerNorm = (importer ?? "").split(/[/\\]/).join("/");
-      if (
-        importerNorm.includes("/src/lib/agmt/")
-        && (idNorm.endsWith("crypto.ts") || idNorm.endsWith("/agmt/crypto"))
-      ) {
-        if (fromWorker) rememberProofWorkerModule(envelope, workerGraph);
-        return envelope;
-      }
-      if (fromWorker && importer) {
-        const resolved = await this.resolve(id, importer, { ...options, skipSelf: true });
-        if (resolved?.id) {
-          rememberProofWorkerModule(resolved.id, workerGraph);
-          if (isForbiddenProofWorkerImport(resolved.id)) {
-            throw new Error(`forbidden in browser Proof worker: ${id}`);
-          }
-        }
-      }
-      return null;
-    },
-  };
-}
-
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
   try {
@@ -153,13 +89,8 @@ export default defineConfig(({ command, isPreview, mode }) => ({
   // Executed copies load these on first use; declaring them stops the dev
   // server from re-optimising and reloading the page mid-signing.
   optimizeDeps: { include: ["pdfjs-dist/legacy/build/pdf.mjs", "pdf-lib", "fflate", "tesseract.js"] },
-  assetsInclude: ["**/*.aff", "**/*.dic"],
-  worker: {
-    format: "es",
-    plugins: () => [proofLocalBrowserShims()],
-  },
+  worker: { format: "es" },
   plugins: [
-    proofLocalBrowserShims(),
     pgliteBootstrapPlugin(),
     disabledAuthPopupPlugin(),
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.

@@ -44,7 +44,7 @@ function IndependentAccount({ proofActive }: { proofActive: boolean }) {
   );
 }
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children, account }: { children: React.ReactNode; account?: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const proofActive = pathname === "/proof" || pathname.startsWith("/proof/");
   const executeActive = pathname === "/";
@@ -81,7 +81,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
           <div className="flex shrink-0 items-center gap-5">
             <FeedbackButton />
-            {proofActive ? <IndependentAccount proofActive={proofActive} /> : null}
+            {proofActive ? <IndependentAccount proofActive={proofActive} /> : account}
           </div>
         </div>
       </header>

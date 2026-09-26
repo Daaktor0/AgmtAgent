@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Shell } from "@/components/agmt/shell";
+import { AccessGate, SignOutButton } from "@/components/execute/access-gate";
 import { ExecuteApp } from "@/components/execute/execute-app";
-import { InviteOnly } from "@/components/execute/feedback";
 import { getExecuteAccess } from "@/lib/execute/access.fn";
 import { EXECUTE_CSP_META } from "@/lib/execute/csp";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>): { invite?: string } =>
-    typeof search.invite === "string" ? { invite: search.invite } : {},
   loader: () => getExecuteAccess(),
   component: Home,
   head: () => ({
@@ -27,6 +25,10 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const access = Route.useLoaderData();
-  const { invite } = Route.useSearch();
-  return <Shell>{access.allowed ? <ExecuteApp /> : <InviteOnly reason={invite ?? null} />}</Shell>;
+  const signedIn = access.mode === "invite" && access.state !== "signed_out";
+  return (
+    <Shell account={signedIn ? <SignOutButton className="text-[13px] text-paper underline-offset-4 hover:underline" /> : null}>
+      {access.state === "allowed" ? <ExecuteApp /> : <AccessGate access={access} />}
+    </Shell>
+  );
 }

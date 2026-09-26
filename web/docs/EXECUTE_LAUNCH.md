@@ -20,28 +20,24 @@ document, file name or page text is ever sent to Agmt.
 
 ## Configure the Worker (once)
 
-Set these on the `agmt` Worker (Cloudflare dashboard, Settings, Variables and
-Secrets). The deploy uses `--keep-vars`, so values set there survive deploys.
+Set these on the `agmt` Worker. The root `wrangler.jsonc` (used by
+Cloudflare's own build) carries the plain variables, so change them there;
+secrets live only in the dashboard (Settings, Variables and Secrets) and
+survive deploys.
 
 | Name | Kind | Value |
 |---|---|---|
-| `AGMT_EXECUTE_ACCESS` | variable | `invite` for a closed beta, `public` (or unset) to open it |
-| `AGMT_INVITE_SECRET` | **secret** | 48+ random characters: `openssl rand -base64 48` |
-| `AGMT_INVITE_REVOKED` | variable | comma-separated invite ids to withdraw (optional) |
-| `AGMT_FEEDBACK_TO` | variable | where feedback and access requests are emailed, e.g. your address |
+| `AGMT_EXECUTE_ACCESS` | variable | `invite` for the closed beta, `public` (or unset) to open it to everyone |
+| `AGMT_INVITE_SECRET` | **secret** | 48+ random characters (`openssl rand -base64 48`). Signs the decision links in your emails. It never leaves Cloudflare; you don't need it on your computer. |
+| `AGMT_FEEDBACK_TO` | variable | your address: access requests and feedback go here, and this account is always let in |
+| `AGMT_ACCESS` | KV binding | the approved list; namespace `agmt-access`, already in both `wrangler.jsonc` files |
 
 Email reuses the sign-in setup: `RESEND_API_KEY` (secret) and `AUTH_EMAIL_FROM`
 (a sender on a domain verified in Resend, e.g. `Agmt <hello@agmt.legal>`).
-
-| Needed for | `RESEND_API_KEY` | `AUTH_EMAIL_FROM` (verified) | `AGMT_FEEDBACK_TO` |
-|---|---|---|---|
-| You get access requests and feedback | yes | recommended | yes |
-| The requester gets a thank-you email | yes | **yes** | recommended (their replies reach you) |
-
-Without a verified `AUTH_EMAIL_FROM`, Resend's test sender only delivers to the
-Resend account owner, so the thank-you is not sent. Whatever the email setup,
-every access request is also written to Workers Logs as
-`EXECUTE_ACCESS_REQUEST` (name, email, firm, note), so none is lost.
+Without a verified sender, Resend only delivers to its own account owner, so
+nobody else gets email (not the thank-you, not "You're in", not password
+resets). Every access request is also written to Workers Logs as
+`EXECUTE_ACCESS_REQUEST`, and every decision as `EXECUTE_ACCESS_DECISION`.
 
 ### Check the setup
 
@@ -49,29 +45,48 @@ Open `https://app.agmt.legal/api/execute/status`. It answers yes or no only,
 never a value:
 
 ```json
-{"accessMode":"invite","inviteSecretSet":true,"emailProviderSet":true,"verifiedSenderSet":true,"founderAddressSet":true}
+{"accessMode":"invite","inviteSecretSet":true,"approvedListSet":true,"emailProviderSet":true,"verifiedSenderSet":true,"founderAddressSet":true}
 ```
 
-Every `false` is a missing Worker setting from the table above.
+Every `false` is a missing setting from the table above.
 
-Invite mode without `AGMT_INVITE_SECRET` fails closed: nobody gets in.
+## How people get in (closed beta)
 
-## Invite people
+Access belongs to an account, not a link: someone is in when they're signed in
+with a confirmed email that you've approved. Forwarding any email we send
+doesn't let anyone else in.
 
-```sh
-cd web
-AGMT_INVITE_SECRET='<same value as the Worker>' npm run execute:invite -- --label "Priya Nair, Khaitan" --days 90
-```
+1. **They ask.** At app.agmt.legal, "Ask for access". They get "Thank you for
+   your interest in Agmt"; the request goes on the approved list as waiting.
+2. **You decide from your email.** "Access request: Name, Firm" has three
+   buttons. Each opens a page on app.agmt.legal showing the request; nothing
+   happens until you press the button there (mail scanners open links).
+   - **Approve** sends "You're in" with *Set up your account*. The page also
+     shows that link to copy, if you'd rather send it yourself.
+   - **Not yet** sends a warm "not just yet". The request stays; the same
+     email's Approve button still works later.
+   - **Decline** sends a polite note. Declining someone already approved ends
+     their access.
+   Pressing the same decision twice sends nothing more.
+3. **They set up their account.** The set-up page has their email fixed; they
+   choose a password (12+ characters), click the confirmation link we email,
+   and the tool opens. After that they sign in at app.agmt.legal on any
+   computer. "Forgot your password?" sends a one-hour reset link.
 
-It prints the link (`https://app.agmt.legal/invite/…`) and an invite id. The
-link sets a cookie in that browser and opens the tool. To withdraw an invite,
-add its id to `AGMT_INVITE_REVOKED`.
+To invite someone who hasn't asked, send them to app.agmt.legal to ask, then
+approve. If an approved person loses their email, they can simply ask again:
+they're sent "You're in" again and you're not asked twice.
 
-People without an invite see an "Ask for access" form. When they send it:
-1. they get "Thank you for your interest in Agmt": their request is noted and
-   they'll be emailed an invite link when their place is ready;
-2. you get "Access request: Name, Firm" with their details and the exact
-   `npm run execute:invite` command to invite them. Reply to write to them.
+Your own account (`AGMT_FEEDBACK_TO`) is always let in: set it up at
+`https://app.agmt.legal/join?email=<your address>`.
+
+Invite links from the first week (`/invite/…`) now just open the app.
+
+## Opening to everyone
+
+Set `AGMT_EXECUTE_ACCESS` to `public`. The tool then opens for everyone
+without signing in, and never waits on the sign-in database. Accounts and the
+approved list stay as they are.
 
 ## After each deploy
 
@@ -113,9 +128,16 @@ still receives it. Removing that injection everywhere is recommended.
 
 ## Tests
 
-- `npm run test:execute`: engine, sorting, checks, invites, endpoints, policy
-  header, and the two-document sample through pdf.js and pdf-lib.
+- `npm run test:execute`: engine, sorting, checks, access decisions and
+  emails, endpoints, policy header, and the two-document sample through pdf.js
+  and pdf-lib.
 - `npm run execute:journey [-- <url>]`: the whole flow in Chromium, including a
   photo read by local OCR, the zip opened and every copy's page count checked,
   reload persistence, phone width, feedback, and zero unexpected policy
   violations. Needs a running app (`npm run dev`) or a URL.
+- `npm run execute:access-journey`: the closed beta's account journey in
+  Chromium: ask, approve, "You're in", set up the account, confirm the email,
+  sign out and in, forgot password, Not yet and Decline, a forwarded link, the
+  owner. Needs `npm run dev` in invite mode with `AGMT_DEV_OUTBOX` set to a
+  file, where email is written instead of sent (development only; ignored in
+  the Worker and in production builds). The script's header has the command.

@@ -1,31 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createInvite, inviteCookie, parseAccessMode, parseRevoked, verifyInvite } from "./access.ts";
+import { createDecisionToken, normaliseEmail, parseAccessMode, parseEmails, verifyDecisionToken } from "./access.ts";
 
 const SECRET = "x".repeat(40);
 
-test("an invite verifies until it expires, and not after revocation", async () => {
-  const now = Date.UTC(2026, 8, 26);
-  const token = await createInvite(SECRET, { label: "Priya, Khaitan", days: 30, now, id: "abc" });
-  const ok = await verifyInvite(SECRET, token, now + 1000);
-  assert.equal(ok.ok, true);
-  assert.equal((await verifyInvite(SECRET, token, now + 31 * 86_400_000)).ok, false);
-  assert.deepEqual(await verifyInvite(SECRET, token, now, parseRevoked("zzz, abc")), { ok: false, reason: "revoked" });
-  if (ok.ok) assert.match(inviteCookie(token, ok.claims, now), /^agmt_invite=.+; Path=\/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax$/);
+test("a decision link names one email and verifies only with the right key", async () => {
+  const token = await createDecisionToken(SECRET, " Priya@Khaitan.Example ");
+  assert.deepEqual(await verifyDecisionToken(SECRET, token), { ok: true, email: "priya@khaitan.example" });
+  assert.equal((await verifyDecisionToken("y".repeat(40), token)).ok, false);
 });
 
-test("a tampered or foreign invite is refused", async () => {
-  const token = await createInvite(SECRET, { label: "A", days: 1 });
+test("a tampered or malformed decision link is refused", async () => {
+  const token = await createDecisionToken(SECRET, "a@b.example");
   const [body, sig] = token.split(".");
-  const forged = `${body.slice(0, -2)}AA.${sig}`;
-  assert.equal((await verifyInvite(SECRET, forged)).ok, false);
-  assert.equal((await verifyInvite("y".repeat(40), token)).ok, false);
-  assert.deepEqual(await verifyInvite(SECRET, "nonsense"), { ok: false, reason: "malformed" });
-  await assert.rejects(createInvite("short", { label: "A", days: 1 }));
+  const other = (await createDecisionToken(SECRET, "eve@b.example")).split(".")[0];
+  assert.equal((await verifyDecisionToken(SECRET, `${other}.${sig}`)).ok, false, "another email can't borrow a signature");
+  assert.equal((await verifyDecisionToken(SECRET, `${body.slice(0, -2)}AA.${sig}`)).ok, false);
+  assert.deepEqual(await verifyDecisionToken(SECRET, "nonsense"), { ok: false, reason: "malformed" });
+  await assert.rejects(createDecisionToken("short", "a@b.example"));
 });
 
-test("access mode defaults to public", () => {
+test("access mode defaults to public; emails are compared in one spelling", () => {
   assert.equal(parseAccessMode(undefined), "public");
   assert.equal(parseAccessMode(" Invite "), "invite");
   assert.equal(parseAccessMode("anything"), "public");
+  assert.equal(normaliseEmail("  A@B.Example "), "a@b.example");
+  assert.deepEqual(parseEmails("Founder@Agmt.legal, second@x.example  bad"), ["founder@agmt.legal", "second@x.example"]);
 });

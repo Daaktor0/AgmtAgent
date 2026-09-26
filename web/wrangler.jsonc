@@ -17,6 +17,13 @@
       "bucket_name": "agmt-proof-objects"
     }
   ],
+  // The executed-copies beta's approved list (src/lib/execute/access-store.ts).
+  "kv_namespaces": [
+    {
+      "binding": "AGMT_ACCESS",
+      "id": "64ed6441513549819e50e9955d810bbb"
+    }
+  ],
   "triggers": {
     "crons": ["* * * * *"]
   },

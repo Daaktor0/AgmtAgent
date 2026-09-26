@@ -14,7 +14,7 @@ import {
 } from "./db-guard.server.ts";
 import { emailAndPasswordEnabled } from "./email-password.ts";
 import { pgliteDialect } from "./pglite-dialect.ts";
-import { sendResendVerificationEmail } from "./resend.server.ts";
+import { sendExistingAccountEmail, sendPasswordResetEmail, sendResendVerificationEmail } from "./resend.server.ts";
 import {
   applicationDatabaseConnectionString,
   authDatabaseConnectionString,
@@ -187,12 +187,22 @@ function createAuth() {
             requireEmailVerification: true,
             minPasswordLength: 12,
             autoSignIn: false,
+            // Forgot password: a one-hour, single-use link by email. A reset
+            // signs every other device out.
+            sendResetPassword: async ({ user, url }) => sendPasswordResetEmail({ user, url }),
+            revokeSessionsOnPasswordReset: true,
+            // Sign-up can't say "that account exists" without telling anyone
+            // who has one, so the owner of the address is told by email.
+            onExistingUserSignUp: async ({ user }) => sendExistingAccountEmail({ user }),
           },
         }
       : {}),
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
+      // Confirming the email is the last step of creating an account, so the
+      // link also signs the person in.
+      autoSignInAfterVerification: true,
       expiresIn: 3600,
       sendVerificationEmail: async ({ user, url }) =>
         sendResendVerificationEmail({ user, url }),

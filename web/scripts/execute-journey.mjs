@@ -15,7 +15,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 import { unzipSync } from "fflate";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName } from "pdf-lib";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createCanvas } from "@napi-rs/canvas";
 import { buildSampleSigning } from "../src/lib/execute/sample.ts";
@@ -76,6 +76,13 @@ page.on("console", (m) => {
   if (text.includes(PLATFORM_SCRIPT)) platformBlocked = true;
   if (m.type() === "error" && !/^Failed to load resource/.test(text) && !expected(text)) problems.push(`console: ${text}`);
 });
+// Nothing on this page may reach another host: fonts, marks and workers are all Agmt's own.
+const outside = [];
+page.on("request", (r) => {
+  const url = new URL(r.url());
+  if (!["http:", "https:"].includes(url.protocol)) return;
+  if (url.origin !== new URL(BASE).origin && r.url() !== PLATFORM_SCRIPT) outside.push(r.url());
+});
 page.on("requestfailed", (r) => {
   if (r.url() === PLATFORM_SCRIPT) platformBlocked = true;
   else if (!fontHost(r.url())) problems.push(`request failed: ${r.url()} ${r.failure()?.errorText ?? ""}`);
@@ -94,7 +101,7 @@ try {
 
   await page.getByTestId("sample").click();
   await page.getByTestId("signing-name").waitFor();
-  await page.waitForFunction(() => /Sorted \d+ files/.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 120_000 });
+  await page.waitForFunction(() => /\d+ files read\./.test(document.querySelector("[data-testid='batch']")?.textContent ?? ""), null, { timeout: 120_000 });
   await page.getByTestId("tab-documents").click();
   await page.getByRole("button", { name: /^SHA Meridian Foods/ }).click();
   await page.waitForFunction(() => document.querySelectorAll("[data-testid^='sig-']").length > 0, null, { timeout: 60_000 });
@@ -105,7 +112,7 @@ try {
   await page.getByTestId("tab-returns").click();
   check((await page.getByTestId("tray").count()) === 0, "every sample return sorted by content, none left for the user");
   const awaited = await page.locator("[data-testid='cell'][data-signed='awaited']").count();
-  check(awaited === 1, "exactly one countersigned page awaited (Tamarind, SHA)");
+  check(awaited === 1, "exactly one signed page awaited (Tamarind, SHA)");
   await shot(page, "returns");
 
   const png = await tamarindPhoto();
@@ -113,16 +120,24 @@ try {
   await page.waitForFunction(() => document.querySelectorAll("[data-testid='cell'][data-signed='awaited']").length === 0, null, { timeout: 120_000 });
   check(true, "an unnamed phone photo was read by local OCR and placed on Tamarind's page");
   const tamarindCell = page.locator("tr", { hasText: "Tamarind Growth Partners" }).getByTestId("cell").first();
+  // By keyboard: Enter opens the panel with focus inside it; Escape closes it and focus returns to the cell.
+  await tamarindCell.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("dialog").waitFor();
+  check(await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']"))), "the side panel takes focus when it opens");
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  check(await tamarindCell.evaluate((el) => el === document.activeElement), "Escape closes the panel and focus returns to the cell");
   await tamarindCell.click();
   await page.getByRole("dialog").waitFor();
   await page.waitForTimeout(800);
   await shot(page, "cell-panel", false);
-  await page.getByRole("dialog").getByRole("button", { name: /View IMG_4411\.png large/ }).click();
-  await page.getByRole("dialog", { name: "Returned page beside the final" }).locator("img").nth(1).waitFor();
+  await page.getByRole("dialog").getByRole("button", { name: /Compare IMG_4411\.png with the final/ }).click();
+  await page.getByRole("dialog", { name: "Returned page and the final" }).locator("img").nth(1).waitFor();
   await page.waitForTimeout(800);
   await shot(page, "compare", false);
   await page.keyboard.press("Escape");
-  await page.getByRole("dialog").getByLabel("Close").click();
+  await page.getByRole("dialog").getByLabel("Close panel").click();
 
   await page.getByTestId("tab-copies").click();
   const ready = await page.locator("[data-testid='copy-row'][data-ready='true']").count();
@@ -132,13 +147,17 @@ try {
   const download = page.waitForEvent("download");
   await page.getByTestId("download-all").click();
   const zip = unzipSync(readFileSync(await (await download).path()));
+  const indexFonts = (await PDFDocument.load(zip["00 Closing index.pdf"])).context.enumerateIndirectObjects()
+    .map(([, o]) => String(o.get?.(PDFName.of("BaseFont")) ?? ""))
+    .filter(Boolean);
+  check(indexFonts.some((f) => /SourceSerif4/.test(f)) && indexFonts.some((f) => /Archivo/.test(f)), `the closing index is set in the Execute typefaces (${indexFonts.join(", ")})`);
   const names = Object.keys(zip);
-  check(names.length === 12 && names.includes("Closing index.pdf"), `zip holds 11 copies and the closing index (${names.length} files)`);
+  check(names.length === 12 && names.includes("00 Closing index.pdf"), `zip holds 11 copies and the closing index (${names.length} files)`);
   for (const [name, bytes] of Object.entries(zip)) {
-    if (name === "Closing index.pdf") continue;
+    if (name === "00 Closing index.pdf") continue;
     const doc = await PDFDocument.load(bytes);
     const sha = name.startsWith("SHA");
-    const stamp = name.endsWith("Meridian Foods Private Limited.pdf") && sha ? 2 : 1;
+    const stamp = name.includes("/Meridian Foods Private Limited - ") && sha ? 2 : 1;
     const expected = sha ? stamp + 4 + 7 + 1 : stamp + 2 + 4 + 1;
     check(doc.getPageCount() === expected, `${name}: ${doc.getPageCount()} pages`);
   }
@@ -146,7 +165,7 @@ try {
   await page.reload();
   await page.locator("[data-testid='start'][data-ready='true']").waitFor({ timeout: 60_000 });
   await page.getByText("Sample: Meridian Foods Series A").first().waitFor();
-  check(true, "the signing is still on this computer after a reload");
+  check(true, "the signing is still in this browser after a reload");
   await page.getByText("Sample: Meridian Foods Series A").first().click();
   await page.getByTestId("tab-returns").click();
   await page.locator("[data-testid='cell']").first().waitFor();
@@ -161,11 +180,12 @@ try {
   await page.getByTestId("feedback").click();
   await page.getByRole("dialog").getByRole("textbox").first().fill("Journey test: everything sorted.");
   await shot(page, "feedback", false);
-  await page.getByRole("dialog").getByRole("button", { name: "Send" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Send feedback" }).click();
   await page.getByText("Thank you.").waitFor();
   check(true, "feedback sends");
 
   if (platformBlocked) console.log("ok - the template's third-party platform script was refused by the page policy");
+  check(outside.length === 0, `no request left Agmt${outside.length ? `: ${outside.join(", ")}` : ""}`);
   check(problems.length === 0, `no console errors or unexpected policy violations${problems.length ? `: ${problems.join("; ")}` : ""}`);
 } catch (err) {
   console.error(problems.join("\n"));

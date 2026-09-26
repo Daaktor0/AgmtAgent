@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { readEStamp } from "@/lib/execute/estamp";
 import { newId, type MakeSetup, type MakeTemplate, type Placement, type Signing, type SigningDocument } from "@/lib/execute/model";
-import { safeFileName, uniqueNames } from "@/lib/execute/names";
+import { CLOSING_INDEX_NAME, incompleteName, safeFileName, uniqueNames } from "@/lib/execute/names";
 import type { RenderAttachment } from "@/lib/execute/render";
+import type { IndexEntry, IndexFonts } from "@/lib/execute/index-pdf";
 import {
   addDocument, addReturn, applyMadePages, copyFileName, copyParties, createSigning, packFileName, pagesOf, placeReturn,
   planFor, removeReturn as dropReturn, saveMakeSetup, setupKey, updateReturnText,
@@ -17,7 +18,8 @@ import { SigningView } from "./signing-view";
 import { PageViewerProvider } from "./page-viewer";
 
 export type SaveState = "saved" | "saving" | "unsaved" | "off";
-export type Batch = { added: number; placed: number; waiting: number; skipped: number; at: number };
+/** The last drop of returns: counts, and the ids of the files it added, so the screen can show where each went. */
+export type Batch = { added: number; placed: number; waiting: number; skipped: number; at: number; ids: string[] };
 
 type ExecuteApi = {
   signing: Signing;
@@ -56,7 +58,30 @@ export function useExecute(): ExecuteApi {
   return api;
 }
 
-const message = (err: unknown) => (err instanceof Error && err.message ? err.message : "Something went wrong with that file.");
+/** The closing index's typefaces, from this site. Without them it falls back to the built-in fonts. */
+async function indexFonts(): Promise<IndexFonts | undefined> {
+  try {
+    const get = async (name: string) => {
+      const res = await fetch(`/fonts/${name}`);
+      if (!res.ok) throw new Error(name);
+      return new Uint8Array(await res.arrayBuffer());
+    };
+    const [serif, sans, sansBold] = await Promise.all([get("source-serif-4-400.ttf"), get("archivo-400.ttf"), get("archivo-600.ttf")]);
+    return { serif, sans, sansBold };
+  } catch {
+    return undefined;
+  }
+}
+
+/** A notice for the user: never a raw error code. */
+const message = (err: unknown): string => {
+  const text = err instanceof Error ? err.message : "";
+  if (/^storage_|QuotaExceeded|quota/i.test(text) || (err instanceof DOMException && err.name === "QuotaExceededError")) {
+    return "This browser couldn't save the file. Check that the computer has free space, then add it again.";
+  }
+  if (!text || /^[a-z_]+$/.test(text)) return "That file couldn't be read. Save it again as PDF or JPG, then add it again.";
+  return text;
+};
 
 export function ExecuteApp() {
   const [saved, setSaved] = useState<Signing[] | null>(null);
@@ -231,7 +256,7 @@ export function ExecuteApp() {
     }
     setBusy(null);
     const now = signingRef.current!;
-    const recent = now.returns.slice(-added);
+    const recent = added ? now.returns.slice(-added) : [];
     if (!target && added + skipped > 1) {
       setBatch({
         added,
@@ -239,22 +264,23 @@ export function ExecuteApp() {
         waiting: recent.filter((r) => r.placement.status === "unplaced" && r.textSource !== "pending").length,
         skipped,
         at: Date.now(),
+        ids: recent.map((r) => r.id),
       });
     }
-    if (skipped) notify(`${skipped} file${skipped === 1 ? " was" : "s were"} already in this signing and ${skipped === 1 ? "was" : "were"} skipped.`);
+    if (skipped) notify(`Skipped ${skipped} file${skipped === 1 ? "" : "s"} already in this signing.`);
   }
 
   async function compilerFor(s: Signing, doc: SigningDocument) {
     const { createCompiler } = await import("@/lib/execute/render");
     const agreement = await getBytes(doc.fileId);
-    if (!agreement) throw new Error(`The file for ${doc.title} is no longer on this device. Add it again.`);
+    if (!agreement) throw new Error(`The final for ${doc.title} is no longer in this browser. Add it again in Documents.`);
     const made = doc.made ? await getBytes(doc.made.fileId) : null;
-    if (doc.made && !made) throw new Error(`The signature pages made for ${doc.title} are no longer on this device. Make them again.`);
+    if (doc.made && !made) throw new Error(`The signature pages made for ${doc.title} are no longer in this browser. Make them again in Documents.`);
     const atts = new Map<string, RenderAttachment>();
     for (const r of s.returns) {
       if (r.placement.status !== "placed" || r.placement.docId !== doc.id) continue;
       const data = await getBytes(r.id);
-      if (!data) throw new Error(`“${r.fileName}” is no longer on this device. Add it again.`);
+      if (!data) throw new Error(`“${r.fileName}” is no longer in this browser. Add it again in Returns.`);
       atts.set(r.id, {
         rotation: r.rotation,
         label: r.fileName,
@@ -323,7 +349,8 @@ export function ExecuteApp() {
             const s = signingRef.current!;
             const doc = s.documents.find((d) => d.id === docId)!;
             const c = await compilerFor(s, doc);
-            const name = safeFileName(copyFileName(s, doc, partyId));
+            const complete = copyStatus(s, doc, partyId, signingFlags(s)).ready;
+            const name = complete ? safeFileName(copyFileName(s, doc, partyId)) : incompleteName(safeFileName(copyFileName(s, doc, partyId)));
             const { saveBytes } = await loadSave();
             saveBytes(await c.build(planFor(s, doc, partyId), name.replace(/\.pdf$/i, "")), name);
           });
@@ -333,6 +360,7 @@ export function ExecuteApp() {
             const s = signingRef.current!;
             const flags = signingFlags(s);
             const files: { name: string; bytes: Uint8Array }[] = [];
+            const included: IndexEntry[] = [];
             const docs = s.documents.filter((d) => !docIds || docIds.includes(d.id));
             const folders = uniqueNames(docs.map((d) => safeFileName(d.title || "Agreement"))).map((n) => n.replace(/\.pdf$/i, ""));
             for (const [i, doc] of docs.entries()) {
@@ -343,11 +371,13 @@ export function ExecuteApp() {
               for (const [k, partyId] of ready.entries()) {
                 setBusy(`Assembling ${doc.title}: copy ${k + 1} of ${ready.length}`);
                 files.push({ name: `${folders[i]}/${names[k]}`, bytes: await c.build(planFor(s, doc, partyId), names[k].replace(/\.pdf$/i, "")) });
+                included.push({ docId: doc.id, partyId, fileName: names[k] });
               }
             }
-            if (!files.length) throw new Error("No copy is complete yet. Each copy needs every countersigned page and its stamp paper.");
+            if (!files.length) throw new Error("No executed copy is complete yet. Each needs every signed page and its stamp paper.");
+            setBusy("Writing the closing index…");
             const { buildClosingIndex } = await import("@/lib/execute/index-pdf");
-            files.push({ name: "Closing index.pdf", bytes: await buildClosingIndex(s) });
+            files.unshift({ name: CLOSING_INDEX_NAME, bytes: await buildClosingIndex(s, included, { fonts: await indexFonts() }) });
             const { saveBytes, zip } = await loadSave();
             saveBytes(zip(files), safeFileName(`${s.name} - Executed copies`).replace(/\.pdf$/i, ".zip"), "application/zip");
           });
@@ -366,7 +396,7 @@ export function ExecuteApp() {
           });
         },
         async downloadPack(docId, partyId) {
-          await run("Preparing the signature page…", async () => {
+          await run("Preparing signature pages…", async () => {
             const s = signingRef.current!;
             const doc = s.documents.find((d) => d.id === docId)!;
             const c = await compilerFor(s, doc);
@@ -464,7 +494,7 @@ export function ExecuteApp() {
               if (setup.from === "template") {
                 const t = setup.templates.find((x) => x.id === p.templateId) ?? setup.templates[0];
                 if (!t) throw new Error("Add your signature page template (a PDF) first.");
-                if (!t.slots.length) throw new Error(`Tell Agmt which name to replace on “${t.label}”: type it exactly as it is printed.`);
+                if (!t.slots.length) throw new Error(`Tell Execute which name to replace on “${t.label}”: type it exactly as it is printed.`);
                 let spec = specs.get(t.id);
                 if (!spec) {
                   const data = await getBytes(t.fileId);
@@ -547,7 +577,7 @@ export function ExecuteApp() {
             await startWith(files, name);
           }}
           onSample={async () => {
-            setBusy("Preparing the sample signing…");
+            setBusy("Opening the sample signing…");
             setSampleOpened(true);
             try {
               const { buildSampleSigning } = await import("@/lib/execute/sample");

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Shell } from "@/components/agmt/shell";
+import { ExecuteShell } from "@/components/execute/execute-shell";
 import { FIELD, Field, useHydrated } from "@/components/execute/access-gate";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/reset-password")({
   component: ResetPassword,
   head: () => ({
     meta: [
-      { title: "Reset your password — Agmt" },
+      { title: "Reset your password — Execute by Agmt" },
       { name: "robots", content: "noindex" },
       { name: "referrer", content: "no-referrer" },
       { httpEquiv: "Content-Security-Policy", content: EXECUTE_CSP_META },
@@ -32,12 +32,12 @@ export const Route = createFileRoute("/reset-password")({
 function ResetPassword() {
   const search = Route.useSearch();
   return (
-    <Shell>
+    <ExecuteShell>
       <section className="mx-auto max-w-[520px] space-y-8 py-6" data-testid="reset-password">
         <p className="text-[11px] uppercase tracking-[0.16em] text-stone">Your account</p>
         {search.token ? <ChooseNew token={search.token} /> : <AskForLink email={search.email ?? ""} expired={Boolean(search.error)} />}
       </section>
-    </Shell>
+    </ExecuteShell>
   );
 }
 
@@ -49,7 +49,7 @@ function AskForLink({ email: initial, expired }: { email: string; expired: boole
   if (state === "sent") {
     return (
       <div className="space-y-4" role="status" data-testid="reset-sent">
-        <h1 className="font-display text-[40px] leading-[1.05]">Check your inbox.</h1>
+        <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">Check your inbox.</h1>
         <p className="text-[17px] leading-8 text-ink/80">
           If there's an Agmt account for <span className="font-medium text-ink">{email.trim()}</span>, we've sent it a link to choose a
           new password. The link works once, for an hour.
@@ -64,7 +64,7 @@ function AskForLink({ email: initial, expired }: { email: string; expired: boole
   return (
     <>
       <div className="space-y-3">
-        <h1 className="font-display text-[40px] leading-[1.05]">Forgot your password?</h1>
+        <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">Forgot your password?</h1>
         <p className="text-[17px] leading-8 text-ink/80">Enter your email and we'll send you a link to choose a new one.</p>
         {expired ? <p className="border-l-2 border-oxblood pl-3 text-sm">That link has expired or was already used. Ask for a new one below.</p> : null}
       </div>
@@ -86,7 +86,7 @@ function AskForLink({ email: initial, expired }: { email: string; expired: boole
         <Field label="Email">
           <input type="email" required maxLength={200} autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} />
         </Field>
-        {state === "failed" ? <p className="text-sm text-oxblood">We couldn't send the link just now. Try again in a moment.</p> : null}
+        {state === "failed" ? <p className="text-sm text-oxblood">The link didn't send just now. Try again in a moment.</p> : null}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <Button type="submit" disabled={state === "busy" || !ready}>
             {state === "busy" ? "Sending…" : "Send me a link"}
@@ -110,7 +110,7 @@ function ChooseNew({ token }: { token: string }) {
   if (state === "done") {
     return (
       <div className="space-y-4" role="status" data-testid="reset-done">
-        <h1 className="font-display text-[40px] leading-[1.05]">Password changed.</h1>
+        <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">Password changed.</h1>
         <p className="text-[17px] leading-8 text-ink/80">Sign in with your new password. Any other computer you were signed in on has been signed out.</p>
         <a href="/" className="inline-flex h-10 items-center rounded-[2px] border border-oxblood bg-oxblood px-5 text-sm font-medium text-paper no-underline hover:bg-oxblood-pressed">
           Sign in
@@ -121,7 +121,7 @@ function ChooseNew({ token }: { token: string }) {
 
   return (
     <>
-      <h1 className="font-display text-[40px] leading-[1.05]">Choose a new password.</h1>
+      <h1 className="font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[44px]">Choose a new password.</h1>
       <form
         method="post"
         data-ready={ready}
@@ -150,7 +150,7 @@ function ChooseNew({ token }: { token: string }) {
             That link has expired or was already used. <a href="/reset-password" className="underline underline-offset-4">Ask for a new one</a>.
           </p>
         ) : null}
-        {state === "failed" ? <p className="text-sm text-oxblood">We couldn't change the password just now. Try again in a moment.</p> : null}
+        {state === "failed" ? <p className="text-sm text-oxblood">The password didn't change just now. Try again in a moment.</p> : null}
         <Button type="submit" disabled={state === "busy" || mismatch || !ready}>
           {state === "busy" ? "Saving…" : "Save new password"}
         </Button>

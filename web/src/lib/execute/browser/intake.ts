@@ -25,7 +25,7 @@ export const isImage = (file: File) =>
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
 async function readBytes(file: File): Promise<Uint8Array> {
-  if (file.size > MAX_FILE_BYTES) throw new IntakeError(`“${file.name}” is larger than 100 MB.`);
+  if (file.size > MAX_FILE_BYTES) throw new IntakeError(`“${file.name}” is larger than 100 MB. Compress it or split it, then add it again.`);
   return new Uint8Array(await file.arrayBuffer());
 }
 
@@ -34,7 +34,7 @@ export async function readFinalDocument(
   file: File,
   onPage?: (done: number, total: number) => void,
 ): Promise<{ bytes: Uint8Array; pages: PageInfo[] }> {
-  if (!isPdf(file)) throw new IntakeError(`“${file.name}” is not a PDF. Save the final agreement from Word as PDF and add it again.`);
+  if (!isPdf(file)) throw new IntakeError(`“${file.name}” isn't a PDF. Save the final from Word as PDF, then add it again.`);
   const bytes = await readBytes(file);
   await countPages({ type: "pdf", bytes }, file.name); // refuses protected or damaged PDFs
   const pdf = await openPdf(bytes);
@@ -64,8 +64,8 @@ async function normaliseImage(file: File): Promise<{ bytes: Uint8Array; width: n
   } catch {
     throw new IntakeError(
       /\.hei[cf]$/i.test(file.name)
-        ? `“${file.name}” is an iPhone HEIC photo, which this browser cannot open. Send it as JPG or PDF.`
-        : `“${file.name}” is an image this browser cannot open. Save it as JPG, PNG or PDF.`,
+        ? `“${file.name}” is a HEIC photo, which Chrome and Edge can't open. Ask the sender for a JPG or PDF.`
+        : `“${file.name}” is an image this browser can't open. Save it as JPG, PNG or PDF.`,
     );
   }
   const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
@@ -78,7 +78,7 @@ async function normaliseImage(file: File): Promise<{ bytes: Uint8Array; width: n
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new IntakeError(`“${file.name}” could not be converted.`))), "image/jpeg", 0.9),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new IntakeError(`“${file.name}” couldn't be read as an image. Save it as JPG or PDF, then add it again.`))), "image/jpeg", 0.9),
   );
   return { bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height, canvas };
 }
@@ -133,7 +133,7 @@ export async function readReturn(file: File, id: string): Promise<IntakeResult> 
       },
     };
   }
-  throw new IntakeError(`“${file.name}” is not a PDF or an image.`);
+  throw new IntakeError(`“${file.name}” isn't a PDF or an image. Add PDFs, JPGs or PNGs.`);
 }
 
 /** Recognise the text of a stored return (first two pages of a scan). */

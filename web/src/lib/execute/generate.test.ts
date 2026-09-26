@@ -49,7 +49,7 @@ test("plain formats: one page per party, the name in its block, the footer witho
   assert.ok(second.includes("Vikram Mehta"));
   assert.ok(!second.some((l) => /Designation/.test(l)), "an individual signs without a designation");
   assert.match(texts[0], /Saffron Healthcare Private Limited/);
-  assert.doesNotMatch(Buffer.from(bytes).toString("latin1"), /agmt/i, "no Agmt name anywhere, metadata included");
+  assert.doesNotMatch(Buffer.from(bytes).toString("latin1"), /agmt|execute/i, "no Execute or Agmt name anywhere, metadata included");
 });
 
 test("a PDF template: its page copied with only the signer's name replaced, the footer untouched", async () => {

@@ -96,7 +96,7 @@ try {
   check(files.length === everyone.length && files.some((f) => /Vikram Mehta/.test(f)), `one PDF per party, named after the party (${files.length})`);
   const vikram = await textOf(zip[files.find((f) => /Vikram Mehta/.test(f))]);
   check(/SIGNED AND DELIVERED by/.test(vikram) && /Vikram Mehta/.test(vikram) && /forms an integral part of the Shareholders' Agreement/.test(vikram), "an individual's page reads right, with the footer");
-  check(Object.values(zip).every((b) => !/agmt/i.test(Buffer.from(b).toString("latin1"))), "no Agmt name in any page, metadata included");
+  check(Object.values(zip).every((b) => !/agmt|execute/i.test(Buffer.from(b).toString("latin1"))), "no Execute or Agmt name in any page, metadata included");
 
   // The lawyer's own template.
   await page.getByTestId("source-template").click();
@@ -150,7 +150,7 @@ try {
   await page.getByTestId("source-agreement").click();
   await page.getByRole("alert").filter({ hasText: "back to the tray" }).waitFor();
   check(true, "switching back to 'In this agreement' asks first, because returns are sorted to the made pages");
-  await page.getByRole("button", { name: "Keep the pages Agmt made" }).click();
+  await page.getByRole("button", { name: "Keep the pages Execute made" }).click();
   check((await page.getByTestId("source-template").getAttribute("aria-checked")) === "true", "keeping them changes nothing");
 
   // Phone width.

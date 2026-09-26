@@ -74,7 +74,7 @@ export function Shell({ children, account }: { children: React.ReactNode; accoun
                   ? "border-b-2 border-oxblood px-3 py-[22px] text-[13px] font-medium text-paper no-underline"
                   : "px-3 py-[22px] text-[13px] text-paper no-underline"}
               >
-                Executed copies
+                Execute
               </Link>
             </nav>
           </div>

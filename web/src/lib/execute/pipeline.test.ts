@@ -63,6 +63,7 @@ test("sample signing: finds signature pages, sorts every return by content, buil
     // stamp + 2 body pages + 4 countersigned pages + schedule
     assert.equal(out.getPageCount(), 1 + 2 + 4 + 1, partyName(s, party));
   }
-  const index = await PDFDocument.load(await buildClosingIndex(s));
+  const included = copyParties(ssa).map((party) => ({ docId: ssa.id, partyId: party, fileName: `${partyName(s, party)}.pdf` }));
+  const index = await PDFDocument.load(await buildClosingIndex(s, included));
   assert.ok(index.getPageCount() >= 1);
 });

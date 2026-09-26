@@ -175,10 +175,10 @@ function stampSuggestion(signing: Signing, text: string, fileName: string, estam
   let reason = "";
   if (byFile.length === 1) {
     party = byFile[0];
-    reason = `File name mentions ${party.name}.`;
+    reason = `The file name mentions ${party.name}.`;
   } else if (byPrint.length === 1) {
     party = byPrint[0];
-    reason = `Certificate names ${party.name}.`;
+    reason = `The certificate is in the name of ${party.name}.`;
   }
   const certificate = estamp?.certificateNo ? ` Certificate ${estamp.certificateNo}.` : "";
   if (party && docFromText) {
@@ -191,9 +191,9 @@ function stampSuggestion(signing: Signing, text: string, fileName: string, estam
     pageIndex: null,
     confidence: party || docFromText ? "medium" : "low",
     reason: party
-      ? `${reason} Which document is it for?`
+      ? `${reason} Choose the document.`
       : byPrint.length > 1
-        ? `Certificate names several parties.${certificate} Choose whose copy it goes in.`
+        ? `The certificate is in the names of several parties.${certificate} Choose whose copy it goes in.`
         : `Stamp paper.${certificate} Choose whose copy it goes in.`,
   };
 }
@@ -210,7 +210,7 @@ function signedFromText(signing: Signing, text: string, fileName: string): Sugge
   let who = "";
   if (onPage.length > 1 && byFile.length >= 1) {
     partyIds = byFile.map((p) => p.id);
-    who = ` File name points to ${byFile.map((p) => p.name).join(", ")}.`;
+    who = ` The file name points to ${byFile.map((p) => p.name).join(", ")}.`;
   }
   const clear = margin >= 0.15;
   const single = onPage.length === 1 || byFile.length >= 1;
@@ -227,7 +227,7 @@ function signedFromText(signing: Signing, text: string, fileName: string): Sugge
         ? `Reads like ${best.doc.title} ${where}, which several parties sign. Tick who signed this copy.`
         : clear
           ? `Reads like ${best.doc.title} ${where}.${who}`
-          : `Closest match is ${best.doc.title} ${where}, but another page is similar.`,
+          : `Closest match is ${best.doc.title} ${where}, but another page reads alike. Choose the party.`,
   };
 }
 
@@ -235,7 +235,7 @@ function signedFromFileName(signing: Signing, fileName: string): Suggestion {
   const everyone = signing.parties.map((p) => p.id);
   const parties = partyByName(signing.parties, everyone, fileName);
   if (parties.length !== 1) {
-    return { role: "signed", docId: null, partyIds: [], pageIndex: null, confidence: "low", reason: "Could not tell whose page this is." };
+    return { role: "signed", docId: null, partyIds: [], pageIndex: null, confidence: "low", reason: "No match to any signature page or party." };
   }
   const party = parties[0];
   const docs = signing.documents.filter((d) => signingPartiesOf(d).includes(party.id));
@@ -246,7 +246,7 @@ function signedFromFileName(signing: Signing, fileName: string): Suggestion {
     partyIds: [party.id],
     pageIndex: null,
     confidence: named ? "medium" : "low",
-    reason: named ? `File name mentions ${party.name}.` : `File name mentions ${party.name}. Which document?`,
+    reason: named ? `The file name mentions ${party.name}.` : `The file name mentions ${party.name}. Choose the document.`,
   };
 }
 

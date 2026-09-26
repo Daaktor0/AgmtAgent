@@ -97,8 +97,7 @@ async function askForAccess(page, person) {
   await ready(page, "[data-testid='ask-for-access']");
   const form = page.getByTestId("ask-for-access");
   await form.getByLabel("Name").fill(person.name);
-  await form.getByLabel("Work email").fill(person.email);
-  await form.getByLabel("Firm or company").fill(person.firm);
+  await form.getByLabel("Email", { exact: true }).fill(person.email);
   await form.getByLabel(/What do you sign/).fill("SHAs with a dozen investors");
   await form.getByRole("button", { name: "Ask for access" }).click();
   await page.getByTestId("access-sent").waitFor();
@@ -132,7 +131,7 @@ async function decide(page, decisionUrl, action) {
 const toolOpen = (page) => page.locator("[data-testid='start'][data-ready='true']").waitFor({ timeout: 60_000 });
 
 try {
-  const priya = { name: "Priya Nair", email: `priya.${run}@firm.test`, firm: "Khaitan & Co" };
+  const priya = { name: "Priya Nair", email: `priya.${run}@firm.test` };
   const { page } = await newPage();
 
   await page.goto(`${BASE}/`);
@@ -142,12 +141,12 @@ try {
   await shot(page, "gate");
 
   await askForAccess(page, priya);
-  check((await page.getByTestId("access-sent").innerText()).includes("Your request is noted"), "the request is acknowledged on the page");
+  check((await page.getByTestId("access-sent").innerText()).includes("Request received"), "the request is acknowledged on the page");
   await shot(page, "asked");
-  const thanks = await mailTo(priya.email, /Thank you for your interest/);
+  const thanks = await mailTo(priya.email, /Your request for Execute by Agmt/);
   check(/set up your account/.test(thanks.text), "the requester gets the thank-you email");
   const notice = await mailTo(FOUNDER, new RegExp(`Access request: ${priya.name}`));
-  const decisionUrl = link(notice, /Approve \(sends "You're in"\): (\S+)\?do=approve/);
+  const decisionUrl = link(notice, /Approve \(sends the set-up link\): (\S+)\?do=approve/);
   check(/\/access\//.test(decisionUrl), "the founder gets Approve / Not yet / Decline links");
 
   // A mail scanner opening the link changes nothing.
@@ -162,7 +161,7 @@ try {
   check((await page.getByTestId("decision-status").innerText()).includes("Approved"), "the founder approves with one button");
   check((await page.getByText("Their set-up link").count()) === 1, "the set-up link is shown to copy");
   await shot(page, "approved");
-  const welcome = await mailTo(priya.email, /You're in/);
+  const welcome = await mailTo(priya.email, /Set up your Execute account/);
   const joinUrl = link(welcome, /Set up your account: (\S+)/);
 
   // Someone the email was forwarded to can't use it: the address is fixed
@@ -180,7 +179,7 @@ try {
   await signIn(priyaPage, priya.email, "correct horse battery staple");
   await priyaPage.getByText("Confirm your email first").waitFor();
   check(true, "before confirming the email, signing in is refused and the link is resent");
-  const verify = await mailTo(priya.email, /Verify your email/, beforeSetUp);
+  const verify = await mailTo(priya.email, /Confirm your email/, beforeSetUp);
   await priyaPage.goto(link(verify, /(http\S+verify-email\S+)/));
   await toolOpen(priyaPage);
   check(true, "confirming the email signs Priya in and opens the tool");
@@ -207,8 +206,8 @@ try {
   check((await resetPage.getByLabel("Email").inputValue()) === priya.email, "forgot password carries the email over");
   await resetPage.getByRole("button", { name: "Send me a link" }).click();
   await resetPage.getByTestId("reset-sent").waitFor();
-  const reset = await mailTo(priya.email, /Reset your Agmt password/);
-  await resetPage.goto(link(reset, /Choose a new password for Agmt: (\S+)/));
+  const reset = await mailTo(priya.email, /Reset your Execute password/);
+  await resetPage.goto(link(reset, /Choose a new password: (\S+)/));
   await ready(resetPage, "[data-testid='reset-password'] form");
   await resetPage.getByLabel("New password", { exact: true }).fill("a brand new long passphrase");
   await resetPage.getByLabel("New password again").fill("a brand new long passphrase");
@@ -226,33 +225,33 @@ try {
   const before = mail().filter((m) => m.to.includes(FOUNDER)).length;
   const { page: againPage } = await newPage();
   await askForAccess(againPage, priya);
-  check((await againPage.getByTestId("access-sent").innerText()).includes("You already have a place"), "asking again once approved says so");
+  check((await againPage.getByTestId("access-sent").innerText()).includes("You already have access"), "asking again once approved says so");
   check(mail().filter((m) => m.to.includes(FOUNDER)).length === before, "the founder isn't asked about an approved person again");
 
   // Not yet, then Decline, for others.
-  const rahul = { name: "Rahul Mehta", email: `rahul.${run}@firm.test`, firm: "AZB" };
+  const rahul = { name: "Rahul Mehta", email: `rahul.${run}@firm.test` };
   await askForAccess(againPage, rahul);
-  const rahulDecide = link(await mailTo(FOUNDER, /Access request: Rahul Mehta/), /Approve \(sends "You're in"\): (\S+)\?do=approve/);
+  const rahulDecide = link(await mailTo(FOUNDER, /Access request: Rahul Mehta/), /Approve \(sends the set-up link\): (\S+)\?do=approve/);
   await decide(againPage, rahulDecide, "not_yet");
-  check(/not just yet/.test((await mailTo(rahul.email, /not just yet/)).subject), "Not yet sends a warm note and keeps the request");
+  check(/can't offer you access yet/.test((await mailTo(rahul.email, /^Your request for Execute$/)).text), "Not yet sends a courteous note and keeps the request");
   await decide(againPage, rahulDecide, "decline");
-  check(/About your Agmt request/.test((await mailTo(rahul.email, /About your Agmt request/)).subject), "Decline sends a polite note");
+  check(/not able to offer you access/.test((await mailTo(rahul.email, /^Your request for Execute$/)).text), "Decline sends a polite note");
 
   // Someone with an account who never asked (or was declined) doesn't get in.
   const { page: rahulPage } = await newPage();
   await setUpAccount(rahulPage, `${BASE}/join?email=${encodeURIComponent(rahul.email)}&name=Rahul`, "rahul's long passphrase");
-  await rahulPage.goto(link(await mailTo(rahul.email, /Verify your email/), /(http\S+verify-email\S+)/));
+  await rahulPage.goto(link(await mailTo(rahul.email, /Confirm your email/), /(http\S+verify-email\S+)/));
   await rahulPage.getByTestId("access-gate").waitFor();
-  check((await rahulPage.locator("h1").innerText()).includes("Not in this beta"), "a declined person with an account still can't open the tool");
+  check((await rahulPage.locator("h1").innerText()).includes("We can't offer access"), "a declined person with an account still can't open the tool");
   check((await rahulPage.getByTestId("start").count()) === 0, "…and the tool isn't in their page");
   await shot(rahulPage, "declined");
 
   const sam = `sam.${run}@firm.test`;
   const { page: samPage } = await newPage();
   await setUpAccount(samPage, `${BASE}/join?email=${encodeURIComponent(sam)}&name=Sam`, "sam's long passphrase!");
-  await samPage.goto(link(await mailTo(sam, /Verify your email/), /(http\S+verify-email\S+)/));
+  await samPage.goto(link(await mailTo(sam, /Confirm your email/), /(http\S+verify-email\S+)/));
   await ready(samPage, "[data-testid='ask-for-access']");
-  check((await samPage.getByLabel("Work email").getAttribute("readonly")) !== null, "a signed-in person who hasn't asked gets the request form with their email fixed");
+  check((await samPage.getByTestId("ask-for-access").getByLabel("Email", { exact: true }).getAttribute("readonly")) !== null, "a signed-in person who hasn't asked gets the request form with their email fixed");
   await samPage.getByLabel("Name").fill("Sam Iyer");
   await samPage.getByRole("button", { name: "Ask for access" }).click();
   await samPage.getByTestId("access-sent").waitFor();
@@ -271,8 +270,8 @@ try {
   const { page: founderPage } = await newPage();
   const beforeFounder = mark();
   await setUpAccount(founderPage, `${BASE}/join?email=${encodeURIComponent(FOUNDER)}&name=Founder`, "the founder's passphrase");
-  const founderMail = await mailTo(FOUNDER, /Verify your email|You already have/, beforeFounder);
-  if (/Verify/.test(founderMail.subject)) await founderPage.goto(link(founderMail, /(http\S+verify-email\S+)/));
+  const founderMail = await mailTo(FOUNDER, /Confirm your email|You already have/, beforeFounder);
+  if (/Confirm/.test(founderMail.subject)) await founderPage.goto(link(founderMail, /(http\S+verify-email\S+)/));
   else await signIn(founderPage, FOUNDER, "the founder's passphrase"); // set up on an earlier run
   await toolOpen(founderPage);
   check(true, "the owner's account opens the tool without a request");

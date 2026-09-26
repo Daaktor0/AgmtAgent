@@ -4,7 +4,7 @@ import { authClient, signOut } from "@/lib/auth/client";
 import { AUTH_ERROR_CODES } from "@/lib/auth/error-codes";
 import type { ExecuteAccess } from "@/lib/execute/server";
 
-export const FIELD = "block h-10 w-full border border-rule bg-paper px-3 text-sm outline-none focus:border-ink read-only:bg-paper-sunk read-only:text-ink/70";
+export const FIELD = "block h-10 w-full border border-rule-strong bg-paper px-3 text-sm outline-none focus:border-ink read-only:border-rule read-only:bg-paper-sunk read-only:text-ink/80";
 
 async function post(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   try {
@@ -76,26 +76,26 @@ function SignIn() {
           const code = res.error.code;
           setMessage(
             code === AUTH_ERROR_CODES.EMAIL_NOT_VERIFIED
-              ? { tone: "note", text: "Confirm your email first. We've just sent the link again; check your inbox, and spam." }
+              ? { tone: "note", text: "Confirm your email first. We've sent the link again; check your inbox and your spam folder." }
               : code === AUTH_ERROR_CODES.INVALID_CREDENTIALS
                 ? { tone: "error", text: "That email and password don't match. Check them, or choose a new password." }
-                : { tone: "error", text: "We couldn't sign you in just now. Try again in a moment." },
+                : { tone: "error", text: "Signing in didn't work just now. Try again in a moment." },
           );
         } catch {
-          setMessage({ tone: "error", text: "We couldn't reach Agmt. Check your connection and try again." });
+          setMessage({ tone: "error", text: "Agmt couldn't be reached. Check your connection and try again." });
         }
         setBusy(false);
       }}
     >
       <h2 className="font-display text-2xl">Sign in</h2>
-      <p className="text-sm leading-6 text-stone">If you've been invited, sign in with the email you asked with.</p>
+      <p className="text-sm leading-6 text-stone">Use the email address you asked for access with.</p>
       <Field label="Email">
         <input type="email" required autoComplete="email" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} />
       </Field>
       <Field label="Password">
         <input type="password" required autoComplete="current-password" maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} className={FIELD} />
       </Field>
-      {message ? <p className={message.tone === "error" ? "text-sm text-oxblood" : "text-sm"}>{message.text}</p> : null}
+      {message ? <p role="alert" className={message.tone === "error" ? "text-sm text-oxblood" : "text-sm"}>{message.text}</p> : null}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <Button type="submit" disabled={busy || !ready}>
           {busy ? "Signing in…" : "Sign in"}
@@ -110,7 +110,7 @@ function SignIn() {
 
 /** New people: the access request. The email is fixed when they're signed in. */
 function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string | null; name?: string | null }) {
-  const [form, setForm] = useState({ name: knownName ?? "", email: lockedEmail ?? "", firm: "", note: "" });
+  const [form, setForm] = useState({ name: knownName ?? "", email: lockedEmail ?? "", note: "" });
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed" | "limited">("idle");
   const [result, setResult] = useState<{ acknowledged: boolean; status: string }>({ acknowledged: false, status: "requested" });
   const ready = useHydrated();
@@ -118,20 +118,21 @@ function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string 
   if (state === "sent") {
     return (
       <div className="space-y-3" role="status" data-testid="access-sent">
-        <h2 className="font-display text-2xl">Thank you, {firstName(form.name)}.</h2>
+        <h2 className="font-display text-2xl">{result.status === "approved" ? "You already have access." : "Request received."}</h2>
         {result.status === "approved" ? (
-          <p className="text-[15px] leading-7 text-ink/80">
-            You already have a place. We've emailed <span className="font-medium text-ink">{form.email.trim()}</span> the link to set up
-            your account again.
+          <p className="text-[15px] leading-7 text-ink/85">
+            We've emailed <span className="font-medium text-ink">{form.email.trim()}</span> the link to set up your account again.
           </p>
         ) : (
-          <p className="text-[15px] leading-7 text-ink/80">
-            Your request is noted. We'll email <span className="font-medium text-ink">{form.email.trim()}</span> as soon as your place
-            is ready. There is nothing else you need to do.
+          <p className="text-[15px] leading-7 text-ink/85">
+            We'll write to <span className="font-medium text-ink">{form.email.trim()}</span> when your access is ready. There's nothing
+            more to do.
           </p>
         )}
         {result.acknowledged && result.status !== "approved" ? (
-          <p className="text-sm leading-6 text-stone">We've sent a short confirmation to that address. If it isn't in your inbox, check spam.</p>
+          <p className="text-sm leading-6 text-stone">
+            A confirmation is on its way to {form.email.trim()}. If it isn't in your inbox, check your spam folder.
+          </p>
         ) : null}
       </div>
     );
@@ -152,11 +153,11 @@ function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string 
       }}
     >
       <h2 className="font-display text-2xl">Ask for access</h2>
-      <p className="text-sm leading-6 text-stone">We'll email you when your place is ready, usually within a few days.</p>
+      <p className="text-sm leading-6 text-stone">Access is by invitation for now. We'll email you when yours is ready.</p>
       <Field label="Name">
         <input required maxLength={120} autoComplete="name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={FIELD} />
       </Field>
-      <Field label="Work email">
+      <Field label="Email">
         <input
           type="email"
           required
@@ -168,14 +169,11 @@ function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string 
           className={FIELD}
         />
       </Field>
-      <Field label="Firm or company">
-        <input maxLength={160} autoComplete="organization" value={form.firm} onChange={(e) => setForm((f) => ({ ...f, firm: e.target.value }))} className={FIELD} />
-      </Field>
       <Field label="What do you sign most often? (optional)">
-        <textarea rows={3} maxLength={1000} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="block w-full border border-rule bg-paper p-3 text-sm outline-none focus:border-ink" />
+        <textarea rows={3} maxLength={1000} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="block w-full border border-rule-strong bg-paper p-3 text-sm outline-none focus:border-ink" />
       </Field>
-      {state === "failed" ? <p className="text-sm text-oxblood">It didn't send. Check your connection and try again.</p> : null}
-      {state === "limited" ? <p className="text-sm text-oxblood">We've already had a few requests from this connection today. Please try again tomorrow.</p> : null}
+      {state === "failed" ? <p className="text-sm text-oxblood" role="alert">Not sent. Check your connection and try again.</p> : null}
+      {state === "limited" ? <p className="text-sm text-oxblood" role="alert">Too many requests from this connection today. Try again tomorrow.</p> : null}
       <Button type="submit" disabled={state === "sending" || !ready}>
         {state === "sending" ? "Sending…" : "Ask for access"}
       </Button>
@@ -186,23 +184,22 @@ function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string 
 function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mx-auto max-w-[920px] space-y-8 py-6" data-testid="access-gate">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-stone">Executed copies · private beta</p>
-      <h1 className="max-w-[640px] font-display text-[40px] leading-[1.05] sm:text-[52px]">{title}</h1>
+      <h1 className="max-w-[680px] font-display text-[38px] leading-[1.05] tracking-[-0.02em] sm:text-[50px]">{title}</h1>
       {children}
     </section>
   );
 }
 
 const INTRO =
-  "Agmt assembles executed copies of multi-party agreements on your own computer: signature pages out, countersigned pages and stamp papers in, one complete copy per party. We're opening it to a small group of lawyers first, so we can learn from real closings.";
+  "Execute assembles an executed copy for every party to a multi-party agreement, on your own computer: signature pages out, signed pages and stamp papers in. Your documents are not uploaded.";
 
 /** What someone sees at app.agmt.legal when the tool isn't open to them yet. */
 export function AccessGate({ access }: { access: ExecuteAccess }) {
   if (access.state === "signed_out") {
     return (
-      <Frame title="Open to invited lawyers for now.">
+      <Frame title="Execute is available by invitation for now.">
         <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">{INTRO}</p>
-        <div className="grid gap-10 border-t border-rule pt-8 md:grid-cols-2 md:gap-14">
+        <div className="grid gap-10 border-t border-ink pt-8 md:grid-cols-2 md:gap-14">
           <SignIn />
           <div className="border-t border-rule pt-8 md:border-l md:border-t-0 md:pl-14 md:pt-0">
             <AskForAccess />
@@ -223,8 +220,8 @@ export function AccessGate({ access }: { access: ExecuteAccess }) {
     return (
       <Frame title="Your request is with us.">
         <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">
-          Thank you{access.name ? `, ${firstName(access.name)}` : ""}. We'll email you as soon as your place is ready, and this page will
-          open the tool for you. There's nothing else you need to do.
+          Thank you{access.name ? `, ${firstName(access.name)}` : ""}. We'll email you when your access is ready, and this page will then
+          open Execute. There's nothing more to do.
         </p>
         {footer}
       </Frame>
@@ -233,9 +230,9 @@ export function AccessGate({ access }: { access: ExecuteAccess }) {
 
   if (access.state === "declined") {
     return (
-      <Frame title="Not in this beta.">
+      <Frame title="We can't offer access to this account.">
         <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">
-          We can't include this account in the closed beta. Agmt will open to everyone after it, and we'll let you know when it does.
+          We're not able to offer this account access to Execute. If you think we've misunderstood something, reply to our email.
         </p>
         {footer}
       </Frame>
@@ -245,7 +242,7 @@ export function AccessGate({ access }: { access: ExecuteAccess }) {
   if (access.state === "unavailable") {
     return (
       <Frame title="We can't check your access right now.">
-        <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">Something on our side isn't answering. Try again in a minute.</p>
+        <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">The access check isn't answering. Try again in a minute.</p>
         <Button onClick={() => window.location.reload()}>Try again</Button>
         {footer}
       </Frame>
@@ -254,7 +251,7 @@ export function AccessGate({ access }: { access: ExecuteAccess }) {
 
   // Signed in (for example from Proof) but hasn't asked yet.
   return (
-    <Frame title="Ask for a place in the beta.">
+    <Frame title="Ask for access to Execute.">
       <p className="max-w-[640px] text-[17px] leading-8 text-ink/80">{INTRO}</p>
       <div className="max-w-[460px] border-t border-rule pt-8">
         <AskForAccess email={access.email} name={access.name} />

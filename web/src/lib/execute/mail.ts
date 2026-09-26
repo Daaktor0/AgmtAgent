@@ -90,117 +90,130 @@ export function greetingName(name: string): string {
   return parts.length > 1 && /^[A-Za-z][a-z]+$/.test(first) ? first : name.trim();
 }
 
-/** The same look as the sign-in email: paper, a serif wordmark, an oxblood rule. */
-function layout(bodyHtml: string, footer: string): string {
+/** Where the email header image is served from: this app's own public folder. */
+function publicUrl(): string {
+  return (serverEnv("AGMT_PUBLIC_URL") ?? "https://app.agmt.legal").replace(/\/+$/, "");
+}
+
+/** Width of public/brand/execute-lockup-email.png at 1x (it is drawn at 2x). */
+const LOCKUP_WIDTH = 229;
+
+/**
+ * Execute's email frame, in the app's own colours: paper ground, a vellum
+ * card, the lock-up over an ink rule. Tables and inline styles only, so Gmail,
+ * Outlook and Apple Mail agree. The lock-up is a PNG because Outlook doesn't
+ * render SVG; its alt text carries the name if images are off.
+ */
+export function layout(bodyHtml: string, footer: string): string {
   return `<!doctype html>
 <html>
-  <body style="margin:0;padding:0;background:#f4f0e9;color:#201d1b;font-family:Arial,Helvetica,sans-serif">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f0e9;padding:40px 16px">
+  <body style="margin:0;padding:0;background:#f4efe6;color:#1c1917;font-family:Arial,Helvetica,sans-serif">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe6;padding:36px 16px">
       <tr><td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fffdf9;border:1px solid #d8d0c8;border-radius:2px">
-          <tr><td style="padding:34px 38px 12px">
-            <div style="font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1;color:#201d1b">Agmt</div>
-            <div style="margin-top:8px;width:38px;height:2px;background:#6f1d2b"></div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fbf8f1;border:1px solid #d9d2c4;border-radius:2px">
+          <tr><td style="padding:24px 32px 20px;border-bottom:1px solid #1c1917">
+            <img src="${publicUrl()}/brand/execute-lockup-email.png" width="${LOCKUP_WIDTH}" height="36" alt="Execute by Agmt" style="display:block;border:0;outline:none;text-decoration:none;height:36px;width:${LOCKUP_WIDTH}px;font-family:Georgia,serif;font-size:20px;color:#1c1917">
           </td></tr>
-          <tr><td style="padding:18px 38px 38px">${bodyHtml}</td></tr>
+          <tr><td style="padding:26px 32px 32px">${bodyHtml}</td></tr>
         </table>
-        <p style="max-width:560px;margin:16px auto 0;color:#8b827c;font-size:11px;line-height:1.5">${footer}</p>
+        <p style="max-width:560px;margin:14px auto 0;color:#565b5f;font-size:11.5px;line-height:1.5;text-align:left">${footer}</p>
       </td></tr>
     </table>
   </body>
 </html>`;
 }
 
-const P = 'style="margin:16px 0 0;color:#514b47;font-size:15px;line-height:1.7"';
+const P = 'style="margin:14px 0 0;color:#3b3734;font-size:15px;line-height:1.7"';
 
-/** A button that survives email clients: a table cell with an oxblood fill. */
+/** A button that survives email clients: a table cell with an oxblood fill, or an ink outline. */
 function button(href: string, label: string, primary = true): string {
   const safe = escapeHtml(href);
   return primary
-    ? `<td bgcolor="#6f1d2b" style="border-radius:2px"><a href="${safe}" style="display:inline-block;padding:12px 18px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700">${escapeHtml(label)}</a></td>`
-    : `<td style="border:1px solid #201d1b;border-radius:2px"><a href="${safe}" style="display:inline-block;padding:11px 17px;color:#201d1b;text-decoration:none;font-size:14px;font-weight:700">${escapeHtml(label)}</a></td>`;
+    ? `<td bgcolor="#6b2b2b" style="border-radius:2px"><a href="${safe}" style="display:inline-block;padding:12px 18px;color:#fbf8f1;text-decoration:none;font-size:14px;font-weight:700">${escapeHtml(label)}</a></td>`
+    : `<td style="border:1px solid #1c1917;border-radius:2px"><a href="${safe}" style="display:inline-block;padding:11px 17px;color:#1c1917;text-decoration:none;font-size:14px;font-weight:700">${escapeHtml(label)}</a></td>`;
 }
 
 function buttons(...cells: string[]): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px 0 6px"><tr>${cells.join('<td style="width:10px"></td>')}</tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 4px"><tr>${cells.join('<td style="width:10px"></td>')}</tr></table>`;
 }
 
-const H1 = `style="margin:12px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:500;line-height:1.25;color:#201d1b"`;
-const HI = 'style="margin:0;color:#514b47;font-size:15px;line-height:1.7"';
-const SMALL = 'style="margin:22px 0 0;color:#6f6763;font-size:13px;line-height:1.6"';
-const WHY = "You're receiving this because you asked for access at app.agmt.legal.";
+const H1 = `style="margin:0 0 4px;font-family:Georgia,'Times New Roman',serif;font-size:23px;font-weight:400;line-height:1.25;color:#1c1917"`;
+const SMALL = 'style="margin:20px 0 0;color:#565b5f;font-size:13px;line-height:1.6"';
+const WHY = "You're receiving this because you asked for access to Execute at app.agmt.legal.";
+const SIGN_OFF_TEXT = ["Regards,", "Agmt"];
+const SIGN_OFF_HTML = `<p ${P}>Regards,<br>Agmt</p>`;
 
+/** `firm` is no longer asked for; older requests may still carry one, and it is ignored. */
 export type AccessRequest = { name: string; email: string; firm?: string; note?: string };
 export type Mail = { subject: string; text: string; html: string };
 
+/** Paragraphs to both forms at once, so the plain-text version never drifts from the HTML. */
+function compose(opts: { greeting: string; heading: string; paras: string[]; after?: string; footer: string; small?: string[] }): { text: string; html: string } {
+  const text = [opts.greeting, "", ...opts.paras.flatMap((l) => [l, ""]), ...(opts.small ?? []).flatMap((l) => [l, ""]), ...SIGN_OFF_TEXT, "", "--", opts.footer].join("\n");
+  const html = layout(
+    `<h1 ${H1}>${escapeHtml(opts.heading)}</h1>
+     <p ${P}>${escapeHtml(opts.greeting)}</p>
+     ${opts.paras.map((l) => `<p ${P}>${escapeHtml(l)}</p>`).join("\n     ")}
+     ${opts.after ?? ""}
+     ${(opts.small ?? []).map((l) => `<p ${SMALL}>${escapeHtml(l)}</p>`).join("\n     ")}
+     ${SIGN_OFF_HTML}`,
+    escapeHtml(opts.footer),
+  );
+  return { text, html };
+}
+
+const dear = (name: string | null | undefined) => (name?.trim() ? `Dear ${greetingName(name)},` : "Hello,");
+
 /** To the person who asked: thanks, what happens next, reply to reach us. */
 export function accessThanks(request: AccessRequest): Mail {
-  const who = greetingName(request.name);
-  const firm = request.firm?.trim();
-  const lines = [
-    `Hi ${who},`,
-    "",
-    `Thank you for asking to try Agmt${firm ? ` at ${firm}` : ""}. Your request is noted, and we'll remember it.`,
-    "",
-    "We're opening Agmt to a small group of lawyers first, so we can learn from real closings and get every detail right. As soon as your place is ready, we'll email you to set up your account. There is nothing else you need to do.",
-    "",
-    "What you'll be able to do: add the final agreement, send each party its signature page, drop in the countersigned pages and stamp papers as they come back, and download a complete executed copy for every party. It all happens on your own computer; your documents are never uploaded.",
-    "",
-    "If you have a question, or a closing coming up that you'd like to try it on, just reply to this email.",
-    "",
-    "With thanks,",
-    "Agmt",
-  ];
-  const html = layout(
-    `<p ${HI}>Hi ${escapeHtml(who)},</p>
-     <h1 ${H1}>Thank you for your interest in Agmt</h1>
-     <p ${P}>Your request${firm ? ` for ${escapeHtml(firm)}` : ""} is noted, and we'll remember it.</p>
-     <p ${P}>We're opening Agmt to a small group of lawyers first, so we can learn from real closings and get every detail right. As soon as your place is ready, we'll email you to set up your account. There is nothing else you need to do.</p>
-     <p ${P}>What you'll be able to do: add the final agreement, send each party its signature page, drop in the countersigned pages and stamp papers as they come back, and download a complete executed copy for every party. It all happens on your own computer; your documents are never uploaded.</p>
-     <p ${P}>If you have a question, or a closing coming up that you'd like to try it on, just reply to this email.</p>
-     <p ${P}>With thanks,<br>Agmt</p>`,
-    `${WHY} If that wasn't you, you can ignore this email.`,
-  );
-  return { subject: "Thank you for your interest in Agmt", text: lines.join("\n"), html };
+  const { text, html } = compose({
+    greeting: dear(request.name),
+    heading: "Thank you for asking",
+    paras: [
+      "Thank you for asking for access to Execute.",
+      "Access is by invitation for now. When yours is ready, we'll email you a link to set up your account. There's nothing more you need to do.",
+      "Execute assembles an executed copy for every party to a multi-party agreement: signature pages out, signed pages and stamp papers in. It runs in your browser, and your documents are not uploaded.",
+      "If you have a closing coming up, or a question, reply to this email.",
+    ],
+    footer: `${WHY} If that wasn't you, you can ignore this email.`,
+  });
+  return { subject: "Your request for Execute by Agmt", text, html };
 }
 
 /** To the founder: who asked, and one button per decision. */
 export function accessNotice(request: AccessRequest, links: { decide: string }, context: { acknowledged: boolean; again: boolean }): Mail {
-  const firm = request.firm?.trim();
-  const label = `${request.name.trim()}${firm ? `, ${firm}` : ""}`;
+  const label = request.name.trim();
   const note = request.note?.trim();
   const url = (action: string) => `${links.decide}?do=${action}`;
   const status = context.acknowledged ? "They were sent a thank-you email." : "No thank-you email could be sent to them (check AUTH_EMAIL_FROM).";
   const text = [
-    `${request.name} ${context.again ? "asked again for" : "asked for"} access to Agmt.`,
+    `${request.name} ${context.again ? "asked again for" : "asked for"} access to Execute.`,
     "",
     `Name:  ${request.name}`,
     `Email: ${request.email}`,
-    `Firm:  ${firm || "not given"}`,
     "",
     "What they sign most often:",
     note || "(not given)",
     "",
     status,
     "",
-    `Approve (sends "You're in"): ${url("approve")}`,
+    `Approve (sends the set-up link): ${url("approve")}`,
     `Not yet (keeps the request):  ${url("not_yet")}`,
     `Decline:                      ${url("decline")}`,
     "",
     "Each link opens a page where you confirm. Reply to this email to write to them directly.",
   ].join("\n");
   const row = (k: string, v: string) =>
-    `<tr><td style="padding:4px 14px 4px 0;color:#8b827c;font-size:13px;vertical-align:top">${k}</td><td style="padding:4px 0;color:#201d1b;font-size:14px">${v}</td></tr>`;
+    `<tr><td style="padding:4px 14px 4px 0;color:#565b5f;font-size:13px;vertical-align:top">${k}</td><td style="padding:4px 0;color:#1c1917;font-size:14px">${v}</td></tr>`;
   const html = layout(
     `<h1 ${H1}>${escapeHtml(label)} ${context.again ? "asked again for access" : "asked for access"}</h1>
-     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 0">
+     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 0">
        ${row("Name", escapeHtml(request.name))}
        ${row("Email", escapeHtml(request.email))}
-       ${row("Firm", escapeHtml(firm || "not given"))}
        ${row("Signs", escapeHtml(note || "not given"))}
      </table>
      ${buttons(button(url("approve"), "Approve"), button(url("not_yet"), "Not yet", false), button(url("decline"), "Decline", false))}
-     <p ${SMALL}>Each button opens a page where you confirm; nothing happens until you press the button there. Approve sends them "You're in" with a link to set up their account. ${escapeHtml(status)}</p>
+     <p ${SMALL}>Each button opens a page where you confirm; nothing happens until you press the button there. Approve sends them a link to set up their account. ${escapeHtml(status)}</p>
      <p ${SMALL}>Reply to this email to write to them directly.</p>`,
     "Sent to you as the owner of Agmt. Anyone with this email can decide on this one request, so don't forward it.",
   );
@@ -209,118 +222,78 @@ export function accessNotice(request: AccessRequest, links: { decide: string }, 
 
 /** Approved: set up an account with this email. The link holds no secret. */
 export function youreIn(request: AccessRequest, links: { join: string; signIn: string }): Mail {
-  const who = greetingName(request.name);
-  const text = [
-    `Hi ${who},`,
-    "",
-    "You're in. Your place in the Agmt beta is ready.",
-    "",
-    `Set up your account: ${links.join}`,
-    "",
-    `Use this email address (${request.email}) and choose a password. We'll send one short email to confirm the address is yours, and then you're in. After that, sign in at ${links.signIn} on any computer.`,
-    "",
-    "Your access belongs to your account, so forwarding this email won't let anyone else in. Your documents stay on your computer; they're never uploaded.",
-    "",
-    "Already have an Agmt account with this email? Just sign in.",
-    "",
-    "If anything doesn't work the way you expect, reply to this email. It comes straight to us.",
-    "",
-    "With thanks,",
-    "Agmt",
-  ].join("\n");
-  const html = layout(
-    `<p ${HI}>Hi ${escapeHtml(who)},</p>
-     <h1 ${H1}>You're in</h1>
-     <p ${P}>Your place in the Agmt beta is ready. Set up your account with this email address, <span style="color:#201d1b">${escapeHtml(request.email)}</span>, and choose a password. We'll send one short email to confirm the address is yours, and then you're in.</p>
-     ${buttons(button(links.join, "Set up your account"))}
-     <p ${P}>After that, sign in at <a href="${escapeHtml(links.signIn)}" style="color:#6f1d2b">app.agmt.legal</a> on any computer. Already have an Agmt account with this email? Just sign in.</p>
-     <p ${P}>Your access belongs to your account, so forwarding this email won't let anyone else in. Your documents stay on your computer; they're never uploaded.</p>
-     <p ${P}>If anything doesn't work the way you expect, reply to this email. It comes straight to us.</p>
-     <p ${P}>With thanks,<br>Agmt</p>`,
-    WHY,
-  );
-  return { subject: "You're in: set up your Agmt account", text, html };
+  const { text, html } = compose({
+    greeting: dear(request.name),
+    heading: "Your access is ready",
+    paras: [
+      `Your request for Execute has been approved. Set up your account with this email address, ${request.email}, and choose a password. We'll send one short email to confirm the address is yours, and then Execute opens.`,
+    ],
+    after: buttons(button(links.join, "Set up your account")),
+    small: [
+      `Set up your account: ${links.join}`,
+      `After that, sign in at ${links.signIn} on any computer. If you already have an Agmt account with this email, sign in instead.`,
+      "Access belongs to your account, so forwarding this email won't let anyone else in. Execute runs in your browser; your documents are not uploaded.",
+      "If anything doesn't work as you expect, reply to this email.",
+    ],
+    footer: WHY,
+  });
+  return { subject: "Set up your Execute account", text, html };
 }
 
-/** Not yet: kept on the list, warmly. */
+/** Not yet: the request stays on file. No date, no promise. */
 export function notYet(request: AccessRequest): Mail {
-  const who = greetingName(request.name);
-  const body = [
-    "Thank you again for asking to try Agmt. We're keeping the beta small for now, so we can't open your place just yet.",
-    "Your request stays with us; there's no need to ask again. We'll email you as soon as there's room.",
-    "If you have a closing coming up that you'd like to try it on, reply to this email and tell us about it.",
-  ];
-  const text = [`Hi ${who},`, "", ...body.flatMap((l) => [l, ""]), "With thanks,", "Agmt"].join("\n");
-  const html = layout(
-    `<p ${HI}>Hi ${escapeHtml(who)},</p>
-     <h1 ${H1}>Not just yet</h1>
-     ${body.map((l) => `<p ${P}>${escapeHtml(l)}</p>`).join("\n")}
-     <p ${P}>With thanks,<br>Agmt</p>`,
-    WHY,
-  );
-  return { subject: "Your Agmt request: not just yet", text, html };
+  const { text, html } = compose({
+    greeting: dear(request.name),
+    heading: "Your request for Execute",
+    paras: [
+      "Thank you for asking for access to Execute. We can't offer you access yet.",
+      "Your request stays on file, so there's no need to ask again. We'll write to you when we can.",
+      "If you have a closing coming up, reply to this email and tell us about it.",
+    ],
+    footer: WHY,
+  });
+  return { subject: "Your request for Execute", text, html };
 }
 
-/** Declined: polite, and the door stays open for launch. */
+/** Declined: polite and short. */
 export function declined(request: AccessRequest): Mail {
-  const who = greetingName(request.name);
-  const body = [
-    "Thank you for asking to try Agmt. We're sorry: we can't include you in this closed beta.",
-    "Agmt will open to everyone after the beta, and we'll let you know when it does.",
-    "If you think we've misunderstood something, just reply to this email.",
-  ];
-  const text = [`Hi ${who},`, "", ...body.flatMap((l) => [l, ""]), "With thanks,", "Agmt"].join("\n");
-  const html = layout(
-    `<p ${HI}>Hi ${escapeHtml(who)},</p>
-     <h1 ${H1}>About your Agmt request</h1>
-     ${body.map((l) => `<p ${P}>${escapeHtml(l)}</p>`).join("\n")}
-     <p ${P}>With thanks,<br>Agmt</p>`,
-    WHY,
-  );
-  return { subject: "About your Agmt request", text, html };
+  const { text, html } = compose({
+    greeting: dear(request.name),
+    heading: "Your request for Execute",
+    paras: [
+      "Thank you for your interest. We're not able to offer you access to Execute.",
+      "If you think we've misunderstood something, reply to this email.",
+    ],
+    footer: WHY,
+  });
+  return { subject: "Your request for Execute", text, html };
 }
 
 /** Forgot password. The link expires in an hour. */
 export function passwordReset(name: string | null | undefined, url: string): Mail {
-  const who = name?.trim() ? greetingName(name) : "";
-  const text = [
-    who ? `Hi ${who},` : "Hello,",
-    "",
-    `Choose a new password for Agmt: ${url}`,
-    "",
-    "This link expires in one hour and works once. If you didn't ask for this, ignore this email; your password stays the same.",
-  ].join("\n");
-  const html = layout(
-    `<p ${HI}>${who ? `Hi ${escapeHtml(who)},` : "Hello,"}</p>
-     <h1 ${H1}>Choose a new password</h1>
-     <p ${P}>Someone, hopefully you, asked to reset the password for your Agmt account.</p>
-     ${buttons(button(url, "Choose a new password"))}
-     <p ${SMALL}>This link expires in one hour and works once. If you didn't ask for this, ignore this email; your password stays the same.</p>`,
-    "Agmt · executed copies for transactional documents",
-  );
-  return { subject: "Reset your Agmt password", text, html };
+  const { text, html } = compose({
+    greeting: dear(name),
+    heading: "Choose a new password",
+    paras: ["Use the button below to choose a new password for your Agmt account."],
+    after: buttons(button(url, "Choose a new password")),
+    small: [
+      `Choose a new password: ${url}`,
+      "This link expires in one hour and works once. If you didn't ask for this, ignore this email; your password hasn't changed.",
+    ],
+    footer: "Sent because a password reset was asked for at app.agmt.legal.",
+  });
+  return { subject: "Reset your Execute password", text, html };
 }
 
 /** Someone tried to create an account that already exists: point them home. */
 export function existingAccount(name: string | null | undefined, links: { signIn: string; reset: string }): Mail {
-  const who = name?.trim() ? greetingName(name) : "";
-  const text = [
-    who ? `Hi ${who},` : "Hello,",
-    "",
-    "You already have an Agmt account with this email address, so there's nothing to set up.",
-    "",
-    `Sign in: ${links.signIn}`,
-    `Forgotten the password? Choose a new one: ${links.reset}`,
-    "",
-    "If you didn't just try to create an account, you can ignore this email.",
-  ].join("\n");
-  const html = layout(
-    `<p ${HI}>${who ? `Hi ${escapeHtml(who)},` : "Hello,"}</p>
-     <h1 ${H1}>You already have an account</h1>
-     <p ${P}>There's an Agmt account with this email address already, so there's nothing to set up. Sign in with your password.</p>
-     ${buttons(button(links.signIn, "Sign in"), button(links.reset, "Choose a new password", false))}
-     <p ${SMALL}>If you didn't just try to create an account, you can ignore this email.</p>`,
-    "Agmt · executed copies for transactional documents",
-  );
+  const { text, html } = compose({
+    greeting: dear(name),
+    heading: "You already have an account",
+    paras: ["There's already an Agmt account with this email address, so there's nothing to set up. Sign in with your password."],
+    after: buttons(button(links.signIn, "Sign in"), button(links.reset, "Choose a new password", false)),
+    small: [`Sign in: ${links.signIn}`, `Forgotten the password? Choose a new one: ${links.reset}`, "If you didn't just try to create an account, you can ignore this email."],
+    footer: "Sent because someone tried to set up an account with this address at app.agmt.legal.",
+  });
   return { subject: "You already have an Agmt account", text, html };
 }

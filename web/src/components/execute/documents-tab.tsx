@@ -18,7 +18,7 @@ function PageThumb({ doc, index, width, className }: { doc: SigningDocument; ind
   return url ? (
     <img src={url} alt="" className={cn("block w-full bg-white", className)} />
   ) : (
-    <span className={cn("block aspect-[1/1.414] w-full bg-white", className)} />
+    <span className={cn("thumb-loading block aspect-[1/1.414] w-full", className)} aria-hidden="true" />
   );
 }
 
@@ -49,27 +49,27 @@ function AddParty({ doc, page }: { doc: SigningDocument; page: number }) {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Add a party"
+          placeholder="Party name"
           aria-label={`Add a party to page ${page + 1}`}
           autoFocus
-          className="h-9 w-48 border border-rule bg-paper px-2 text-sm outline-none focus:border-ink"
+          className="h-9 w-48 border border-rule-strong bg-paper px-2 text-sm outline-none focus:border-ink"
         />
         <Button type="submit" size="sm" variant="secondary" disabled={!name.trim()}>
-          Add
+          Add party
         </Button>
       </form>
       {others.length ? (
         <select
           value=""
           aria-label={`Add a party from elsewhere in this signing to page ${page + 1}`}
-          className="h-9 border border-rule bg-paper px-2 text-sm"
+          className="h-9 max-w-full border border-rule-strong bg-paper px-2 text-sm"
           onChange={(e) => {
             const party = signing.parties.find((p) => p.id === e.target.value);
             if (party) update((s) => addPartyToPage(s, doc.id, page, party.name));
             setOpen(false);
           }}
         >
-          <option value="">Or choose a party…</option>
+          <option value="">Or choose a party in this signing</option>
           {others.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -105,21 +105,21 @@ function DocumentSetup({ doc }: { doc: SigningDocument }) {
     <div className="space-y-10">
       <div className="flex flex-wrap items-end justify-between gap-6">
         <label className="min-w-0 flex-1 space-y-1">
-          <span className="text-[11px] uppercase tracking-[0.14em] text-stone">Document name, used in file names</span>
+          <span className="text-[11px] uppercase tracking-[0.14em] text-stone">Short name, used in file names</span>
           <input
             value={doc.title}
             onChange={(e) => update((s) => setDocumentTitle(s, doc.id, e.target.value))}
-            className="block w-full max-w-xl border-0 border-b border-rule bg-transparent py-1 font-display text-2xl outline-none focus:border-ink"
+            className="block w-full max-w-xl border-0 border-b border-rule-strong bg-transparent py-1 font-display text-2xl outline-none focus:border-ink"
           />
           <span className="block text-[13px] text-stone">
             {doc.fileName} · {doc.pageCount} pages
           </span>
         </label>
         {removing ? (
-          <span className="flex items-center gap-3 text-[13px]">
-            Remove this document and its returns from the signing?
-            <button type="button" className="text-oxblood underline underline-offset-4" onClick={() => update((s) => removeDocument(s, doc.id))}>
-              Remove
+          <span className="flex flex-wrap items-center gap-3 text-[13px]" role="group" aria-label="Confirm removal">
+            Remove {doc.title} and its returns from this signing?
+            <button type="button" autoFocus className="font-medium text-oxblood underline underline-offset-4" onClick={() => update((s) => removeDocument(s, doc.id))}>
+              Remove document
             </button>
             <button type="button" className="text-stone" onClick={() => setRemoving(false)}>
               Keep
@@ -139,12 +139,12 @@ function DocumentSetup({ doc }: { doc: SigningDocument }) {
         <SourceSwitch value={source} found={found} onChange={choose} />
         {confirming ? (
           <p className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-sm" role="alert">
-            {placedHere} returned page{placedHere === 1 ? " is" : "s are"} sorted to the pages Agmt made. Switching sends {placedHere === 1 ? "it" : "them"} back to the tray.
+            {placedHere} returned page{placedHere === 1 ? " is" : "s are"} sorted to the pages Execute made. Switching sends {placedHere === 1 ? "it" : "them"} back to the tray.
             <button type="button" className="text-oxblood underline underline-offset-4" onClick={() => choose("agreement")}>
               Switch
             </button>
             <button type="button" className="text-stone" onClick={() => setConfirming(false)}>
-              Keep the pages Agmt made
+              Keep the pages Execute made
             </button>
           </p>
         ) : (
@@ -176,14 +176,14 @@ function AgreementPages({ doc }: { doc: SigningDocument }) {
           </h3>
           <p className="text-[13px] text-stone">
             {scanned
-              ? "This PDF has no text, so pages can't be found automatically. Click each signature page."
+              ? "This PDF has no text layer, so signature pages can't be found. Select each signature page below."
               : pages.length
-                ? `${pages.length} found. Click a page to mark or unmark it.`
-                : "None found. Click each signature page."}
+                ? `${pages.length} signature page${pages.length === 1 ? "" : "s"} found. Select a page to add or remove it.`
+                : "No signature pages found. Select each signature page below."}
           </p>
         </div>
         <div
-          className="grid max-h-[360px] grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-3 overflow-y-auto bg-paper-sunk p-4"
+          className="grid max-h-[360px] grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3 overflow-y-auto bg-paper-sunk p-3 sm:p-4"
           role="group"
           aria-label={`Pages of ${doc.title}`}
         >
@@ -204,7 +204,7 @@ function AgreementPages({ doc }: { doc: SigningDocument }) {
               >
                 <PageThumb doc={doc} index={i} width={140} />
                 <span className="absolute bottom-1 right-1 bg-paper/95 px-1 text-[10px] tabular-nums">{i + 1}</span>
-                {on ? <span className="absolute left-1 top-1 bg-oxblood px-1 text-[9px] uppercase tracking-[0.1em] text-paper">Sign</span> : null}
+                {on ? <span className="absolute left-1 top-1 bg-oxblood px-1 text-[9px] uppercase tracking-[0.08em] text-paper">Sig. page</span> : null}
               </button>
             );
           })}
@@ -228,10 +228,15 @@ function AgreementPages({ doc }: { doc: SigningDocument }) {
                           value={partyName(signing, id)}
                           onChange={(e) => update((s) => renameParty(s, id, e.target.value))}
                           aria-label={`Party name on page ${page + 1}`}
-                          className="h-10 w-full max-w-md border border-rule bg-paper px-3 text-[15px] outline-none focus:border-ink"
+                          className="h-10 w-full max-w-md border border-rule-strong bg-paper px-3 text-[15px] outline-none focus:border-ink"
                         />
-                        <button type="button" className="text-[13px] text-stone underline-offset-4 hover:text-ink hover:underline" onClick={() => void downloadPack(doc.id, id)}>
-                          Signature page
+                        <button
+                          type="button"
+                          className="text-[13px] underline underline-offset-4 hover:text-oxblood"
+                          aria-label={`Download ${partyName(signing, id)}'s signature pages for ${doc.title}`}
+                          onClick={() => void downloadPack(doc.id, id)}
+                        >
+                          Download
                         </button>
                         <button
                           type="button"
@@ -251,13 +256,11 @@ function AgreementPages({ doc }: { doc: SigningDocument }) {
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-4 bg-paper-sunk px-5 py-4">
             <div>
-              <p className="font-medium">Send for signature</p>
-              <p className="text-[13px] text-stone">
-                One PDF per party, cut from the final document itself, so it cannot differ from it.
-              </p>
+              <p className="font-medium">Send out signature pages</p>
+              <p className="text-[13px] text-stone">One PDF per party, taken from the final itself, so the pages match it exactly.</p>
             </div>
             <Button variant="secondary" onClick={() => void downloadPacks(doc.id)} data-testid="download-packs">
-              Download {signers.length} signature page{signers.length === 1 ? "" : "s"} (.zip)
+              Download signature pages for {signers.length} {signers.length === 1 ? "party" : "parties"} (.zip)
             </Button>
           </div>
         </section>
@@ -287,7 +290,7 @@ export function DocumentsTab({ onDone }: { onDone: () => void }) {
                   doc?.id === d.id ? "border-oxblood bg-paper-sunk font-medium" : "border-transparent text-stone hover:text-ink",
                 )}
               >
-                <span className="block truncate">{d.title || "Untitled"}</span>
+                <span className="block truncate">{d.title || "Untitled document"}</span>
                 <span className="block text-[12px] font-normal text-stone">
                   {Object.keys(d.sigPages).length} signature page{Object.keys(d.sigPages).length === 1 ? "" : "s"} · {signingPartiesOf(d).length} parties
                 </span>
@@ -303,15 +306,15 @@ export function DocumentsTab({ onDone }: { onDone: () => void }) {
           testId="add-document"
         >
           <span className="font-medium">+ Add a document</span>
-          <span className="text-[12px] text-stone">{busy ?? "Another agreement signed at the same time"}</span>
+          <span className="text-[12px] text-stone">{busy ?? "Another agreement in this signing"}</span>
         </DropZone>
         {ready ? (
           <Button className="w-full" onClick={onDone} data-testid="to-returns">
-            Signature pages look right
+            Continue to returns
           </Button>
         ) : null}
       </aside>
-      {doc ? <DocumentSetup key={doc.id} doc={doc} /> : <p className="text-stone">Add the final agreement to begin.</p>}
+      {doc ? <DocumentSetup key={doc.id} doc={doc} /> : <p className="text-stone">Add a final as PDF to begin.</p>}
     </div>
   );
 }

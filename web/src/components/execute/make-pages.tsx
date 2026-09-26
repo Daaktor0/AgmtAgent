@@ -59,8 +59,8 @@ export function SourceSwitch({ value, found, onChange }: { value: Source; found:
 
 export const SOURCE_NOTE: Record<Source, string> = {
   agreement: "Use the unsigned signature pages already in this PDF. Signed pages replace them in place.",
-  parties: "Agmt makes one page per party. Signed pages are added at the end of each executed copy, after the schedules.",
-  template: "Upload your own signature page as a PDF. Agmt makes one per party, changing only the name. Signed pages are added at the end, after the schedules.",
+  parties: "Execute makes one page per party. Signed pages are added at the end of each executed copy, after the schedules.",
+  template: "Upload your own signature page as a PDF. Execute makes one per party, changing only the name. Signed pages are added at the end, after the schedules.",
 };
 
 function MadeThumb({ fileId, index, label }: { fileId: string; index: number; label: string }) {
@@ -117,7 +117,7 @@ function TemplateCard({ doc, t }: { doc: SigningDocument; t: MakeTemplate }) {
         </p>
         {t.residue ? (
           <p className="border-l-2 border-oxblood pl-3 text-[13px] leading-5">
-            This PDF keeps its text in a way Agmt can't edit, so the sample name is covered on each page but can still be found by copying the
+            This PDF keeps its text in a way Execute can't edit, so the sample name is covered on each page but can still be found by copying the
             text. Export the page from Word again (File → Save as PDF) and add it instead.
           </p>
         ) : null}
@@ -379,7 +379,7 @@ export function MakePanel({ doc, from }: { doc: SigningDocument; from: "parties"
             </p>
             <p className="text-[13px] text-stone">
               {made && !stale
-                ? "Signed pages go at the end of each executed copy, after the schedules. No Agmt name or mark appears on any page."
+                ? "Signed pages go at the end of each executed copy, after the schedules. No Execute or Agmt name or mark appears on any page."
                 : `One page per party, ${named.length} in all. You can change anything and make them again.`}
             </p>
           </div>

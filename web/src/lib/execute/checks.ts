@@ -54,7 +54,7 @@ export function signingFlags(s: Signing): Flag[] {
             docId: doc.id,
             partyId,
             fileId: file.id,
-            message: `“${file.fileName}” doesn't read like ${doc.title} ${pages.map((p) => pageLabel(doc, p)).join(", ")}. Check it is the right page and version.`,
+            message: `“${file.fileName}” doesn't read like ${doc.title} ${pages.map((p) => pageLabel(doc, p)).join(", ")}. Check it is the right page of the right document.`,
           });
         }
         if (file.pageCount > Math.max(1, pages.length) + 1) {
@@ -63,7 +63,7 @@ export function signingFlags(s: Signing): Flag[] {
             docId: doc.id,
             partyId,
             fileId: file.id,
-            message: `“${file.fileName}” has ${file.pageCount} pages; ${partyName(s, partyId)} signs ${pages.length}. All of them will go into the copies.`,
+            message: `“${file.fileName}” has ${file.pageCount} pages; ${partyName(s, partyId)} signs ${pages.length}. All ${file.pageCount} will go into the executed copies.`,
           });
         }
       }
@@ -80,7 +80,7 @@ export function signingFlags(s: Signing): Flag[] {
             docId: doc.id,
             partyId,
             fileId: file.id,
-            message: `Stamp paper ${stamp?.certificateNo ?? `“${file.fileName}”`} names ${names.join(" / ")}, not ${partyName(s, partyId)}.`,
+            message: `Stamp paper ${stamp?.certificateNo ?? `“${file.fileName}”`} is in the name of ${names.join(" / ")}, not ${partyName(s, partyId)}.`,
           });
         }
       }
@@ -90,6 +90,12 @@ export function signingFlags(s: Signing): Flag[] {
   for (const [cert, files] of certificates) {
     const distinct = new Set(files.map((f) => f.id));
     if (distinct.size < 2) continue;
+    const copies = files.flatMap((f) => {
+      const p = f.placement;
+      if (p.status !== "placed" || p.role !== "stamp") return [];
+      return [`${partyName(s, p.partyId)} (${s.documents.find((d) => d.id === p.docId)?.title ?? "document"})`];
+    });
+    const where = [...new Set(copies)];
     for (const file of files) {
       const p = file.placement;
       if (p.status !== "placed" || p.role !== "stamp") continue;
@@ -98,7 +104,7 @@ export function signingFlags(s: Signing): Flag[] {
         docId: p.docId,
         partyId: p.partyId,
         fileId: file.id,
-        message: `Certificate ${cert} is used in more than one copy. Each copy needs its own stamp paper.`,
+        message: `Certificate ${cert} is in ${where.length > 1 ? `${where.length} copies: ${where.join(" and ")}` : `more than one place in ${where[0] ?? "this signing"}`}. Each copy needs its own stamp paper.`,
       });
     }
   }
@@ -174,25 +180,29 @@ export function progress(s: Signing, flags: Flag[]): Progress {
   return out;
 }
 
-/** Plain text for an email: what each party still owes. */
-export function chaseList(s: Signing): string {
+/** Plain text for an email: what each party still owes, dated. */
+export function chaseList(s: Signing, now = new Date()): string {
   const lines: string[] = [];
   for (const party of s.parties) {
     const owed: string[] = [];
     for (const doc of s.documents) {
       if (signingPartiesOf(doc).includes(party.id) && signedFor(s, doc.id, party.id).length === 0) {
         const pages = pagesOf(doc, party.id);
+        const nums = pages.map((p) => p + 1);
         owed.push(
           pages.every((p) => p >= doc.pageCount)
             ? `signed signature page for the ${doc.title}`
-            : `signed signature page for the ${doc.title} (${pages.map((p) => pageLabel(doc, p)).join(", ")})`,
+            : `signed ${nums.length === 1 ? "page" : "pages"} ${nums.join(", ")} of the ${doc.title}`,
         );
       }
       if (copyParties(doc).includes(party.id) && stampsFor(s, doc.id, party.id).length === 0) {
-        owed.push(`stamp paper for the ${doc.title}`);
+        owed.push(`stamp paper for their copy of the ${doc.title}`);
       }
     }
     if (owed.length) lines.push(`${party.name}: ${owed.join("; ")}`);
   }
-  return lines.length ? `Still awaited for ${s.name}:\n\n${lines.map((l) => `• ${l}`).join("\n")}` : `Everything for ${s.name} has been received.`;
+  const date = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return lines.length
+    ? `Still awaited for ${s.name}, as at ${date}:\n\n${lines.map((l) => `• ${l}`).join("\n")}`
+    : `Every signed page and stamp paper for ${s.name} has been received.`;
 }

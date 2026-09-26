@@ -58,7 +58,7 @@ doesn't let anyone else in.
 
 1. **They ask.** At app.agmt.legal, "Ask for access". They get "Your request for
    Execute by Agmt"; the request goes on the approved list as waiting.
-2. **You decide from your email.** "Access request: Name, Firm" has three
+2. **You decide from your email.** "Access request: Name" has three
    buttons. Each opens a page on app.agmt.legal showing the request; nothing
    happens until you press the button there (mail scanners open links).
    - **Approve** sends "Set up your Execute account" with the set-up link. The page also

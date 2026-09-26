@@ -143,6 +143,7 @@ const WHY = "You're receiving this because you asked for access to Execute at ap
 const SIGN_OFF_TEXT = ["Regards,", "Agmt"];
 const SIGN_OFF_HTML = `<p ${P}>Regards,<br>Agmt</p>`;
 
+/** `firm` is no longer asked for; older requests may still carry one, and it is ignored. */
 export type AccessRequest = { name: string; email: string; firm?: string; note?: string };
 export type Mail = { subject: string; text: string; html: string };
 
@@ -165,12 +166,11 @@ const dear = (name: string | null | undefined) => (name?.trim() ? `Dear ${greeti
 
 /** To the person who asked: thanks, what happens next, reply to reach us. */
 export function accessThanks(request: AccessRequest): Mail {
-  const firm = request.firm?.trim();
   const { text, html } = compose({
     greeting: dear(request.name),
     heading: "Thank you for asking",
     paras: [
-      `Thank you for asking for access to Execute${firm ? ` for ${firm}` : ""}.`,
+      "Thank you for asking for access to Execute.",
       "Access is by invitation for now. When yours is ready, we'll email you a link to set up your account. There's nothing more you need to do.",
       "Execute assembles an executed copy for every party to a multi-party agreement: signature pages out, signed pages and stamp papers in. It runs in your browser, and your documents are not uploaded.",
       "If you have a closing coming up, or a question, reply to this email.",
@@ -182,8 +182,7 @@ export function accessThanks(request: AccessRequest): Mail {
 
 /** To the founder: who asked, and one button per decision. */
 export function accessNotice(request: AccessRequest, links: { decide: string }, context: { acknowledged: boolean; again: boolean }): Mail {
-  const firm = request.firm?.trim();
-  const label = `${request.name.trim()}${firm ? `, ${firm}` : ""}`;
+  const label = request.name.trim();
   const note = request.note?.trim();
   const url = (action: string) => `${links.decide}?do=${action}`;
   const status = context.acknowledged ? "They were sent a thank-you email." : "No thank-you email could be sent to them (check AUTH_EMAIL_FROM).";
@@ -192,7 +191,6 @@ export function accessNotice(request: AccessRequest, links: { decide: string }, 
     "",
     `Name:  ${request.name}`,
     `Email: ${request.email}`,
-    `Firm:  ${firm || "not given"}`,
     "",
     "What they sign most often:",
     note || "(not given)",
@@ -212,7 +210,6 @@ export function accessNotice(request: AccessRequest, links: { decide: string }, 
      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 0">
        ${row("Name", escapeHtml(request.name))}
        ${row("Email", escapeHtml(request.email))}
-       ${row("Firm", escapeHtml(firm || "not given"))}
        ${row("Signs", escapeHtml(note || "not given"))}
      </table>
      ${buttons(button(url("approve"), "Approve"), button(url("not_yet"), "Not yet", false), button(url("decline"), "Decline", false))}

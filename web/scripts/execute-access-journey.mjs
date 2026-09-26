@@ -97,8 +97,7 @@ async function askForAccess(page, person) {
   await ready(page, "[data-testid='ask-for-access']");
   const form = page.getByTestId("ask-for-access");
   await form.getByLabel("Name").fill(person.name);
-  await form.getByLabel("Work email").fill(person.email);
-  await form.getByLabel("Firm or company").fill(person.firm);
+  await form.getByLabel("Email", { exact: true }).fill(person.email);
   await form.getByLabel(/What do you sign/).fill("SHAs with a dozen investors");
   await form.getByRole("button", { name: "Ask for access" }).click();
   await page.getByTestId("access-sent").waitFor();
@@ -132,7 +131,7 @@ async function decide(page, decisionUrl, action) {
 const toolOpen = (page) => page.locator("[data-testid='start'][data-ready='true']").waitFor({ timeout: 60_000 });
 
 try {
-  const priya = { name: "Priya Nair", email: `priya.${run}@firm.test`, firm: "Khaitan & Co" };
+  const priya = { name: "Priya Nair", email: `priya.${run}@firm.test` };
   const { page } = await newPage();
 
   await page.goto(`${BASE}/`);
@@ -230,7 +229,7 @@ try {
   check(mail().filter((m) => m.to.includes(FOUNDER)).length === before, "the founder isn't asked about an approved person again");
 
   // Not yet, then Decline, for others.
-  const rahul = { name: "Rahul Mehta", email: `rahul.${run}@firm.test`, firm: "AZB" };
+  const rahul = { name: "Rahul Mehta", email: `rahul.${run}@firm.test` };
   await askForAccess(againPage, rahul);
   const rahulDecide = link(await mailTo(FOUNDER, /Access request: Rahul Mehta/), /Approve \(sends the set-up link\): (\S+)\?do=approve/);
   await decide(againPage, rahulDecide, "not_yet");
@@ -252,7 +251,7 @@ try {
   await setUpAccount(samPage, `${BASE}/join?email=${encodeURIComponent(sam)}&name=Sam`, "sam's long passphrase!");
   await samPage.goto(link(await mailTo(sam, /Confirm your email/), /(http\S+verify-email\S+)/));
   await ready(samPage, "[data-testid='ask-for-access']");
-  check((await samPage.getByLabel("Work email").getAttribute("readonly")) !== null, "a signed-in person who hasn't asked gets the request form with their email fixed");
+  check((await samPage.getByTestId("ask-for-access").getByLabel("Email", { exact: true }).getAttribute("readonly")) !== null, "a signed-in person who hasn't asked gets the request form with their email fixed");
   await samPage.getByLabel("Name").fill("Sam Iyer");
   await samPage.getByRole("button", { name: "Ask for access" }).click();
   await samPage.getByTestId("access-sent").waitFor();

@@ -34,7 +34,7 @@ const request = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-const priya = { name: "Priya Nair", email: "priya@khaitan.example", firm: "Khaitan & Co", note: "SHAs with 10+ investors" };
+const priya = { name: "Priya Nair", email: "priya@khaitan.example", note: "SHAs & SSAs with 10+ investors" };
 const configured = {
   RESEND_API_KEY: "re_test",
   AUTH_EMAIL_FROM: "Agmt <hello@agmt.legal>",
@@ -70,12 +70,14 @@ test("an access request thanks the person, is kept on the list, and gives the fo
     assert.match(thanks.text, /Access is by invitation for now/);
     assert.match(thanks.text, /email you a link to set up your account/);
     assert.match(thanks.html ?? "", /alt="Execute by Agmt"/);
-    assert.match(thanks.html ?? "", /Khaitan &amp; Co/, "user text is escaped in HTML");
+    assert.doesNotMatch(thanks.text, /firm|company/i, "no organisation is asked for or mentioned");
     for (const mail of [thanks.text, thanks.html ?? ""]) assert.doesNotMatch(mail, /beta|small group|coming soon|after the/i);
     assert.deepEqual(notice.to, ["founder@agmt.legal"]);
     assert.equal(notice.reply_to, "priya@khaitan.example");
-    assert.equal(notice.subject, "Access request: Priya Nair, Khaitan & Co");
-    assert.match(notice.text, /SHAs with 10\+ investors/);
+    assert.equal(notice.subject, "Access request: Priya Nair");
+    assert.match(notice.html ?? "", /SHAs &amp; SSAs/, "user text is escaped in HTML");
+    assert.doesNotMatch(notice.text, /Firm:/);
+    assert.match(notice.text, /SHAs & SSAs with 10\+ investors/);
     assert.doesNotMatch(notice.text, /npm run/, "no command line for the founder");
     const token = tokenFrom(notice);
     for (const action of ["approve", "not_yet", "decline"]) assert.match(notice.html ?? "", new RegExp(`/access/${token}\\?do=${action}`));
@@ -135,7 +137,7 @@ test("asking again: approved people get their email again; declined people go ba
     await handleExecuteApi(decide(token, "decline"));
     sent.length = 0;
     await handleExecuteApi(request("access-request", priya));
-    assert.equal(sent[1].subject, "Access request: Priya Nair, Khaitan & Co");
+    assert.equal(sent[1].subject, "Access request: Priya Nair");
     assert.match(sent[1].text, /asked again/);
     assert.equal((await store.get("priya@khaitan.example"))?.status, "requested");
   });

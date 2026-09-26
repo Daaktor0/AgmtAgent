@@ -110,7 +110,7 @@ function SignIn() {
 
 /** New people: the access request. The email is fixed when they're signed in. */
 function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string | null; name?: string | null }) {
-  const [form, setForm] = useState({ name: knownName ?? "", email: lockedEmail ?? "", firm: "", note: "" });
+  const [form, setForm] = useState({ name: knownName ?? "", email: lockedEmail ?? "", note: "" });
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed" | "limited">("idle");
   const [result, setResult] = useState<{ acknowledged: boolean; status: string }>({ acknowledged: false, status: "requested" });
   const ready = useHydrated();
@@ -157,7 +157,7 @@ function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string 
       <Field label="Name">
         <input required maxLength={120} autoComplete="name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={FIELD} />
       </Field>
-      <Field label="Work email">
+      <Field label="Email">
         <input
           type="email"
           required
@@ -168,9 +168,6 @@ function AskForAccess({ email: lockedEmail, name: knownName }: { email?: string 
           onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           className={FIELD}
         />
-      </Field>
-      <Field label="Firm or company (optional)">
-        <input maxLength={160} autoComplete="organization" value={form.firm} onChange={(e) => setForm((f) => ({ ...f, firm: e.target.value }))} className={FIELD} />
       </Field>
       <Field label="What do you sign most often? (optional)">
         <textarea rows={3} maxLength={1000} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} className="block w-full border border-rule-strong bg-paper p-3 text-sm outline-none focus:border-ink" />
